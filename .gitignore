@@ -1,0 +1,15 @@
+dist/
+cookidoo_api.egg-info/
+catalog/
+test/
+.venv
+__pycache__
+.ruff_cache
+.mypy_cache
+.env
+.coverage
+build/
+site
+out
+scratch*
+.cookies

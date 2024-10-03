@@ -1,0 +1,24 @@
+{
+  "cSpell.words": [
+    "Cookidoo",
+    "dotenv",
+    "gaierror",
+    "headful",
+    "levelname",
+    "miaucl",
+    "networkidle",
+    "Vorwerk"
+  ],
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.codeActionsOnSave": {
+      "source.fixAll": "explicit"
+    }
+  },
+  "python.testing.pytestArgs": [
+    "-v",
+    "--color=yes"
+  ],
+  "python.analysis.typeCheckingMode": "basic"
+}

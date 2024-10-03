@@ -1,0 +1,13 @@
+services:
+  chromium_runner:
+    image: chromium_runner
+    container_name: chromium_runner
+    build:
+      context: .
+      args:
+        BUILD_FROM: ghcr.io/linuxserver/baseimage-kasmvnc:arm64v8-debianbookworm
+        # BUILD_FROM: ghcr.io/linuxserver/baseimage-kasmvnc:amd64-debianbookworm
+    ports:
+      - 3000:3000
+      - 3001:3001
+      - 13011:9222
