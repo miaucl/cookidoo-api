@@ -6,6 +6,7 @@ test/
 __pycache__
 .ruff_cache
 .mypy_cache
+.pytest_cache
 .env
 .coverage
 build/

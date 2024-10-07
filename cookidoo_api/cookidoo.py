@@ -89,7 +89,7 @@ class Cookidoo:
         return cookies_serialize(self._cookies)
 
     @cookies.setter
-    async def cookies(self, value: str) -> None:
+    def cookies(self, value: str) -> None:
         """Setter for the cookies."""
         self._cookies = cookies_deserialize(value)
 

@@ -2,7 +2,12 @@
 
 __version__ = "0.1.0"
 
-from .const import DEFAULT_COOKIDOO_CONFIG
+from .const import (
+    DEFAULT_COOKIDOO_CONFIG,
+    DEFAULT_NETWORK_TIMEOUT,
+    DEFAULT_RETRIES,
+    DEFAULT_TIMEOUT,
+)
 from .cookidoo import Cookidoo
 from .exceptions import (
     CookidooActionException,
@@ -12,6 +17,7 @@ from .exceptions import (
     CookidooException,
     CookidooSelectorException,
     CookidooUnavailableException,
+    CookidooUnexpectedStateException,
 )
 from .types import (
     CookidooBrowserType,
@@ -35,5 +41,9 @@ __all__ = [
     "CookidooSelectorException",
     "CookidooActionException",
     "CookidooUnavailableException",
+    "CookidooUnexpectedStateException",
     "DEFAULT_COOKIDOO_CONFIG",
+    "DEFAULT_RETRIES",
+    "DEFAULT_NETWORK_TIMEOUT",
+    "DEFAULT_TIMEOUT",
 ]
