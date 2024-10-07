@@ -146,12 +146,12 @@ async def delete_additional_items(
         for additional_item in additional_items
     ]
     for i, additional_item_id in enumerate(additional_item_ids):
-        for retry in range(DEFAULT_RETRIES):
+        for retry in range(cfg.get("retries", DEFAULT_RETRIES)):
             try:
                 await delete_additional_item(i, additional_item_id)
                 break
             except CookidooException as e:
-                if retry < DEFAULT_RETRIES:
+                if retry < cfg.get("retries", DEFAULT_RETRIES):
                     _LOGGER.warning(
                         "Could not delete additional item (%d) on try #%d due to error:\n%s",
                         i,

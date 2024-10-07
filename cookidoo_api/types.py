@@ -5,7 +5,7 @@ from typing import Literal, TypedDict
 CookidooBrowserType = Literal["chromium", "firefox", "webkit"]
 """Cookidoo browser type"""
 
-CookidooCaptchaRecoveryType = Literal["fail", "local_headful", "callback"]
+CookidooCaptchaRecoveryType = Literal["fail", "user_input", "capsolver"]
 """Cookidoo captcha recovery type"""
 
 CookidooItemStateType = Literal["pending", "checked"]
@@ -35,6 +35,13 @@ class CookidooConfig(TypedDict):
     password
         The password to login
 
+    network_timeout
+        Duration to wait before considering a navigation as failed
+    timeout
+        Duration to wait before any action (selector, click, etc.) as failed
+    retries
+        Retry a complex actions N times before considering it as failed
+
     tracing
         Trace all action happening and save it as trace.zip to review
     screenshots
@@ -52,6 +59,10 @@ class CookidooConfig(TypedDict):
 
     email: str
     password: str
+
+    network_timeout: int
+    timeout: int
+    retries: int
 
     tracing: bool
     screenshots: bool

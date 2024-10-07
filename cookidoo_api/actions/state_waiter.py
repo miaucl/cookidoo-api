@@ -55,14 +55,12 @@ async def state_waiter(
                 await parent.wait_for_selector(
                     sel,
                     state=state if _last else None,
-                    timeout=3000,
                 )
                 next_parent = await parent.query_selector(sel) or None
             else:
                 await page.wait_for_selector(
                     sel,
                     state=state if _last else None,
-                    timeout=3000,
                 )
                 next_parent = await page.query_selector(sel) or None
             parent = next_parent

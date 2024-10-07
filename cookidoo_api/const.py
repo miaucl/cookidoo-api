@@ -63,6 +63,8 @@ SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_CONFIRM_SUB_SELECTOR: Final = "button"
 DOM_CHECK_ATTACHED: Final = "element => document.body.contains(element)"
 
 DEFAULT_RETRIES = 3
+DEFAULT_NETWORK_TIMEOUT = 5000
+DEFAULT_TIMEOUT = 3000
 
 
 DEFAULT_COOKIDOO_CONFIG = CookidooConfig(
@@ -74,6 +76,9 @@ DEFAULT_COOKIDOO_CONFIG = CookidooConfig(
         "headless": True,
         "email": "your@email",
         "password": "1234password!",
+        "network_timeout": DEFAULT_NETWORK_TIMEOUT,
+        "timeout": DEFAULT_TIMEOUT,
+        "retries": DEFAULT_RETRIES,
         "tracing": False,
         "screenshots": False,
         "out_dir": "./out",

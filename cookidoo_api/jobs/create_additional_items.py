@@ -96,7 +96,7 @@ async def create_additional_items(
         )
         try:
             await input_el.focus()
-            await input_el.fill(additional_item["label"], timeout=3000)
+            await input_el.fill(additional_item["label"])
         except PlaywrightTimeoutError as e:
             raise CookidooActionException(
                 f"Enter label into input field failed due to a timeout.\n{additional_item}"
@@ -129,7 +129,7 @@ async def create_additional_items(
         )
         # Await network stuff
         await page.wait_for_load_state(
-            "networkidle", timeout=3000
+            "networkidle"
         )  # Waits until there are no network connections for at least 500ms
         # # Hard-coded timeout for better behaviour after heavy network related actions
         # await page.wait_for_timeout(100)
@@ -173,12 +173,12 @@ async def create_additional_items(
         )
 
     for i, additional_item in enumerate(additional_items):
-        for retry in range(DEFAULT_RETRIES):
+        for retry in range(cfg.get("retries", DEFAULT_RETRIES)):
             try:
                 await create_additional_item(i, additional_item)
                 break
             except CookidooException as e:
-                if retry < DEFAULT_RETRIES:
+                if retry < cfg.get("retries", DEFAULT_RETRIES):
                     _LOGGER.warning(
                         "Could not create additional item (%d) on try #%d due to error:\n%s",
                         i,

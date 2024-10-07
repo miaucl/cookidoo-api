@@ -5,7 +5,7 @@ from types import TracebackType
 
 from playwright.async_api import Browser, Cookie, Page
 
-from cookidoo_api.const import LOGIN_START_URL
+from cookidoo_api.const import DEFAULT_NETWORK_TIMEOUT, DEFAULT_TIMEOUT, LOGIN_START_URL
 from cookidoo_api.types import CookidooConfig
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,6 +62,12 @@ class LandingPage:
         """
         _LOGGER.debug("Create new browser context")
         context = await self._browser.new_context()
+
+        # Set timeouts
+        context.set_default_navigation_timeout(
+            self._cfg.get("network_timeout", DEFAULT_NETWORK_TIMEOUT)
+        )
+        context.set_default_timeout(self._cfg.get("timeout", DEFAULT_TIMEOUT))
 
         # Setup tracing if configured
         if self._cfg["tracing"]:

@@ -47,16 +47,10 @@ async def waiter(
     for i, sel in enumerate(selector_list):
         try:
             if parent:
-                await parent.wait_for_selector(
-                    sel,
-                    timeout=3000,
-                )
+                await parent.wait_for_selector(sel)
                 next_parent = await parent.query_selector(sel) or None
             else:
-                await page.wait_for_selector(
-                    sel,
-                    timeout=3000,
-                )
+                await page.wait_for_selector(sel)
                 next_parent = await page.query_selector(sel) or None
             parent = next_parent
         except PlaywrightTimeoutError as e:

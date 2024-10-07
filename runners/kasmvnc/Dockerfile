@@ -1,4 +1,4 @@
-ARG BUILD_VERSION
+ARG BUILD_FROM
 
 FROM ${BUILD_FROM}
 
@@ -27,7 +27,7 @@ RUN \
 # add local files
 COPY /root /
 
-# ports and volumes
+# ports
 EXPOSE 3000
 EXPOSE 3001
 EXPOSE 13011

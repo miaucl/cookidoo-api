@@ -49,11 +49,10 @@ async def clear_items(
             SHOPPING_LIST_OPTIONS_SELECTOR,
             SHOPPING_LIST_CLEAR_ALL_OPTION_SELECTOR,
         )
-        await page.wait_for_selector(SHOPPING_LIST_OPTIONS_SELECTOR, timeout=3000)
+        await page.wait_for_selector(SHOPPING_LIST_OPTIONS_SELECTOR)
         await page.wait_for_selector(
             SHOPPING_LIST_CLEAR_ALL_OPTION_SELECTOR,
             state="attached",
-            timeout=3000,
         )
     except PlaywrightTimeoutError as e:
         raise CookidooSelectorException(
@@ -101,9 +100,7 @@ async def clear_items(
             "Wait for the confirmation modal: %s",
             SHOPPING_LIST_CLEAR_ALL_MODAL_CONFIRM_SELECTOR,
         )
-        await page.wait_for_selector(
-            SHOPPING_LIST_CLEAR_ALL_MODAL_CONFIRM_SELECTOR, timeout=3000
-        )
+        await page.wait_for_selector(SHOPPING_LIST_CLEAR_ALL_MODAL_CONFIRM_SELECTOR)
     except PlaywrightTimeoutError as e:
         raise CookidooSelectorException(
             f"Shopping list confirm modal not found,  due to timeout.\n{error_message_selector(page.url, SHOPPING_LIST_CLEAR_ALL_MODAL_CONFIRM_SELECTOR)}"
@@ -124,7 +121,7 @@ async def clear_items(
 
     # Await network stuff
     await page.wait_for_load_state(
-        "networkidle", timeout=3000
+        "networkidle"
     )  # Waits until there are no network connections for at least 500ms
 
     if cfg["screenshots"]:

@@ -1,12 +1,22 @@
 {
   "cSpell.words": [
+    "aiohttp",
+    "asyncio",
+    "capsolver",
     "Cookidoo",
     "dotenv",
     "gaierror",
     "headful",
+    "jlesage",
+    "kasmvnc",
     "levelname",
     "miaucl",
+    "mypy",
     "networkidle",
+    "novnc",
+    "recaptcha",
+    "swiftshader",
+    "venv",
     "Vorwerk"
   ],
   "[python]": {

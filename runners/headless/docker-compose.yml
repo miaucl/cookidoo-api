@@ -1,0 +1,8 @@
+services:
+  chromium-runner:
+    build:
+      context: .
+    container_name: chromium-runner
+    image: chromium-runner
+    ports:
+      - 9222:9223

@@ -9,6 +9,7 @@ from playwright.async_api import (
     async_playwright,
 )
 
+from cookidoo_api.actions import clicker, selector
 from cookidoo_api.const import (
     COOKIE_VALIDATION_SELECTOR,
     COOKIE_VALIDATION_URL,
@@ -122,9 +123,7 @@ class Cookidoo:
 
                 # Await the welcome message
                 try:
-                    await page.wait_for_selector(
-                        COOKIE_VALIDATION_SELECTOR, timeout=3000
-                    )
+                    await page.wait_for_selector(COOKIE_VALIDATION_SELECTOR)
                 except PlaywrightTimeoutError as e:
                     raise CookidooSelectorException(
                         f"Welcome message not found due to a timeout.\n{error_message_selector(page.url, COOKIE_VALIDATION_SELECTOR)}"
@@ -219,7 +218,10 @@ class Cookidoo:
         self
             Cookidoo class
         captcha_recovery_mode
-            Captcha recovery is a mode when you have been detected as a bot. It opens the browser in visual mode and lets you solve the captcha
+            Captcha recovery is useful when you have been detected as a bot or automation script. It lets you use one of the following strategies:
+            - fail: Do nothing and fail (default)
+            - user_input: Wait indefinitely for the user to solve the captcha (only viable for non-headless setups)
+            - capsolver: Using capsolver to solve the captcha (tbd)
         force_session_refresh
             Force the token refresh and skip cookie validation
         out_dir
@@ -255,6 +257,8 @@ class Cookidoo:
             LandingPage(self._cfg, browser, self._cookies, out_dir) as page,
         ):
             try:
+                _LOGGER.debug("Attempt login")
+
                 # Go to login start page
                 await page.goto(LOGIN_START_URL)
 
@@ -263,16 +267,8 @@ class Cookidoo:
                     await page.screenshot(path=f"{out_dir}/1-login-start.png")
 
                 # Await the button and click on "Login"
-                try:
-                    await page.wait_for_selector(LOGIN_START_SELECTOR, timeout=3000)
-                except PlaywrightTimeoutError as e:
-                    raise CookidooSelectorException(
-                        f"Login button not found due to a timeout.\n{error_message_selector(page.url, LOGIN_START_SELECTOR)}"
-                    ) from e
-                try:
-                    await page.click(LOGIN_START_SELECTOR)
-                except PlaywrightError as e:
-                    raise CookidooActionException("Could not click on login") from e
+                login_el = await selector(page, LOGIN_START_SELECTOR)
+                await clicker(page, login_el, "Cannot not click on login")
 
                 # Take a screenshot of the login details page
                 if self._cfg["screenshots"]:
@@ -280,21 +276,30 @@ class Cookidoo:
 
                 # Await the email field and enter email and password
                 try:
-                    # If in captcha recovery mode, wait here until captcha is solved
-                    if captcha_recovery_mode == "local_headful":
-                        assert not self._cfg["headless"]
+                    # If captcha recovery mode is user_input, wait here until captcha is solved
+                    if captcha_recovery_mode == "user_input":
+                        if not self._cfg["headless"]:
+                            _LOGGER.fatal(
+                                "Using captcha_recovery_mode='user_input' is not supported for headless runners. Process is blocked, manual abort required!"
+                            )
+                        await page.wait_for_selector(
+                            LOGIN_EMAIL_SELECTOR, timeout=1000000
+                        )
+                    if captcha_recovery_mode == "capsolver":
+                        if not self._cfg["headless"]:
+                            _LOGGER.warning(
+                                "Capsolver is not yet implemented. Should you have the capsolver browser extension installed, ignore this warning."
+                            )
                         await page.wait_for_selector(
                             LOGIN_EMAIL_SELECTOR, timeout=1000000
                         )
                     # Assume, login should success normally
                     else:
-                        await page.wait_for_selector(LOGIN_EMAIL_SELECTOR, timeout=3000)
+                        await page.wait_for_selector(LOGIN_EMAIL_SELECTOR)
                 except PlaywrightTimeoutError as e:
                     login_error_reason = "generic"
                     try:
-                        await page.wait_for_selector(
-                            LOGIN_CAPTCHA_SELECTOR, timeout=500
-                        )
+                        await page.wait_for_selector(LOGIN_CAPTCHA_SELECTOR)
                         # Captcha against bot detection...
                         login_error_reason = "captcha"
                     except Exception as _e:
@@ -325,10 +330,8 @@ class Cookidoo:
                 if self._cfg["screenshots"]:
                     await page.screenshot(path=f"{out_dir}/3-login-details-filled.png")
 
-                try:
-                    await page.click(LOGIN_SUBMIT_SELECTOR)
-                except PlaywrightError as e:
-                    raise CookidooActionException("Could not click on submit") from e
+                submit_el = await selector(page, LOGIN_SUBMIT_SELECTOR)
+                await clicker(page, submit_el, "Cannot not click on submit")
 
                 cookies = await page.context.cookies()
 

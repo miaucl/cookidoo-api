@@ -136,7 +136,7 @@ async def update_items(
             )
             # Await network stuff
             await page.wait_for_load_state(
-                "networkidle", timeout=3000
+                "networkidle"
             )  # Waits until there are no network connections for at least 500ms
             # # Hard-coded timeout for better behaviour after heavy network related actions
             # await page.wait_for_timeout(100)
@@ -179,12 +179,12 @@ async def update_items(
         )
 
     for i, item in enumerate(items):
-        for retry in range(DEFAULT_RETRIES):
+        for retry in range(cfg.get("retries", DEFAULT_RETRIES)):
             try:
                 await update_item(i, item)
                 break
             except CookidooException as e:
-                if retry < DEFAULT_RETRIES:
+                if retry < cfg.get("retries", DEFAULT_RETRIES):
                     _LOGGER.warning(
                         "Could not update item (%d) on try #%d due to error:\n%s",
                         i,

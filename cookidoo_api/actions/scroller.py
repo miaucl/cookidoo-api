@@ -36,6 +36,6 @@ async def scroller(
     if not await element.is_visible():
         raise CookidooSelectorException(err_message)
     try:
-        await element.scroll_into_view_if_needed(timeout=3000)
+        await element.scroll_into_view_if_needed()
     except (PlaywrightError, PlaywrightTimeoutError) as e:
         raise CookidooActionException(err_message) from e

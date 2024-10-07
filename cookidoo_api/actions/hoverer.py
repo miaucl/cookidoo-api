@@ -36,6 +36,6 @@ async def hoverer(
     if not await element.is_visible():
         raise CookidooSelectorException(err_message)
     try:
-        await element.hover(timeout=3000)
+        await element.hover()
     except (PlaywrightError, PlaywrightTimeoutError) as e:
         raise CookidooActionException(err_message) from e

@@ -17,6 +17,12 @@ The developers of this module are in no way endorsed by or affiliated with Cooki
 
 ## Installation
 
+**Disclaimer: This library needs a runner to execute the calls through web automation. Make sure to have it correctly setup using one of the following options before proceeding.**
+
+[Setup runner](https://github.com/cookidoo-api/blob/main/runners)
+
+Once you have tested your runner, install the library and use it with your runner.
+
 `pip install cookidoo-api`
 
 ## Documentation
@@ -66,129 +72,7 @@ async def main():
 asyncio.run(main())
 ```
 
-## Manipulating lists with `batch_update_list`
-
-This method uses the newer API endpoint for adding, completing and removing items from a list, which is also used in the Bring App. The items can be identified by their uuid and therefore some things are possible that are not possible with the legacy endpoints like:
-
-- Add/complete/remove multiple items at once
-- Adding multiple items with the same Name but different specifications
-- You can work with a unique identifier for an item even before adding it to a list, just use uuid4 to generate a random uuid!
-
-Usage examples:
-
-### Add an item
-
-When adding an item, the `itemId` is required, `spec` and `uuid` are optional. If you need a unique identifier before adding an item, you can just generate a uuid4.
-
-```python
-item = {
-  "itemId": "Cilantro",
-  "spec": "fresh",
-  "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-}
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  item,
-  BringItemOperation.ADD)
-```
-
-### Updating an items specification
-
-When updating an item, use ADD operation again. The `itemId` is required and the item `spec` will be added/updated on the existing item on the list. For better matching an existing item (if there is more than one item with the same `itemId`), you can use it's unique identifier `uuid`.
-
-```python
-item = {
-  "itemId": "Cilantro",
-  "spec": "dried",
-  "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-}
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  item,
-  BringItemOperation.ADD)
-```
-
-### Multiple items
-
-```python
-# multiple items can be passed as list of items
-items = [{
-  "itemId": "Cilantro",
-  "spec": "fresh",
-  "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-},
-{
-  "itemId": "Parsley",
-  "spec": "dried",
-  "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-}]
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  items,
-  BringItemOperation.ADD)
-```
-
-### Add multiple items with the same name but different specifications
-
-When adding items with the same name the parameter `uuid` is required, otherwise the previous item will be matched by `itemId` and it's specification will be overwritten
-
-```python
-items = [
-  {
-    "itemId": "Cilantro",
-    "spec": "100g, dried",
-    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-  },
-    {
-    "itemId": "Cilantro",
-    "spec": "fresh",
-    "uuid": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-  }
-]
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  items,
-  BringItemOperation.ADD)
-```
-
-### Removing or completing an item
-
-When removing or completing an item you must submit `itemId` and `uuid`, `spec` is optional. Only the `uuid` will not work. Leaving out the `uuid` and submitting `itemId` and `spec` will also work. When submitting only `itemId` the Bring API will match the oldest item.
-
-```python
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  {"itemId": "Cilantro", "uuid" : "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"},
-  BringItemOperation.REMOVE)
-
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  {"itemId": "Cilantro", "uuid" : "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"},
-  BringItemOperation.COMPLETE)  
-```
-
-### Renaming an item (not recommended)
-
-An item that is already on the list can be renamed by sending it's `uuid` with a changed `itemId`. But it is highly advised against it because the Bring App will behave weirdly as it does not refresh an items name, not even when force reloading (going to the top of the list and pulling down). Users have to close the list by going to the overview or closing the app and only then when the list is completely refreshed the change of the name will show up.
-
-```python
-# Add an item
-item = {
-  "itemId": "Cilantro",
-  "uuid" : "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxx"
-}
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  item,
-  BringItemOperation.ADD)
-
-# Rename the item, and submit it again with the same uuid
-item["itemId"] = "Coriander"
-await bring.batch_update_list(
-  lists[0]['listUuid'],
-  item,
-  BringItemOperation.ADD)  
-```
+TODO
 
 ## Exceptions
 
@@ -217,7 +101,7 @@ Traceback (most recent call last):
 RuntimeError: Event loop is closed
 ```
 
-You can fix this according to [this](https://stackoverflow.com/questions/68123296/asyncio-throws-runtime-error-with-exception-ignored) stackoverflow answer by adding the following line of code before executing the library:
+You can fix this according to [this](https://stackoverflow.com/questions/68123296/asyncio-throws-runtime-error-with-exception-ignored) StackOverflow answer by adding the following line of code before executing the library:
 
 ```python
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
@@ -225,7 +109,35 @@ asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 ## Bot detection and captcha problems
 
-There is an inbuilt bot detection on cookidoo which can block the login process. There is a clear error message, when that happens. The tokens are valid for around a month and therefore the library tries to minimize the amount of logins required and avoid the captcha process. Unfortunately, this is not always possible and a work-around is to set the flag `captcha` in the config, which triggers a browser start with UI to solve the captcha. Another option is to switch to another browser, which might help as well.
+There is an inbuilt bot detection on cookidoo which can block the login process. There is a clear error message, when that happens. The tokens are valid for a fixed duration and therefore the library tries to minimize the amount of logins required to avoid the captcha process. Unfortunately, this is not always possible when developing or debugging a setup, and you might run into it. To continue, either wait a day or switch to a runner with a gui and enable `captcha` mode to manually solve the captcha during the login or a service such as [`capsolver`](https://www.capsolver.com/).
+
+It is generally advised, to first try the login in `fail` mode and only activate a recovery mode on a `CookidooAuthBotDetectionException` raised.
+
+### Captcha recovery mode `user_input`
+
+```python
+cookidoo = Cookidoo(<your headful browser setup>)
+await cookidoo.login(captcha_recovery_mode="user_input")
+```
+
+_Be aware, using this option with a headless browser will indefinitely block the process in login, as it is waiting for user action._
+
+### Captcha recovery mode `recaptcha`
+
+This requires the `capsolver` to be installed.
+
+```bash
+pip install capsolver
+```
+
+```python
+cookidoo = Cookidoo(<your browser setup>)
+await cookidoo.login(captcha_recovery_mode="capsolver")
+```
+
+**This is not yet implemented.**
+
+Alternatively, they also provide a [browser extension](https://docs.capsolver.com/en/guide/extension/introductions/), which might be a cleaner way.
 
 ## Dev
 
