@@ -40,7 +40,7 @@ class CookidooConfig(TypedDict):
     timeout
         Duration to wait before any action (selector, click, etc.) as failed
     retries
-        Retry a complex actions N times before considering it as failed
+        Retry complex actions N times before considering it as failed
 
     tracing
         Trace all action happening and save it as trace.zip to review

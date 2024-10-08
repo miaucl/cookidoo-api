@@ -38,11 +38,13 @@ from cookidoo_api.jobs import (
     CookidooBrowser,
     LandingPage,
     ShoppingList,
+    add_items,
     clear_items,
     create_additional_items,
     delete_additional_items,
     get_additional_items,
     get_items,
+    remove_items,
     update_additional_items,
     update_items,
 )
@@ -469,18 +471,56 @@ class Cookidoo:
         ):
             return await update_items(self._cfg, page, out_dir, items)
 
-    async def clear_items(
+    async def add_items(
         self,
-        out_dir: str = "out/clear_items",
+        receipt_id: str,
+        out_dir: str = "out/add_items",
     ) -> None:
-        """Clear items from list.
-
-        This a destructive operation and cannot be undone. This remove all items, regardless of item state.
+        """Add items to list from receipt.
 
         Parameters
         ----------
         cfg
             Cookidoo config
+        receipt_id
+            The id of the receipt to add the items to the shopping list
+        out_dir
+            Get directory to store output such as trace or screenshots
+
+        Raises
+        ------
+        CookidooAuthException
+            When the cookies are not valid anymore
+        CookidooNavigationException
+            When the page could not be found
+        CookidooSelectorException
+            When the page does not behave as expected and some content is not available
+        CookidooActionException
+            When the page does not allow to perform an expected action
+
+        """
+        await self.validate_cookies()
+
+        async with (
+            async_playwright() as p,
+            CookidooBrowser(self._cfg, p) as browser,
+            LandingPage(self._cfg, browser, self._cookies, out_dir) as page,
+        ):
+            return await add_items(self._cfg, page, receipt_id, out_dir)
+
+    async def remove_items(
+        self,
+        receipt_id: str,
+        out_dir: str = "out/remove_items",
+    ) -> None:
+        """Remove items from list of receipt.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+        receipt_id
+            The id of the receipt to remove the items from the shopping list
         out_dir
             Get directory to store output such as trace or screenshots
 
@@ -502,7 +542,7 @@ class Cookidoo:
             LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
             ShoppingList(self._cfg, landing_page, out_dir) as page,
         ):
-            return await clear_items(self._cfg, page, out_dir)
+            return await remove_items(self._cfg, page, receipt_id, out_dir)
 
     async def get_additional_items(
         self,
@@ -693,3 +733,38 @@ class Cookidoo:
                 out_dir,
                 additional_items,
             )
+
+    async def clear_items(
+        self,
+        out_dir: str = "out/clear_items",
+    ) -> None:
+        """Clear items from list.
+
+        This a destructive operation and cannot be undone. This remove all items, regardless of item state.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+        out_dir
+            Get directory to store output such as trace or screenshots
+
+        Raises
+        ------
+        CookidooAuthException
+            When the cookies are not valid anymore
+        CookidooSelectorException
+            When the page does not behave as expected and some content is not available
+        CookidooActionException
+            When the page does not allow to perform an expected action
+
+        """
+        await self.validate_cookies()
+
+        async with (
+            async_playwright() as p,
+            CookidooBrowser(self._cfg, p) as browser,
+            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, out_dir) as page,
+        ):
+            return await clear_items(self._cfg, page, out_dir)

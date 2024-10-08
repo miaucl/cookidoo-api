@@ -17,6 +17,10 @@ class CookidooAuthBotDetectionException(CookidooAuthException):
     """When an authentication error is encountered due to bot detection."""
 
 
+class CookidooNavigationException(CookidooException):
+    """When an page has not been found."""
+
+
 class CookidooSelectorException(CookidooException):
     """When an expected selector has not been found."""
 

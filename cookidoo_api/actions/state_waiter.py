@@ -66,7 +66,7 @@ async def state_waiter(
             parent = next_parent
         except PlaywrightTimeoutError as e:
             raise CookidooSelectorException(
-                f"{message}.\n{error_message_selector(page.url, selector_list[:i])}"
+                f"{message}.\n{error_message_selector(page.url, selector_list[:i+1])}"
             ) from e
 
     return parent

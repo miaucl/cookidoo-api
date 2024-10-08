@@ -18,6 +18,8 @@ COOKIE_VALIDATION_SELECTOR: Final = (
 SHOPPING_LIST_URL: Final = "https://cookidoo.ch/shopping"
 SHOPPING_LIST_SELECTOR: Final = "pm-shopping-list"
 
+SHOPPING_LIST_EMPTY_SUB_SELECTOR: Final = "core-error-page"
+
 SHOPPING_LIST_OPTIONS_SELECTOR: Final = "#shopping-list-options"
 SHOPPING_LIST_CLEAR_ALL_OPTION_SELECTOR: Final = "#clearAllRecipes"
 SHOPPING_LIST_CLEAR_ALL_MODAL_CONFIRM_SELECTOR: Final = (
@@ -60,6 +62,24 @@ SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_SELECTOR: Final = "pm-add-additional-item"
 SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_INPUT_SUB_SELECTOR: Final = "input"
 SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_CONFIRM_SUB_SELECTOR: Final = "button"
 
+SHOPPING_LIST_ITEMS_TAB_SELECTOR: Final = "core-content-navigation button:nth-child(1)"
+SHOPPING_LIST_RECEIPTS_TAB_SELECTOR: Final = (
+    "core-content-navigation button:nth-child(2)"
+)
+SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE: Final = (
+    '[id="shopping-list-trigger-{}"]'
+)
+SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE: Final = 'core-context-menu[trigger-id="shopping-list-trigger-{}"] core-handle-form[data-action="remove-recipes"]'
+
+RECEIPT_URL_PREFIX: Final = "https://cookidoo.ch/recipes/recipe/"
+RECEIPT_COOK_TODAY_SELECTOR: Final = '[id="cook-today-handle-form"] button'
+RECEIPT_ADD_OPTIONS_SELECTOR_TEMPLATE: Final = '[id="add-trigger-{}"]'
+RECEIPT_ADD_OPTION_SHOPPING_LIST_SELECTOR: Final = (
+    '[id="add-to-shopping-list-button"] button'
+)
+RECEIPT_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR: Final = (
+    'core-conversion-teaser [href^="/shopping"]'
+)
 DOM_CHECK_ATTACHED: Final = "element => document.body.contains(element)"
 
 DEFAULT_RETRIES = 3

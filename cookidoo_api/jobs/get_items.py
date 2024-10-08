@@ -4,9 +4,11 @@ import logging
 
 from playwright.async_api import Page
 
-from cookidoo_api.actions import selector, waiter
+from cookidoo_api.actions import selector, state_waiter, waiter
 from cookidoo_api.const import (
+    DEFAULT_RETRIES,
     SHOPPING_LIST_CHECKED_ITEMS_SELECTOR,
+    SHOPPING_LIST_EMPTY_SUB_SELECTOR,
     SHOPPING_LIST_ITEM_ID_ATTR,
     SHOPPING_LIST_ITEM_ID_SUB_SELECTOR,
     SHOPPING_LIST_ITEM_LABEL_SUB_SELECTOR,
@@ -14,7 +16,9 @@ from cookidoo_api.const import (
     SHOPPING_LIST_ITEM_SUB_SELECTOR,
     SHOPPING_LIST_ITEM_UNIT_SUB_SELECTOR,
     SHOPPING_LIST_ITEMS_SELECTOR,
+    SHOPPING_LIST_SELECTOR,
 )
+from cookidoo_api.exceptions import CookidooException
 from cookidoo_api.types import CookidooConfig, CookidooItem, CookidooItemStateType
 
 _LOGGER = logging.getLogger(__name__)
@@ -133,11 +137,32 @@ async def get_items(
             _logger.debug("Data: %s", item)
             items.append(item)
 
-    if pending:
-        _LOGGER.debug("Get pending items")
-        await items_for(SHOPPING_LIST_ITEMS_SELECTOR, "pending")
-    if checked:
-        _LOGGER.debug("Get checked items")
-        await items_for(SHOPPING_LIST_CHECKED_ITEMS_SELECTOR, "checked")
+    for retry in range(cfg.get("retries", DEFAULT_RETRIES)):
+        try:
+            items = []
+            if await state_waiter(
+                page, [SHOPPING_LIST_SELECTOR, SHOPPING_LIST_EMPTY_SUB_SELECTOR]
+            ):
+                break
+            if pending:
+                _LOGGER.debug("Get pending items")
+                await items_for(SHOPPING_LIST_ITEMS_SELECTOR, "pending")
+            if checked:
+                _LOGGER.debug("Get checked items")
+                await items_for(SHOPPING_LIST_CHECKED_ITEMS_SELECTOR, "checked")
 
+            break
+        except CookidooException as e:
+            if retry < cfg.get("retries", DEFAULT_RETRIES):
+                _LOGGER.warning(
+                    "Could not get items on try #%d due to error:\n%s",
+                    retry,
+                    e,
+                )
+            else:
+                _LOGGER.warning(
+                    "Exhausted all #%d retries for get items",
+                    retry + 1,
+                )
+                raise CookidooException("Could not get items") from e
     return items

@@ -46,7 +46,7 @@ async def selector(
 
         if not parent:
             raise CookidooSelectorException(
-                f"{message}.\n{error_message_selector(page.url, selector_list[:i])}"
+                f"{message}.\n{error_message_selector(page.url, selector_list[:i+1])}"
             )
 
     assert parent
