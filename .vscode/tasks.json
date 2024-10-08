@@ -68,7 +68,7 @@
     {
       "label": "Pytest: Smoke test",
       "type": "shell",
-      "command": "${command:python.interpreterPath} -m pytest smoke-test -v --color=yes -x",
+      "command": "${command:python.interpreterPath} -m pytest smoke_test -v --color=yes -x",
       "problemMatcher": [],
       "group": {
         "kind": "test",

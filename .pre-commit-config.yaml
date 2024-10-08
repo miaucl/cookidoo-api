@@ -20,7 +20,7 @@ repos:
         language: script
         types: [python]
         require_serial: true
-        files: ^(cookidoo_api)/.+\.py$
+        files: ^(cookidoo_api|tests|smoke_test)/.+\.py$
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.41.0
     hooks:

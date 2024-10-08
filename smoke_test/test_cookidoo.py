@@ -2,7 +2,8 @@
 
 from dotenv import load_dotenv
 
-from conftest import (
+from cookidoo_api.cookidoo import Cookidoo
+from smoke_test.conftest import (
     TEST_ADDITIONAL_ITEM_CREATE,
     TEST_ADDITIONAL_ITEM_LABEL,
     TEST_ITEM_DESCRIPTION,
@@ -18,17 +19,17 @@ load_dotenv()
 class TestLoginAndValidation:
     """Test login and validation."""
 
-    async def test_cookidoo_login(self, cookidoo):
+    async def test_cookidoo_login(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo validation of the token or login otherwise."""
         await cookidoo.login()
         save_cookies(cookidoo.cookies)
 
-    async def test_cookidoo_clear_items(self, cookidoo):
+    async def test_cookidoo_clear_items(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo clear items before testing of all jobs."""
         await cookidoo.clear_items()
         save_cookies(cookidoo.cookies)
 
-    async def test_cookidoo_items(self, cookidoo):
+    async def test_cookidoo_items(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo items."""
         assert (
             len(await cookidoo.get_items(pending=True, checked=True)) == 0
@@ -78,7 +79,7 @@ class TestLoginAndValidation:
 
         save_cookies(cookidoo.cookies)
 
-    async def test_cookidoo_additional_items(self, cookidoo):
+    async def test_cookidoo_additional_items(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo additional items."""
         assert (
             len(await cookidoo.get_additional_items(pending=True, checked=True)) == 0
@@ -141,7 +142,7 @@ class TestLoginAndValidation:
             pending=True, checked=True
         )
         await cookidoo.delete_additional_items(
-            additional_item["id"] for additional_item in additional_items_to_delete
+            [additional_item["id"] for additional_item in additional_items_to_delete]
         )
         assert (
             len(await cookidoo.get_additional_items(pending=True, checked=True)) == 0

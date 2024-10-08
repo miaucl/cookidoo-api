@@ -23,7 +23,7 @@ TEST_TOKEN_COOKIE = Cookie(
 
 
 @pytest.fixture(name="cookies_str")
-async def cookies_str():
+async def cookies_str() -> str:
     """Load the cookies as str."""
 
     # Open and read the file
@@ -32,7 +32,7 @@ async def cookies_str():
 
 
 @pytest.fixture(name="cookidoo")
-async def cookidoo_api_client(cookies_str):
+async def cookidoo_api_client(cookies_str: str) -> Cookidoo:
     """Create Cookidoo instance."""
 
     cookidoo = Cookidoo(cookies=cookies_str)

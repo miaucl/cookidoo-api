@@ -18,7 +18,7 @@ TEST_ADDITIONAL_ITEM_CREATE = ["Schokolade", "Apfel", "Orange", "Mehl"]
 TEST_ADDITIONAL_ITEM_LABEL = TEST_ADDITIONAL_ITEM_CREATE[0]
 
 
-def save_cookies(cookies: str):
+def save_cookies(cookies: str) -> None:
     """Save the cookies locally."""
     with open(".cookies", "w") as file:
         file.write(cookies)
@@ -32,14 +32,14 @@ def load_cookies() -> str:
 
 
 @pytest.fixture(name="cookies_str")
-async def cookies_str():
+async def cookies_str() -> str:
     """Load the cookies as str."""
 
     return load_cookies()
 
 
 @pytest.fixture(name="cookidoo")
-async def cookidoo_api_client(cookies_str):
+async def cookidoo_api_client(cookies_str: str) -> Cookidoo:
     """Create Cookidoo instance."""
 
     cookidoo = Cookidoo(

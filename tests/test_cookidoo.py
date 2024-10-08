@@ -6,6 +6,7 @@ from unittest.mock import patch
 from dotenv import load_dotenv
 import pytest
 
+from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.helpers import (
     cookies_deserialize,
     cookies_serialize,
@@ -22,7 +23,7 @@ load_dotenv()
 class TestCookieSerializing:
     """Test cookie serializing functions."""
 
-    async def test_cookies_deserialize(self, cookies_str):
+    async def test_cookies_deserialize(self, cookies_str: str) -> None:
         """Test deserializing of cookies."""
 
         assert len(cookies_str) > 0, "Cookies are empty"
@@ -44,7 +45,7 @@ class TestCookieSerializing:
         assert token, "Token is None"
         assert len(token) > 0, "Token is empty"
 
-    async def test_cookies_serialize(self):
+    async def test_cookies_serialize(self) -> None:
         """Test serializing of cookies."""
 
         cookies_str = cookies_serialize([TEST_TOKEN_COOKIE])
@@ -52,7 +53,7 @@ class TestCookieSerializing:
         assert len(cookies_str) > 0, "Cookies are not correctly serialized"
         assert "TEST_TOKEN" in cookies_str, "Cookies do not contain TEST_TOKEN"
 
-    async def test_cookies_merge(self, cookies_str):
+    async def test_cookies_merge(self, cookies_str: str) -> None:
         """Test merging of cookies."""
 
         cookies = cookies_deserialize(cookies_str)
@@ -79,7 +80,7 @@ class TestCookieSerializing:
 class TestErrorMessages:
     """Test error message functions."""
 
-    async def test_error_message_selector(self):
+    async def test_error_message_selector(self) -> None:
         """Test error message selector function."""
         assert (
             error_message_selector("PAGE", [])
@@ -113,8 +114,12 @@ class TestResolveRemoteAddr:
         ],
     )
     async def test_resolve_remote_addr(
-        self, value, result, gethostbyname_return, gethostbyname_raise
-    ):
+        self,
+        value: str,
+        result: str,
+        gethostbyname_return: str | None,
+        gethostbyname_raise: socket.gaierror | None,
+    ) -> None:
         """Test resolve remote addr function."""
 
         with patch(
@@ -131,7 +136,7 @@ class TestResolveRemoteAddr:
 class TestTimestampedOutDir:
     """Test timestamped out dir function."""
 
-    async def test_timestamped_out_dir(self):
+    async def test_timestamped_out_dir(self) -> None:
         """Test timestamped out dir function."""
         path = "out_dir"
         _path = timestamped_out_dir(path)
@@ -142,7 +147,7 @@ class TestTimestampedOutDir:
 class TestCookidooSetup:
     """Test cookie setup."""
 
-    async def test_cookidoo_setup(self, cookidoo):
+    async def test_cookidoo_setup(self, cookidoo: Cookidoo) -> None:
         """Test setup of the cookidoo instance."""
 
         assert cookidoo, "Cookidoo instance has been setup up with cookies"  # Loading the instance already deserializes the test.cookies in the `conftest.py` file
