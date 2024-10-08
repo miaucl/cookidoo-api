@@ -49,5 +49,5 @@ async def selector(
                 f"{message}.\n{error_message_selector(page.url, selector_list[:i+1])}"
             )
 
-    assert parent
+    assert parent, "Parent does not exist"
     return parent

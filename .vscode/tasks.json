@@ -49,9 +49,26 @@
       }
     },
     {
-      "label": "Pytest",
+      "label": "Pytest: Unit tests",
       "type": "shell",
       "command": "${command:python.interpreterPath} -m pytest --cov-config=pyproject.toml --cov=cookidoo_api -v --color=yes",
+      "problemMatcher": [],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "focus": true,
+        "reveal": "always"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "Pytest: Smoke test",
+      "type": "shell",
+      "command": "${command:python.interpreterPath} -m pytest smoke-test -v --color=yes -x",
       "problemMatcher": [],
       "group": {
         "kind": "test",

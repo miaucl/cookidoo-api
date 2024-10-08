@@ -4,12 +4,12 @@ import logging
 
 from playwright.async_api import Page
 
-from cookidoo_api.actions import clicker, scroller, selector, state_waiter
+from cookidoo_api.actions import clicker, scroller, selector, state_waiter, waiter
 from cookidoo_api.const import (
     DEFAULT_RETRIES,
-    SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE,
-    SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE,
-    SHOPPING_LIST_RECEIPTS_TAB_SELECTOR,
+    SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE,
+    SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE,
+    SHOPPING_LIST_RECIPES_TAB_SELECTOR,
 )
 from cookidoo_api.exceptions import CookidooException
 from cookidoo_api.types import CookidooConfig
@@ -20,10 +20,10 @@ _LOGGER = logging.getLogger(__name__)
 async def remove_items(
     cfg: CookidooConfig,
     page: Page,
-    receipt_id: str,
+    recipe_id: str,
     out_dir: str,
 ) -> None:
-    """Remove items from list of receipt.
+    """Remove items from list of recipe.
 
     Parameters
     ----------
@@ -31,8 +31,8 @@ async def remove_items(
         Cookidoo config
     page
         The page, which should have been validated already
-    receipt_id
-        The id of the receipt to remove the items from the shopping list
+    recipe_id
+        The id of the recipe to remove the items from the shopping list
     out_dir
         The directory to store output such as trace or screenshots
 
@@ -50,71 +50,73 @@ async def remove_items(
                 await page.screenshot(path=f"{out_dir}/1-shopping-list.png")
 
             _LOGGER.debug(
-                "Extract the receipt tab: %s",
-                SHOPPING_LIST_RECEIPTS_TAB_SELECTOR,
+                "Extract the recipe tab: %s",
+                SHOPPING_LIST_RECIPES_TAB_SELECTOR,
             )
-            receipt_tab_el = await selector(page, SHOPPING_LIST_RECEIPTS_TAB_SELECTOR)
+            await waiter(page, SHOPPING_LIST_RECIPES_TAB_SELECTOR)
+            recipe_tab_el = await selector(page, SHOPPING_LIST_RECIPES_TAB_SELECTOR)
             _LOGGER.debug(
-                "Click on receipt tab: %s",
-                SHOPPING_LIST_RECEIPTS_TAB_SELECTOR,
+                "Click on recipe tab: %s",
+                SHOPPING_LIST_RECIPES_TAB_SELECTOR,
             )
             await clicker(
                 page,
-                receipt_tab_el,
-                "Cannot click on receipt tab",
+                recipe_tab_el,
+                "Cannot click on recipe tab",
             )
 
             if cfg["screenshots"]:
-                await page.screenshot(path=f"{out_dir}/2-shopping-list-receipts.png")
+                await page.screenshot(path=f"{out_dir}/2-shopping-list-recipes.png")
 
             _LOGGER.debug(
                 "Extract the options button: %s",
-                SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE.format(receipt_id),
+                SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
+            )
+            await waiter(
+                page, SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id)
             )
             options_el = await selector(
-                page, SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE.format(receipt_id)
+                page, SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id)
             )
             await scroller(page, options_el)
 
             if cfg["screenshots"]:
-                await page.screenshot(path=f"{out_dir}/3-receipt-options.png")
+                await page.screenshot(path=f"{out_dir}/3-recipe-options.png")
 
             _LOGGER.debug(
                 "Click on options button: %s",
-                SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE.format(receipt_id),
+                SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
             )
             await clicker(
                 page,
                 options_el,
-                "Cannot click on options button of receipt",
+                "Cannot click on options button of recipe",
             )
 
             if cfg["screenshots"]:
-                await page.screenshot(path=f"{out_dir}/4-receipt-options-dropdown.png")
+                await page.screenshot(path=f"{out_dir}/4-recipe-options-dropdown.png")
 
             _LOGGER.debug(
                 "Extract the remove option button: %s",
-                SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE.format(
-                    receipt_id
-                ),
+                SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE.format(recipe_id),
+            )
+            await waiter(
+                page,
+                SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE.format(recipe_id),
             )
             remove_option_el = await selector(
                 page,
-                SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE.format(
-                    receipt_id
-                ),
+                SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE.format(recipe_id),
             )
 
             _LOGGER.debug(
                 "Click on remove option button: %s",
-                SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE.format(
-                    receipt_id
-                ),
+                SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE.format(recipe_id),
             )
             await clicker(
                 page,
                 remove_option_el,
-                "Cannot click on remove option button of receipt",
+                "Cannot click on remove option button of recipe",
             )
 
             # Await network stuff
@@ -124,19 +126,19 @@ async def remove_items(
 
             await state_waiter(
                 page,
-                SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE.format(receipt_id),
+                SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
                 "detached",
             )
 
             if cfg["screenshots"]:
-                await page.screenshot(path=f"{out_dir}/5-receipt-items-removed.png")
+                await page.screenshot(path=f"{out_dir}/5-recipe-items-removed.png")
 
             break
         except CookidooException as e:
             if retry < cfg.get("retries", DEFAULT_RETRIES):
                 _LOGGER.warning(
-                    "Could not remove items of receipt (%s) on try #%d due to error:\n%s",
-                    receipt_id,
+                    "Could not remove items of recipe (%s) on try #%d due to error:\n%s",
+                    recipe_id,
                     retry,
                     e,
                 )
@@ -144,8 +146,8 @@ async def remove_items(
                 _LOGGER.warning(
                     "Exhausted all #%d retries for remove items (%s)",
                     retry + 1,
-                    receipt_id,
+                    recipe_id,
                 )
                 raise CookidooException(
-                    f"Could not remove items of receipt ({receipt_id})"
+                    f"Could not remove items of recipe ({recipe_id})"
                 ) from e

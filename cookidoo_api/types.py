@@ -41,6 +41,8 @@ class CookidooConfig(TypedDict):
         Duration to wait before any action (selector, click, etc.) as failed
     retries
         Retry complex actions N times before considering it as failed
+    load_media
+        Control whether images and other media should be loaded
 
     tracing
         Trace all action happening and save it as trace.zip to review
@@ -63,6 +65,7 @@ class CookidooConfig(TypedDict):
     network_timeout: int
     timeout: int
     retries: int
+    load_media: bool
 
     tracing: bool
     screenshots: bool

@@ -58,5 +58,5 @@ async def waiter(
                 f"{message}.\n{error_message_selector(page.url, selector_list[:i+1])}"
             ) from e
 
-    assert parent
+    assert parent, "Parent does not exist"
     return parent

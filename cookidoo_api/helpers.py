@@ -1,5 +1,6 @@
 """Helpers for the Cookidoo API."""
 
+from datetime import UTC, datetime
 import json
 import re
 import socket
@@ -114,3 +115,8 @@ def resolve_remote_addr(addr: str) -> str:
         )
     except socket.gaierror as e:
         return f"Error resolving {addr}: {e}"
+
+
+def timestamped_out_dir(out_dir: str) -> str:
+    """Create a unique timestamped out dir."""
+    return f"{out_dir}/{int(datetime.now(UTC).timestamp())}"

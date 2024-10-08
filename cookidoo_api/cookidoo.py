@@ -33,6 +33,7 @@ from cookidoo_api.helpers import (
     cookies_serialize,
     error_message_selector,
     merge_cookies,
+    timestamped_out_dir,
 )
 from cookidoo_api.jobs import (
     CookidooBrowser,
@@ -109,11 +110,12 @@ class Cookidoo:
             When the cookies are not valid anymore
 
         """
+        _out_dir = timestamped_out_dir(out_dir)
 
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
         ):
             try:
                 # Go to account page
@@ -121,7 +123,7 @@ class Cookidoo:
 
                 # Take a screenshot of the account page
                 if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{out_dir}/1-cookie-validation.png")
+                    await page.screenshot(path=f"{_out_dir}/1-cookie-validation.png")
 
                 # Await the welcome message
                 try:
@@ -241,6 +243,8 @@ class Cookidoo:
             Bad username or password
 
         """
+        _out_dir = timestamped_out_dir(out_dir)
+
         # Check cookies and short circuit
         if self._cookies and not force_session_refresh:
             try:
@@ -256,7 +260,7 @@ class Cookidoo:
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
         ):
             try:
                 _LOGGER.debug("Attempt login")
@@ -266,7 +270,7 @@ class Cookidoo:
 
                 # Take a screenshot of the login start page
                 if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{out_dir}/1-login-start.png")
+                    await page.screenshot(path=f"{_out_dir}/1-login-start.png")
 
                 # Await the button and click on "Login"
                 login_el = await selector(page, LOGIN_START_SELECTOR)
@@ -274,7 +278,7 @@ class Cookidoo:
 
                 # Take a screenshot of the login details page
                 if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{out_dir}/2-login-details.png")
+                    await page.screenshot(path=f"{_out_dir}/2-login-details.png")
 
                 # Await the email field and enter email and password
                 try:
@@ -330,7 +334,7 @@ class Cookidoo:
 
                 # Take a screenshot of the login details page filled
                 if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{out_dir}/3-login-details-filled.png")
+                    await page.screenshot(path=f"{_out_dir}/3-login-details-filled.png")
 
                 submit_el = await selector(page, LOGIN_SUBMIT_SELECTOR)
                 await clicker(page, submit_el, "Cannot not click on submit")
@@ -345,8 +349,8 @@ class Cookidoo:
                     ):
                         val = cookie.get("value")
                         exp = cookie.get("expires")
-                        assert val
-                        assert exp
+                        assert val, "Value for cookie not set"
+                        assert exp, "Expiration for cookie not set"
                         _LOGGER.info(
                             "Session cookie 'v-token' found, consider login successful!"
                         )
@@ -420,13 +424,14 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
-            return await get_items(self._cfg, page, out_dir, pending, checked)
+            return await get_items(self._cfg, page, _out_dir, pending, checked)
 
     async def update_items(
         self,
@@ -463,27 +468,28 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
-            return await update_items(self._cfg, page, out_dir, items)
+            return await update_items(self._cfg, page, _out_dir, items)
 
     async def add_items(
         self,
-        receipt_id: str,
+        recipe_id: str,
         out_dir: str = "out/add_items",
     ) -> None:
-        """Add items to list from receipt.
+        """Add items to list from recipe.
 
         Parameters
         ----------
         cfg
             Cookidoo config
-        receipt_id
-            The id of the receipt to add the items to the shopping list
+        recipe_id
+            The id of the recipe to add the items to the shopping list
         out_dir
             Get directory to store output such as trace or screenshots
 
@@ -501,26 +507,27 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
         ):
-            return await add_items(self._cfg, page, receipt_id, out_dir)
+            return await add_items(self._cfg, page, recipe_id, _out_dir)
 
     async def remove_items(
         self,
-        receipt_id: str,
+        recipe_id: str,
         out_dir: str = "out/remove_items",
     ) -> None:
-        """Remove items from list of receipt.
+        """Remove items from list of recipe.
 
         Parameters
         ----------
         cfg
             Cookidoo config
-        receipt_id
-            The id of the receipt to remove the items from the shopping list
+        recipe_id
+            The id of the recipe to remove the items from the shopping list
         out_dir
             Get directory to store output such as trace or screenshots
 
@@ -536,13 +543,14 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
-            return await remove_items(self._cfg, page, receipt_id, out_dir)
+            return await remove_items(self._cfg, page, recipe_id, _out_dir)
 
     async def get_additional_items(
         self,
@@ -578,14 +586,15 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
             return await get_additional_items(
-                self._cfg, page, out_dir, pending, checked
+                self._cfg, page, _out_dir, pending, checked
             )
 
     async def update_additional_items(
@@ -623,14 +632,15 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
             return await update_additional_items(
-                self._cfg, page, out_dir, additional_items
+                self._cfg, page, _out_dir, additional_items
             )
 
     async def create_additional_items(
@@ -668,16 +678,17 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
             return await create_additional_items(
                 self._cfg,
                 page,
-                out_dir,
+                _out_dir,
                 [
                     CookidooItem(
                         {
@@ -721,16 +732,17 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
             await delete_additional_items(
                 self._cfg,
                 page,
-                out_dir,
+                _out_dir,
                 additional_items,
             )
 
@@ -761,10 +773,11 @@ class Cookidoo:
         """
         await self.validate_cookies()
 
+        _out_dir = timestamped_out_dir(out_dir)
         async with (
             async_playwright() as p,
             CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, out_dir) as page,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
+            ShoppingList(self._cfg, landing_page, _out_dir) as page,
         ):
-            return await clear_items(self._cfg, page, out_dir)
+            return await clear_items(self._cfg, page, _out_dir)

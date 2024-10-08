@@ -75,7 +75,6 @@ async def clear_items(
             clear_all_option_el = await selector(
                 page, SHOPPING_LIST_CLEAR_ALL_OPTION_SELECTOR
             )
-            assert clear_all_option_el
 
             _LOGGER.debug(
                 "Click on the options button: %s",

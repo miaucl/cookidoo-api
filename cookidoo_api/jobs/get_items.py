@@ -4,11 +4,11 @@ import logging
 
 from playwright.async_api import Page
 
-from cookidoo_api.actions import selector, state_waiter, waiter
+from cookidoo_api.actions import selector, state_waiter
 from cookidoo_api.const import (
     DEFAULT_RETRIES,
     SHOPPING_LIST_CHECKED_ITEMS_SELECTOR,
-    SHOPPING_LIST_EMPTY_SUB_SELECTOR,
+    SHOPPING_LIST_EMPTY_SELECTOR,
     SHOPPING_LIST_ITEM_ID_ATTR,
     SHOPPING_LIST_ITEM_ID_SUB_SELECTOR,
     SHOPPING_LIST_ITEM_LABEL_SUB_SELECTOR,
@@ -16,7 +16,6 @@ from cookidoo_api.const import (
     SHOPPING_LIST_ITEM_SUB_SELECTOR,
     SHOPPING_LIST_ITEM_UNIT_SUB_SELECTOR,
     SHOPPING_LIST_ITEMS_SELECTOR,
-    SHOPPING_LIST_SELECTOR,
 )
 from cookidoo_api.exceptions import CookidooException
 from cookidoo_api.types import CookidooConfig, CookidooItem, CookidooItemStateType
@@ -64,12 +63,14 @@ async def get_items(
         """Get items for a list."""
         # Await the items
         _LOGGER.debug("Wait for items: %s", sel)
-        await waiter(page, sel)
+        await state_waiter(page, sel, "attached")
 
         # Select the parent element
         _LOGGER.debug("Extract parent list: %s", sel)
         parent = await selector(page, sel)
-        assert parent
+        if await parent.is_hidden():
+            _LOGGER.debug("Parent list is hidden, no items available for: %s", sel)
+            return
 
         # Get the children of the parent element
         _LOGGER.debug(
@@ -140,9 +141,11 @@ async def get_items(
     for retry in range(cfg.get("retries", DEFAULT_RETRIES)):
         try:
             items = []
-            if await state_waiter(
-                page, [SHOPPING_LIST_SELECTOR, SHOPPING_LIST_EMPTY_SUB_SELECTOR]
-            ):
+            empty_list_message_el = await page.query_selector(
+                SHOPPING_LIST_EMPTY_SELECTOR
+            )
+            if empty_list_message_el and not await empty_list_message_el.is_hidden():
+                _LOGGER.debug("Lists are hidden, no items available.")
                 break
             if pending:
                 _LOGGER.debug("Get pending items")

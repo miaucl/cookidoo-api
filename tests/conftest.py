@@ -35,5 +35,5 @@ async def cookies_str():
 async def cookidoo_api_client(cookies_str):
     """Create Cookidoo instance."""
 
-    bring = Cookidoo(cookies=cookies_str)
-    return bring
+    cookidoo = Cookidoo(cookies=cookies_str)
+    return cookidoo

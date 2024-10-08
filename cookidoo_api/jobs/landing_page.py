@@ -10,6 +10,8 @@ from cookidoo_api.types import CookidooConfig
 
 _LOGGER = logging.getLogger(__name__)
 
+EXCLUDE_RESOURCE_TYPES = ["image", "media"]
+
 
 class LandingPage:
     """Cookidoo landing page for automation start and cookie set up."""
@@ -68,6 +70,19 @@ class LandingPage:
             self._cfg.get("network_timeout", DEFAULT_NETWORK_TIMEOUT)
         )
         context.set_default_timeout(self._cfg.get("timeout", DEFAULT_TIMEOUT))
+
+        # Enable/disable media loading
+        if not self._cfg["load_media"]:
+            # await context.route(
+            #     re.compile(r"\.(jpg|jpeg|png|svg|gif|webp)$"),
+            #     lambda route: route.abort(),
+            # )
+            await context.route(
+                "**/*",
+                lambda route: route.abort()
+                if route.request.resource_type in EXCLUDE_RESOURCE_TYPES
+                else route.continue_(),
+            )
 
         # Setup tracing if configured
         if self._cfg["tracing"]:

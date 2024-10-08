@@ -18,7 +18,7 @@ COOKIE_VALIDATION_SELECTOR: Final = (
 SHOPPING_LIST_URL: Final = "https://cookidoo.ch/shopping"
 SHOPPING_LIST_SELECTOR: Final = "pm-shopping-list"
 
-SHOPPING_LIST_EMPTY_SUB_SELECTOR: Final = "core-error-page"
+SHOPPING_LIST_EMPTY_SELECTOR: Final = "core-error-page"
 
 SHOPPING_LIST_OPTIONS_SELECTOR: Final = "#shopping-list-options"
 SHOPPING_LIST_CLEAR_ALL_OPTION_SELECTOR: Final = "#clearAllRecipes"
@@ -63,21 +63,21 @@ SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_INPUT_SUB_SELECTOR: Final = "input"
 SHOPPING_LIST_CREATE_ADDITIONAL_ITEM_CONFIRM_SUB_SELECTOR: Final = "button"
 
 SHOPPING_LIST_ITEMS_TAB_SELECTOR: Final = "core-content-navigation button:nth-child(1)"
-SHOPPING_LIST_RECEIPTS_TAB_SELECTOR: Final = (
+SHOPPING_LIST_RECIPES_TAB_SELECTOR: Final = (
     "core-content-navigation button:nth-child(2)"
 )
-SHOPPING_LIST_RECEIPT_OPTIONS_SELECTOR_TEMPLATE: Final = (
+SHOPPING_LIST_RECIPE_OPTIONS_SELECTOR_TEMPLATE: Final = (
     '[id="shopping-list-trigger-{}"]'
 )
-SHOPPING_LIST_RECEIPT_REMOVE_OPTION_SELECTOR_TEMPLATE: Final = 'core-context-menu[trigger-id="shopping-list-trigger-{}"] core-handle-form[data-action="remove-recipes"]'
+SHOPPING_LIST_RECIPE_REMOVE_OPTION_SELECTOR_TEMPLATE: Final = 'core-context-menu[trigger-id="shopping-list-trigger-{}"] core-handle-form[data-action="remove-recipes"]'
 
-RECEIPT_URL_PREFIX: Final = "https://cookidoo.ch/recipes/recipe/"
-RECEIPT_COOK_TODAY_SELECTOR: Final = '[id="cook-today-handle-form"] button'
-RECEIPT_ADD_OPTIONS_SELECTOR_TEMPLATE: Final = '[id="add-trigger-{}"]'
-RECEIPT_ADD_OPTION_SHOPPING_LIST_SELECTOR: Final = (
+RECIPE_URL_PREFIX: Final = "https://cookidoo.ch/recipes/recipe/"
+RECIPE_COOK_TODAY_SELECTOR: Final = '[id="cook-today-handle-form"] button'
+RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE: Final = '[id="add-trigger-{}"]'
+RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR: Final = (
     '[id="add-to-shopping-list-button"] button'
 )
-RECEIPT_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR: Final = (
+RECIPE_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR: Final = (
     'core-conversion-teaser [href^="/shopping"]'
 )
 DOM_CHECK_ATTACHED: Final = "element => document.body.contains(element)"
@@ -99,6 +99,7 @@ DEFAULT_COOKIDOO_CONFIG = CookidooConfig(
         "network_timeout": DEFAULT_NETWORK_TIMEOUT,
         "timeout": DEFAULT_TIMEOUT,
         "retries": DEFAULT_RETRIES,
+        "load_media": True,
         "tracing": False,
         "screenshots": False,
         "out_dir": "./out",
