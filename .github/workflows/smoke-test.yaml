@@ -1,9 +1,19 @@
 name: Smoke test
 
-on: [push]
+on: 
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 12 * * 0' # Run every day at noon
+  workflow_dispatch: # Allows manual triggering
 
 env:
   python-version: "3.12"
+
+concurrency: 
+  group: "smoke-test" # Make sure, to not run multiple smoke tests at the same time
+  cancel-in-progress: false
 
 jobs:
   smoke_test:
@@ -62,7 +72,8 @@ jobs:
         if: success() || failure()
         with:
           name: cookies
-          path: .cookies
+          path: ./.cookies
+          include-hidden-files: true
           retention-days: 30
       - name: Upload out dir with screenshots and traces
         uses: actions/upload-artifact@v4
