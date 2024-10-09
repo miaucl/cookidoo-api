@@ -87,15 +87,15 @@ jobs:
             prerelease=false
           fi
 
-          # Fail if it's a prerelease and on the main branch
-          if [[ "$branch" == "main" && "$prerelease" == "true" ]]; then
-            echo "Error: Prerelease versions are not allowed on the main branch."
+          # Fail if it's a prerelease and on the master branch
+          if [[ "$branch" == "master" && "$prerelease" == "true" ]]; then
+            echo "Error: Prerelease versions are not allowed on the master branch."
             exit 1
           fi
 
-          # Fail if it's a final release on a non-main branch
-          if [[ "$branch" != "main" && "$prerelease" == "false" ]]; then
-            echo "Error: Final releases are not allowed on non-main branches."
+          # Fail if it's a final release on a non-master branch
+          if [[ "$branch" != "master" && "$prerelease" == "false" ]]; then
+            echo "Error: Final releases are not allowed on non-master branches."
             exit 1
           fi
 

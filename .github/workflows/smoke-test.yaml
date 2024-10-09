@@ -3,7 +3,7 @@ name: Smoke test
 on: 
   push:
     branches:
-      - main
+      - master
   schedule:
     - cron: '0 12 * * 0' # Run every day at noon
   workflow_dispatch: # Allows manual triggering

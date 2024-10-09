@@ -4,6 +4,12 @@
 
 An unofficial python package to access Cookidoo.
 
+[![Unit tests](https://github.com/miaucl/cookidoo-api/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/unit-tests.yaml)
+[![Smoke test](https://github.com/miaucl/cookidoo-api/actions/workflows/smoke-test.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/smoke-test.yaml)
+[![Ruff](https://github.com/miaucl/cookidoo-api/actions/workflows/ruff.yml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/ruff.yml)
+[![Mypy](https://github.com/miaucl/cookidoo-api/actions/workflows/mypy.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/mypy.yaml)
+[![Markdownlint](https://github.com/miaucl/cookidoo-api/actions/workflows/markdownlint.yml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/markdownlint.yml)
+
 [![GitHub](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/miaucl)
 [![Patreon](https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://patreon.com/miaucl)
 [![BuyMeACoffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/miaucl)
@@ -17,7 +23,7 @@ The developers of this module are in no way endorsed by or affiliated with Cooki
 
 **Disclaimer: This library needs a runner (browser) to execute the calls through web automation. Make sure to have it correctly set up using one of the following options before proceeding.**
 
-[Setup runner](https://github.com/cookidoo-api/blob/main/runners)
+[Setup runner](https://github.com/cookidoo-api/blob/master/runners)
 
 Once you have tested your runner, install the library and use it with your runner.
 
@@ -38,11 +44,11 @@ EMAIL=your@mail.com
 PASSWORD=password
 ```
 
-Run the [example script](https://github.com/miaucl/cookidoo-api/blob/main/example.py) and have a look at the inline comments for more explanation.
+Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/example.py) and have a look at the inline comments for more explanation.
 
 ## Exceptions
 
-In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/main/cookidoo_api/exceptions.py) can be thrown.
+In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/master/cookidoo_api/exceptions.py) can be thrown.
 They will either be
 
 - `CookidooActionException`
