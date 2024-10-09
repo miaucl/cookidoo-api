@@ -1,0 +1,18 @@
+name: Mypy
+
+on: [ push, pull_request ]
+
+env:
+  DEFAULT_PYTHON: "3.12"
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          check-latest: true
+      - run: pip install -r requirements_dev.txt
+      - run: mypy cookidoo_api tests smoke_test

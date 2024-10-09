@@ -1,0 +1,17 @@
+name: Markdownlint
+
+on: [ push, pull_request ]
+
+jobs:
+  markdownlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v17
+        with:
+          config: '.markdownlint.yaml'
+          globs: |
+            **/*.md
+            !docs/changelog.md
+            !docs/index.md
+            !docs/license.md
