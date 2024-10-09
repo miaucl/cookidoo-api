@@ -8,13 +8,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cookidoo-api"
 dynamic = ["version", "readme"]
-description = "Unofficial package to access Cookidoo API."
+description = "Unofficial package to access Cookidoo."
 authors = [
   { name = "Cyrill Raccaud", email = "cyrill.raccaud+pypi@gmail.com" },
 ]
 dependencies = [
   "aiohttp",
   "playwright",
+  "python-dotenv",
 ]
 requires-python = ">=3.11"
 

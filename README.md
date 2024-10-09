@@ -4,8 +4,6 @@
 
 An unofficial python package to access Cookidoo.
 
-[![Lint](https://github.com/miaucl/ha-addons/actions/workflows/lint.yaml/badge.svg)](https://github.com/miaucl/ha-addons/actions/workflows/lint.yaml)
-
 [![GitHub](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/miaucl)
 [![Patreon](https://img.shields.io/badge/Patreon-F96854?style=for-the-badge&logo=patreon&logoColor=white)](https://patreon.com/miaucl)
 [![BuyMeACoffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/miaucl)
@@ -17,7 +15,7 @@ The developers of this module are in no way endorsed by or affiliated with Cooki
 
 ## Installation
 
-**Disclaimer: This library needs a runner to execute the calls through web automation. Make sure to have it correctly setup using one of the following options before proceeding.**
+**Disclaimer: This library needs a runner (browser) to execute the calls through web automation. Make sure to have it correctly set up using one of the following options before proceeding.**
 
 [Setup runner](https://github.com/cookidoo-api/blob/main/runners)
 
@@ -31,53 +29,32 @@ See below for usage examples. See [Exceptions](#exceptions) for API-specific exc
 
 ## Usage Example
 
-The API is based on the async HTTP library `aiohttp`.
+The API is based on the async implementation of the library [`playwright`](https://playwright.dev/python/docs/api/class-playwright) in collaboration with a runner for browser emulation.
 
-```python
-import aiohttp
-import asyncio
-import logging
-import sys
+Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 
-from bring_api import Bring
-
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-
-async def main():
-  async with aiohttp.ClientSession() as session:
-    # Create Bring instance with email and password
-    bring = Bring(session, "MAIL", "PASSWORD")
-    # Login
-    await bring.login()
-
-    # Get information about all available shopping lists
-    lists = (await bring.load_lists())["lists"]
-
-    # Save an item with specifications to a certain shopping list
-    await bring.save_item(lists[0]['listUuid'], 'Milk', 'low fat')
-
-    # Save another item
-    await bring.save_item(lists[0]['listUuid'], 'Carrots')
-
-    # Get all the items of a list
-    items = await bring.get_list(lists[0]['listUuid'])
-    print(items)
-
-    # Check off an item
-    await bring.complete_item(lists[0]['listUuid'], 'Carrots')
-
-    # Remove an item from a list
-    await bring.remove_item(lists[0]['listUuid'], 'Milk')
-
-asyncio.run(main())
+```text
+EMAIL=your@mail.com
+PASSWORD=password
 ```
 
-TODO
+Run the [example script](https://github.com/miaucl/cookidoo-api/blob/main/example.py) and have a look at the inline comments for more explanation.
 
 ## Exceptions
 
-In case something goes wrong during a request, several exceptions can be thrown.
-They will either be BringRequestException, BringParseException, or BringAuthException, depending on the context. All inherit from BringException.
+In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/main/cookidoo_api/exceptions.py) can be thrown.
+They will either be
+
+- `CookidooActionException`
+- `CookidooAuthBotDetectionException`
+- `CookidooAuthException`
+- `CookidooConfigException`
+- `CookidooNavigationException`
+- `CookidooSelectorException`
+- `CookidooUnavailableException`
+- `CookidooUnexpectedStateException`
+
+depending on the context. All inherit from `CookidooException`.
 
 ### Another asyncio event loop is
 
@@ -122,7 +99,7 @@ await cookidoo.login(captcha_recovery_mode="user_input")
 
 _Be aware, using this option with a headless browser will indefinitely block the process in login, as it is waiting for user action._
 
-### Captcha recovery mode `recaptcha`
+### Captcha recovery mode `capsolver`
 
 This requires the `capsolver` to be installed.
 
@@ -141,7 +118,7 @@ Alternatively, they also provide a [browser extension](https://docs.capsolver.co
 
 ## Dev
 
-Setup the dev environment using VSCode, is is highly recommended.
+Setup the dev environment using VSCode, it is highly recommended.
 
 ```bash
 python -m venv .venv
