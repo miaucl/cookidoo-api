@@ -329,7 +329,7 @@ class Cookidoo:
                     ) from e
                 except ValueError as e:
                     raise CookidooSelectorException(
-                        f"Email or password field doe not contain strings.\nEmail: {type(self._cfg["email"])}\nPassword: {type(self._cfg["password"])}"
+                        f"Email or password field do not contain strings.\nEmail: {type(self._cfg['email'])}\nPassword: {type(self._cfg['password'])}"
                     ) from e
 
                 # Take a screenshot of the login details page filled
