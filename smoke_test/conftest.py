@@ -5,7 +5,11 @@ import os
 from dotenv import load_dotenv
 import pytest
 
-from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
+from cookidoo_api.const import (
+    DEFAULT_COOKIDOO_CONFIG,
+    DEFAULT_NETWORK_TIMEOUT,
+    DEFAULT_TIMEOUT,
+)
 from cookidoo_api.cookidoo import Cookidoo
 
 load_dotenv()
@@ -48,6 +52,9 @@ async def cookidoo_api_client(cookies_str: str) -> Cookidoo:
             # Use local headless executable
             "browser": "chromium",
             "headless": True,
+            # Increase timeouts, as the github actions are not that powerful :)
+            "network_timeout": DEFAULT_NETWORK_TIMEOUT * 10,
+            "timeout": DEFAULT_TIMEOUT * 10,
             # Do not load media
             "load_media": False,
             # Load credentials from env

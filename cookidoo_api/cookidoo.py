@@ -291,7 +291,7 @@ class Cookidoo:
                         await page.wait_for_selector(
                             LOGIN_EMAIL_SELECTOR, timeout=1000000
                         )
-                    if captcha_recovery_mode == "capsolver":
+                    elif captcha_recovery_mode == "capsolver":
                         if not self._cfg["headless"]:
                             _LOGGER.warning(
                                 "Capsolver is not yet implemented. Should you have the capsolver browser extension installed, ignore this warning."
