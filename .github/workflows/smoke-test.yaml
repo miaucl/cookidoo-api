@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - master
+  pull_request:
+    branches:
+      - master
   schedule:
     - cron: '0 12 * * 0' # Run every day at noon
   workflow_dispatch: # Allows manual triggering
@@ -62,19 +65,14 @@ jobs:
         env:
           EMAIL: ${{ vars.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
-      - name: DEBUG
-        run: |
-          ls
-          ls smoke_test
-          cat .cookies
-      - name: Upload cookies for next workflow
-        uses: actions/upload-artifact@v4
-        if: success() || failure()
-        with:
-          name: cookies
-          path: ./.cookies
-          include-hidden-files: true
-          retention-days: 30
+      # - name: Upload cookies for next workflow
+      #   uses: actions/upload-artifact@v4
+      #   if: success() || failure()
+      #   with:
+      #     name: cookies
+      #     path: ./.cookies
+      #     include-hidden-files: true
+      #     retention-days: 30
       - name: Upload out dir with screenshots and traces
         uses: actions/upload-artifact@v4
         if: success() || failure()
