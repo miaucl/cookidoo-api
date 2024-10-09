@@ -52,15 +52,20 @@ jobs:
         env:
           EMAIL: ${{ vars.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
+      - name: DEBUG
+        run: |
+          ls
+          ls smoke_test
+          cat .cookies
       - name: Upload cookies for next workflow
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
           name: cookies
           path: .cookies
           retention-days: 30
       - name: Upload out dir with screenshots and traces
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
           name: out_dir_with_screenshots_and_traces

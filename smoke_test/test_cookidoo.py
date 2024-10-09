@@ -147,3 +147,5 @@ class TestLoginAndValidation:
         assert (
             len(await cookidoo.get_additional_items(pending=True, checked=True)) == 0
         ), "Check if additional items have been deleted"
+
+        save_cookies(cookidoo.cookies)
