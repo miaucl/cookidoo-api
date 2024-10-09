@@ -44,8 +44,25 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements.txt
             pip install -r requirements_test.txt
+            playwright install chromium
       - name: Test with pytest
         run: pytest smoke_test -v -x
         env:
           EMAIL: ${{ vars.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
+      - name: Upload cookies for next workflow
+        uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: cookies
+          path: .cookies
+          retention-days: 30
+      - name: Upload out dir with screenshots and traces
+        uses: actions/upload-artifact@v3
+        if: success() || failure()
+        with:
+          name: out_dir_with_screenshots_and_traces
+          path: out
+          retention-days: 14
+          
+          

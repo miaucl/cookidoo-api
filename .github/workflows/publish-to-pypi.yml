@@ -51,7 +51,7 @@ jobs:
 
       - name: Check tag in package
         run: |
-          if ! grep -q "__version__ = \"$TAG_VERSION\"" ./bring_api/__init__.py; then
+          if ! grep -q "__version__ = \"$TAG_VERSION\"" ./cookidoo_api/__init__.py; then
             echo "Error: Tag version $TAG_VERSION not found in the package."
             exit 1
           else
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/bring-api  # Replace <package-name> with your PyPI project name
+      url: https://pypi.org/p/cookidoo-api  # Replace <package-name> with your PyPI project name
     permissions:
       id-token: write  # IMPORTANT: mandatory for trusted publishing
     steps:
