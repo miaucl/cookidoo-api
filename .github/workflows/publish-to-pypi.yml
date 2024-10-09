@@ -1,0 +1,180 @@
+name: Publish Python 🐍 distribution 📦 to PyPI
+
+on: 'push'
+
+env:
+  DEFAULT_PYTHON: "3.12"
+
+jobs:
+  build:
+    name: Build distribution 📦
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.DEFAULT_PYTHON }}
+        check-latest: true
+    - name: Install pypa/build
+      run: >-
+        python3 -m
+        pip install -r requirements.txt
+        build
+        --user
+    - name: Build a binary wheel and a source tarball
+      run: python3 -m build
+    - name: Store the distribution packages
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+
+  check_version:
+    name: Check the version
+    if: startsWith(github.ref, 'refs/tags/')  # only publish to PyPI on tag pushes
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract tag version
+        id: extract_tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/}
+          echo "TAG_VERSION=$TAG_VERSION" >> $GITHUB_ENV
+
+      - name: Check tag in package
+        run: |
+          if ! grep -q "__version__ = \"$TAG_VERSION\"" ./bring_api/__init__.py; then
+            echo "Error: Tag version $TAG_VERSION not found in the package."
+            exit 1
+          else
+            echo "Success: Tag version $TAG_VERSION found in package."
+          fi
+
+      - name: Check changelog entry
+        run: |
+          if [ github.ref =~ 'refs/tags/[0-9]+\\.[0-9]+\\.[0-9]+$' ]; then
+            if ! grep -q "## $TAG_VERSION" CHANGELOG.md; then
+              echo "No changelog entry found for version $TAG_VERSION."
+              exit 1
+            else
+              echo "Changelog entry found for version $TAG_VERSION."
+            fi
+          else
+            echo "Pre-release tag, skipping changelog check"
+          fi
+
+      - name: Check if version type matches branch type
+        run: |
+          branch=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
+          echo "Branch: $branch"
+          version=${GITHUB_REF#refs/tags/}
+          echo "Version from tag: $version"
+
+          # Check if the version is a prerelease
+          if [[ "$version" =~ [a-zA-Z] ]]; then
+            echo "Prerelease version detected: $version"
+            prerelease=true
+          else
+            echo "Final release version detected: $version"
+            prerelease=false
+          fi
+
+          # Fail if it's a prerelease and on the main branch
+          if [[ "$branch" == "main" && "$prerelease" == "true" ]]; then
+            echo "Error: Prerelease versions are not allowed on the main branch."
+            exit 1
+          fi
+
+          # Fail if it's a final release on a non-main branch
+          if [[ "$branch" != "main" && "$prerelease" == "false" ]]; then
+            echo "Error: Final releases are not allowed on non-main branches."
+            exit 1
+          fi
+
+  publish-to-pypi:
+    name: >-
+      Publish Python 🐍 distribution 📦 to PyPI
+    needs: check_version
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/bring-api  # Replace <package-name> with your PyPI project name
+    permissions:
+      id-token: write  # IMPORTANT: mandatory for trusted publishing
+    steps:
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Publish distribution 📦 to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: >-
+      Sign the Python 🐍 distribution 📦 with Sigstore
+      and upload them to GitHub Release
+    needs:
+    - publish-to-pypi
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write  # IMPORTANT: mandatory for sigstore
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+    - name: Get version
+      id: version
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/}
+        echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+    - name: Check if version is prerelease
+      id: check_prerelease
+      run: |
+        TAG_VERSION="${{ steps.version.outputs.version }}"
+        if [[ "$TAG_VERSION" =~ [a-zA-Z] ]]; then
+          echo "prerelease=true" >> $GITHUB_OUTPUT
+        else
+          echo "prerelease=false" >> $GITHUB_OUTPUT
+        fi
+    - name: Download all the dists
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package-distributions
+        path: dist/
+    - name: Sign the dists with Sigstore
+      uses: sigstore/gh-action-sigstore-python@v3.0.0
+      with:
+        inputs: >-
+          ./dist/*.tar.gz
+          ./dist/*.whl
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ github.ref }}
+        name: ${{ steps.version.outputs.version }}
+        generate_release_notes: true
+        prerelease: ${{ steps.check_prerelease.outputs.prerelease }}  # Mark as prerelease if necessary
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
+    - name: Upload artifact signatures to GitHub Release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      # Upload to GitHub Release using the `gh` CLI.
+      # `dist/` contains the built packages, and the
+      # sigstore-produced signatures and certificates.
+      run: >-
+        gh release upload
+        '${{ github.ref_name }}' dist/**
+        --repo '${{ github.repository }}'

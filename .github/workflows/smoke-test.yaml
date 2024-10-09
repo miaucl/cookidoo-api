@@ -1,0 +1,51 @@
+name: Smoke test
+
+on: [push]
+
+env:
+  python-version: "3.12"
+
+jobs:
+  smoke_test:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get User Permission
+        id: checkAccess
+        uses: actions-cool/check-user-permission@v2
+        with:
+          require: read
+          username: ${{ github.triggering_actor }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check User Permission
+        if: steps.checkAccess.outputs.require-result == 'false'
+        run: |
+          echo "${{ github.triggering_actor }} does not have permissions on this repo."
+          echo "Current permission level is ${{ steps.checkAccess.outputs.user-permission }}"
+          echo "Job originally triggered by ${{ github.actor }}"
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ env.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.python-version }}
+      - name: Check secret access
+        run: |
+          if [[ "x${{ secrets.PASSWORD }}" != "x" ]]; then
+            echo "Access to secrets"
+          else
+            echo "No access to secrets"
+            exit 1
+          fi
+      - name: Install dependencies
+        run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install -r requirements_test.txt
+      - name: Test with pytest
+        run: pytest smoke_test -v -x
+        env:
+          EMAIL: ${{ vars.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
