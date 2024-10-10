@@ -64,7 +64,7 @@ jobs:
       # From here on, we run new code which does not have access to the password, only the cookies
       # !!!!!!!!!!!!!!!!!!!!
       - name: Checkout new code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: "${{ github.event.pull_request.merge_commit_sha }}"
           clean: false
