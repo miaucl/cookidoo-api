@@ -60,7 +60,7 @@ jobs:
 
       - name: Check changelog entry
         run: |
-          if [ github.ref =~ 'refs/tags/[0-9]+\\.[0-9]+\\.[0-9]+$' ]; then
+          if [[ github.ref =~ 'refs/tags/[0-9]+\\.[0-9]+\\.[0-9]+$' ]]; then
             if ! grep -q "## $TAG_VERSION" CHANGELOG.md; then
               echo "No changelog entry found for version $TAG_VERSION."
               exit 1
