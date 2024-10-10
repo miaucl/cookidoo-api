@@ -1,12 +1,9 @@
-name: Smoke test
+name: Smoke test (PR)
 
 on: 
-  push:
+  pull_request_target:
     branches:
       - master
-  schedule:
-    - cron: '0 12 * * 0' # Run every Sunday at 12:00 PM (noon)
-  workflow_dispatch: # Allows manual triggering
 
 env:
   python-version: "3.12"
@@ -16,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  smoke_test:
+  smoke_test_pr:
 
     runs-on: ubuntu-latest
 
@@ -36,7 +33,7 @@ jobs:
           echo "Current permission level is ${{ steps.checkAccess.outputs.user-permission }}"
           echo "Job originally triggered by ${{ github.actor }}"
           exit 1
-      - name: Checkout code
+      - name: Checkout current code
         uses: actions/checkout@v4
       - name: Set up Python ${{ env.python-version }}
         uses: actions/setup-python@v5
@@ -56,21 +53,24 @@ jobs:
             pip install -r requirements.txt
             pip install -r requirements_test.txt
             playwright install chromium
-      - name: Prepare cookies
-        run: touch .cookies
+      - name: Prepare cookies with pytest
+        run: pytest smoke_test/setup_cookies.py -v -x
+        env:
+          EMAIL: ${{ vars.EMAIL }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+      # !!!!!!!!!!!!!!!!!!!!
+      # From here on, we run new code which does not have access to the password, only the cookies
+      # !!!!!!!!!!!!!!!!!!!!
+      - name: Checkout new code
+        uses: actions/checkout@v3
+        with:
+          ref: "${{ github.event.pull_request.merge_commit_sha }}"
+          clean: false
       - name: Test with pytest
         run: pytest smoke_test -v -x
         env:
           EMAIL: ${{ vars.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-      # - name: Upload cookies for next workflow
-      #   uses: actions/upload-artifact@v4
-      #   if: success() || failure()
-      #   with:
-      #     name: cookies
-      #     path: ./.cookies
-      #     include-hidden-files: true
-      #     retention-days: 30
+          PASSWORD: <redacted>
       - name: Upload out dir with screenshots and traces
         uses: actions/upload-artifact@v4
         if: success() || failure()
