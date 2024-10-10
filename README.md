@@ -25,7 +25,7 @@ The developers of this module are in no way endorsed by or affiliated with Cooki
 
 [Setup runner](https://github.com/cookidoo-api/blob/master/runners)
 
-Once you have tested your runner, install the library and use it with your preferred browser.
+Once you have tested your runner, install the cookidoo library and use it with your preferred browser.
 
 `pip install cookidoo-api`
 
