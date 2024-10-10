@@ -2,8 +2,8 @@ name: Smoke test (PR)
 
 on: 
   pull_request_target:
-    branches:
-      - master
+    types:
+      - labeled
 
 env:
   python-version: "3.12"
@@ -16,6 +16,8 @@ jobs:
   smoke_test_pr:
 
     runs-on: ubuntu-latest
+
+    if: ${{ github.event.label.name == 'run smoke test' }}
 
     steps:
       - name: Get User Permission
