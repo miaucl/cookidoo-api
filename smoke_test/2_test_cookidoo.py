@@ -16,13 +16,8 @@ from smoke_test.conftest import (
 load_dotenv()
 
 
-class TestLoginAndValidation:
-    """Test login and validation."""
-
-    async def test_cookidoo_login(self, cookidoo: Cookidoo) -> None:
-        """Test cookidoo validation of the token or login otherwise."""
-        await cookidoo.login()
-        save_cookies(cookidoo.cookies)
+class TestJobs:
+    """Test jobs."""
 
     async def test_cookidoo_clear_items(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo clear items before testing of all jobs."""
