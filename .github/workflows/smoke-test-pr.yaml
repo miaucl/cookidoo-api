@@ -56,7 +56,7 @@ jobs:
       - name: Prepare empty cookies
         run: touch .cookies
       - name: Prepare cookies with pytest
-        run: pytest smoke_test/1_setup_cookies.py -v -x
+        run: pytest smoke_test/test_1_setup_cookies.py -v -x
         env:
           EMAIL: ${{ vars.EMAIL }}
           PASSWORD: ${{ secrets.PASSWORD }}
@@ -69,7 +69,7 @@ jobs:
           ref: "${{ github.event.pull_request.merge_commit_sha }}"
           clean: false
       - name: Test with pytest
-        run: pytest smoke_test -v -x
+        run: pytest smoke_test/test_2_jobs.py -v -x
         env:
           EMAIL: ${{ vars.EMAIL }}
           PASSWORD: <redacted>
