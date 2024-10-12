@@ -33,7 +33,7 @@ async def main():
     cookies = ""
     if os.path.exists(".cookies"):
         # Open and read the file
-        with open(".cookies") as file:
+        with open(".cookies", encoding="utf-8") as file:
             cookies = file.read()
 
     cookidoo = Cookidoo(

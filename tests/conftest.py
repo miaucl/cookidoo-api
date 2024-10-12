@@ -27,7 +27,7 @@ async def cookies_str() -> str:
     """Load the cookies as str."""
 
     # Open and read the file
-    with open("tests/test.cookies") as file:
+    with open("tests/test.cookies", encoding="utf-8") as file:
         return file.read()
 
 

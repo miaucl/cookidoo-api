@@ -1,11 +1,7 @@
 """Setup cookies for smoke test for cookidoo-api."""
 
-from dotenv import load_dotenv
-
 from cookidoo_api.cookidoo import Cookidoo
 from smoke_test.conftest import save_cookies
-
-load_dotenv()
 
 
 class TestLoginAndValidation:

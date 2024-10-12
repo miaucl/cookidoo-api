@@ -24,14 +24,14 @@ TEST_ADDITIONAL_ITEM_LABEL = TEST_ADDITIONAL_ITEM_CREATE[0]
 
 def save_cookies(cookies: str) -> None:
     """Save the cookies locally."""
-    with open(".cookies", "w") as file:
+    with open(".cookies", "w", encoding="utf-8") as file:
         file.write(cookies)
 
 
 def load_cookies() -> str:
     """Load the cookies locally."""
     # Open and read the file
-    with open(".cookies") as file:
+    with open(".cookies", encoding="utf-8") as file:
         return file.read()
 
 

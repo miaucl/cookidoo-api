@@ -1,7 +1,5 @@
 """Smoke test for cookidoo-api."""
 
-from dotenv import load_dotenv
-
 from cookidoo_api.cookidoo import Cookidoo
 from smoke_test.conftest import (
     TEST_ADDITIONAL_ITEM_CREATE,
@@ -12,8 +10,6 @@ from smoke_test.conftest import (
     TEST_RECIPE,
     save_cookies,
 )
-
-load_dotenv()
 
 
 class TestJobs:
