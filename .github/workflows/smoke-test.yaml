@@ -17,9 +17,7 @@ concurrency:
 
 jobs:
   smoke_test:
-
     runs-on: ubuntu-latest
-
     steps:
       - name: Get User Permission
         id: checkAccess

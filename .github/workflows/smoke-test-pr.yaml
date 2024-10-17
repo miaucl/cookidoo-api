@@ -14,11 +14,8 @@ concurrency:
 
 jobs:
   smoke_test_pr:
-
     runs-on: ubuntu-latest
-
     if: ${{ github.event.label.name == 'run smoke test' }}
-
     steps:
       - name: Get User Permission
         id: checkAccess
