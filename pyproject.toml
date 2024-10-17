@@ -32,7 +32,7 @@ license = {text = "MIT License"}
 keywords = ["cookidoo", "todo", "web", "browser", "scaping", "home-assistant", "iot"]
 
 [tool.setuptools]
-packages = ["cookidoo_api"]
+packages = ["cookidoo_api", "cookidoo_api.actions", "cookidoo_api.jobs"]
 
 [tool.setuptools.package-data]
 cookidoo_api = ["py.typed"]
