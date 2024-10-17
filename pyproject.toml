@@ -33,9 +33,6 @@ keywords = ["cookidoo", "todo", "web", "browser", "scaping", "home-assistant", "
 
 [tool.setuptools]
 
-[tool.setuptools.packages.find]
-where = ["cookidoo_api"]
-
 [tool.setuptools.package-data]
 cookidoo_api = ["py.typed"]
 
