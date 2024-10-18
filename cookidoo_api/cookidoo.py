@@ -40,6 +40,7 @@ from cookidoo_api.jobs import (
     LandingPage,
     ShoppingList,
     add_items,
+    add_items_alternative,
     clear_items,
     create_additional_items,
     delete_additional_items,
@@ -514,6 +515,47 @@ class Cookidoo:
             LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
         ):
             return await add_items(self._cfg, page, recipe_id, _out_dir)
+
+    async def add_items_alternative(
+        self,
+        recipe_name: str,
+        out_dir: str = "out/add_items_alternative",
+    ) -> None:
+        """Add items to list from recipe.
+
+         This is an alternative implementation which works also for free account, as on the recipe page the "Add to Shopping List" is not available for free accounts.
+
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+        recipe_name
+            The name to search of the recipe to add the items to the shopping list. The first element found will be selected.
+        out_dir
+            Get directory to store output such as trace or screenshots
+
+        Raises
+        ------
+        CookidooAuthException
+            When the cookies are not valid anymore
+        CookidooNavigationException
+            When the page could not be found
+        CookidooSelectorException
+            When the page does not behave as expected and some content is not available
+        CookidooActionException
+            When the page does not allow to perform an expected action
+
+        """
+        await self.validate_cookies()
+
+        _out_dir = timestamped_out_dir(out_dir)
+        async with (
+            async_playwright() as p,
+            CookidooBrowser(self._cfg, p) as browser,
+            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
+        ):
+            return await add_items_alternative(self._cfg, page, recipe_name, _out_dir)
 
     async def remove_items(
         self,

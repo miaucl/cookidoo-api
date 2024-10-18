@@ -1,16 +1,22 @@
-"""Add items."""
+"""Add items (alternative)."""
 
 import logging
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
-from cookidoo_api.actions import clicker, feedback_closer, scroller, selector, waiter
+from cookidoo_api.actions import (
+    clicker,
+    feedback_closer,
+    scroller,
+    selector,
+    state_waiter,
+    waiter,
+)
 from cookidoo_api.const import (
     DEFAULT_RETRIES,
-    RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR,
-    RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE,
-    RECIPE_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR,
-    RECIPE_URL_PREFIX,
+    RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR,
+    RECIPE_SEARCH_ADD_OPTIONS_SELECTOR,
+    RECIPE_SEARCH_URL_TEMPLATE,
 )
 from cookidoo_api.exceptions import CookidooException, CookidooNavigationException
 from cookidoo_api.helpers import error_message_selector
@@ -19,13 +25,15 @@ from cookidoo_api.types import CookidooConfig
 _LOGGER = logging.getLogger(__name__)
 
 
-async def add_items(
+async def add_items_alternative(
     cfg: CookidooConfig,
     page: Page,
-    recipe_id: str,
+    recipe_name: str,
     out_dir: str,
 ) -> None:
     """Add items to list from recipe.
+
+    This is an alternative implementation which works also for free account, as on the recipe page the "Add to Shopping List" is not available for free accounts.
 
     Parameters
     ----------
@@ -33,8 +41,8 @@ async def add_items(
         Cookidoo config
     page
         The page, which should have been validated already
-    recipe_id
-        The id of the recipe to add the items to the shopping list
+    recipe_name
+        The name for the search bar of the recipe to add the items to the shopping list. Careful, this first element which be selected automatically.
     out_dir
         The directory to store output such as trace or screenshots
 
@@ -52,20 +60,21 @@ async def add_items(
         try:
             try:
                 # Go to recipe page
-                _LOGGER.debug("Go to recipe page: %s%s", RECIPE_URL_PREFIX, recipe_id)
-                await page.goto(f"{RECIPE_URL_PREFIX}{recipe_id}")
+                _LOGGER.debug(
+                    "Go to recipe page: %s",
+                    RECIPE_SEARCH_URL_TEMPLATE.format(recipe_name),
+                )
+                await page.goto(RECIPE_SEARCH_URL_TEMPLATE.format(recipe_name))
                 await feedback_closer(page)
 
                 _LOGGER.debug(
                     "Wait for add options to be visible/attached: %s",
-                    RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
+                    RECIPE_SEARCH_ADD_OPTIONS_SELECTOR,
                 )
-                await page.wait_for_selector(
-                    RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id)
-                )
+                await page.wait_for_selector(RECIPE_SEARCH_ADD_OPTIONS_SELECTOR)
             except PlaywrightTimeoutError as e:
                 raise CookidooNavigationException(
-                    f"Recipe page not found, due to timeout.\n{error_message_selector(page.url, RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id))}"
+                    f"Recipe not found in search not found, due to timeout.\n{error_message_selector(page.url, RECIPE_SEARCH_ADD_OPTIONS_SELECTOR)}"
                 ) from e
 
             if cfg["screenshots"]:
@@ -73,12 +82,10 @@ async def add_items(
 
             _LOGGER.debug(
                 "Extract the options button: %s",
-                RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
+                RECIPE_SEARCH_ADD_OPTIONS_SELECTOR,
             )
-            await waiter(page, RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id))
-            options_el = await selector(
-                page, RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id)
-            )
+            await waiter(page, RECIPE_SEARCH_ADD_OPTIONS_SELECTOR)
+            options_el = await selector(page, RECIPE_SEARCH_ADD_OPTIONS_SELECTOR)
             await scroller(page, options_el)
 
             if cfg["screenshots"]:
@@ -86,7 +93,7 @@ async def add_items(
 
             _LOGGER.debug(
                 "Click on options button: %s",
-                RECIPE_ADD_OPTIONS_SELECTOR_TEMPLATE.format(recipe_id),
+                RECIPE_SEARCH_ADD_OPTIONS_SELECTOR,
             )
             await clicker(
                 page,
@@ -101,16 +108,18 @@ async def add_items(
 
             _LOGGER.debug(
                 "Extract the shopping list option button: %s",
-                RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR,
+                RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR,
             )
-            await waiter(page, RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR)
+            await waiter(page, RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR)
             shopping_list_option_el = await selector(
-                page, RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR
+                page, RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR
             )
+
+            await scroller(page, shopping_list_option_el)
 
             _LOGGER.debug(
                 "Click on shopping list option button: %s",
-                RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR,
+                RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR,
             )
             await clicker(
                 page,
@@ -123,7 +132,9 @@ async def add_items(
                 "networkidle"
             )  # Waits until there are no network connections for at least 500ms
 
-            await waiter(page, RECIPE_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR)
+            await state_waiter(
+                page, RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR, "hidden"
+            )
 
             if cfg["screenshots"]:
                 await page.screenshot(path=f"{out_dir}/4-recipe-items-added.png")
@@ -132,7 +143,7 @@ async def add_items(
             if retry < cfg.get("retries", DEFAULT_RETRIES):
                 _LOGGER.warning(
                     "Could not add items of recipe (%s) on try #%d due to error:\n%s",
-                    recipe_id,
+                    recipe_name,
                     retry,
                     e,
                 )
@@ -140,8 +151,8 @@ async def add_items(
                 _LOGGER.warning(
                     "Exhausted all #%d retries for add items (%s)",
                     retry + 1,
-                    recipe_id,
+                    recipe_name,
                 )
                 raise CookidooException(
-                    f"Could not add items of recipe ({recipe_id})"
+                    f"Could not add items of recipe ({recipe_name})"
                 ) from e

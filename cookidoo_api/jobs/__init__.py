@@ -1,6 +1,7 @@
 """Cookidoo automation jobs."""
 
 from .add_items import add_items
+from .add_items_alternative import add_items_alternative
 from .browser import CookidooBrowser
 from .clear_items import clear_items
 from .create_additional_items import create_additional_items
@@ -25,5 +26,6 @@ __all__ = [
     "delete_additional_items",
     "clear_items",
     "add_items",
+    "add_items_alternative",
     "remove_items",
 ]
