@@ -8,6 +8,7 @@ from smoke_test.conftest import (
     TEST_ITEM_LABEL,
     TEST_ITEMS_COUNT,
     TEST_RECIPE,
+    TEST_RECIPE_ALTERNATIVE,
     save_cookies,
 )
 
@@ -25,7 +26,8 @@ class TestJobs:
         assert (
             len(await cookidoo.get_items(pending=True, checked=True)) == 0
         ), "Check if not items present"
-        await cookidoo.add_items(TEST_RECIPE)
+        # await cookidoo.add_items(TEST_RECIPE)
+        await cookidoo.add_items_alternative(TEST_RECIPE_ALTERNATIVE)
         assert (
             len(await cookidoo.get_items(pending=True, checked=True))
             == TEST_ITEMS_COUNT

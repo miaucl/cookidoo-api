@@ -15,6 +15,7 @@ COOKIE_VALIDATION_URL: Final = "https://cookidoo.ch/profile/account"
 COOKIE_VALIDATION_SELECTOR: Final = (
     "main > section > .profile-indent > .profile-main-headline"
 )
+FEEDBACK_MODAL_CLOSE: Final = "core-feedback .core-modal__close"
 SHOPPING_LIST_URL: Final = "https://cookidoo.ch/shopping"
 SHOPPING_LIST_SELECTOR: Final = "pm-shopping-list"
 
@@ -79,6 +80,11 @@ RECIPE_ADD_OPTION_SHOPPING_LIST_SELECTOR: Final = (
 )
 RECIPE_ADD_TO_SHOPPING_LIST_CONFIRM_SELECTOR: Final = (
     'core-conversion-teaser [href^="/shopping"]'
+)
+RECIPE_SEARCH_URL_TEMPLATE: Final = "https://cookidoo.ch/search?query={}"
+RECIPE_SEARCH_ADD_OPTIONS_SELECTOR: Final = "core-tile:nth-child(1) button"
+RECIPE_SEARCH_ADD_OPTION_SHOPPING_LIST_SELECTOR: Final = (
+    'core-context-menu [data-action="Add to shopping list"]'
 )
 DOM_CHECK_ATTACHED: Final = "element => document.body.contains(element)"
 

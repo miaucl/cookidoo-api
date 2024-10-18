@@ -5,7 +5,7 @@ from types import TracebackType
 
 from playwright.async_api import Page
 
-from cookidoo_api.actions import waiter
+from cookidoo_api.actions import feedback_closer, waiter
 from cookidoo_api.const import SHOPPING_LIST_SELECTOR, SHOPPING_LIST_URL
 from cookidoo_api.types import CookidooConfig
 
@@ -58,6 +58,9 @@ class ShoppingList:
         # Go to shopping list
         _LOGGER.debug("Go to shopping list: %s", SHOPPING_LIST_URL)
         await self._page.goto(SHOPPING_LIST_URL)
+
+        # Load script to close feedback modal
+        await feedback_closer(self._page)
 
         # Take a screenshot of the shopping list
         if self._cfg["screenshots"]:

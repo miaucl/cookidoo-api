@@ -15,6 +15,7 @@ from cookidoo_api.cookidoo import Cookidoo
 load_dotenv()
 
 TEST_RECIPE = "r59322"
+TEST_RECIPE_ALTERNATIVE = "Vollwert-Brötchen/Baguettes"
 TEST_ITEMS_COUNT = 7
 TEST_ITEM_LABEL = "Wasser"
 TEST_ITEM_DESCRIPTION = "220 g"

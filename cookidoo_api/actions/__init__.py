@@ -1,6 +1,7 @@
 """Cookidoo automation actions."""
 
 from .clicker import clicker
+from .feedback_closer import feedback_closer
 from .hoverer import hoverer
 from .scroller import scroller
 from .selector import selector
@@ -14,4 +15,5 @@ __all__ = [
     "hoverer",
     "clicker",
     "state_waiter",
+    "feedback_closer",
 ]
