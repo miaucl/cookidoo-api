@@ -11,9 +11,11 @@ from playwright.async_api import (
 
 from cookidoo_api.actions import clicker, selector
 from cookidoo_api.const import (
+    CHECK_BROWSER_URL,
     COOKIE_VALIDATION_SELECTOR,
     COOKIE_VALIDATION_URL,
     DEFAULT_COOKIDOO_CONFIG,
+    DEFAULT_NETWORK_TIMEOUT,
     LOGIN_CAPTCHA_SELECTOR,
     LOGIN_EMAIL_SELECTOR,
     LOGIN_ERROR_NOTIFICATION_SELECTOR,
@@ -26,6 +28,7 @@ from cookidoo_api.exceptions import (
     CookidooActionException,
     CookidooAuthBotDetectionException,
     CookidooAuthException,
+    CookidooNavigationException,
     CookidooSelectorException,
 )
 from cookidoo_api.helpers import (
@@ -209,6 +212,62 @@ class Cookidoo:
                 self._cookies = merge_cookies(self._cookies, cookies)
             except CookidooSelectorException as e:
                 raise CookidooAuthException("Cookies are not valid.") from e
+
+    async def check_browser(
+        self,
+        out_dir: str = "out/check_browser",
+    ) -> None:
+        """Check whether a connection to the browser can be established.
+
+        Parameters
+        ----------
+        self
+            Cookidoo class
+        out_dir
+            The directory to store output such as trace or screenshots
+
+        Raises
+        ------
+        CookidooNavigationException
+            When the browser is not available
+
+        """
+        _out_dir = timestamped_out_dir(out_dir)
+
+        async with (
+            async_playwright() as p,
+            CookidooBrowser(self._cfg, p) as browser,
+        ):
+            try:
+                _LOGGER.debug("Check browser functionality")
+
+                _LOGGER.debug("Create new browser context")
+                context = await browser.new_context()
+
+                # Set timeouts
+                context.set_default_navigation_timeout(
+                    self._cfg.get("network_timeout", DEFAULT_NETWORK_TIMEOUT)
+                )
+
+                # Get a new page
+                _LOGGER.debug("Open known check page in browser context")
+                page = await context.new_page()
+
+                # Go to check page
+                await page.goto(CHECK_BROWSER_URL)
+
+                # Take a screenshot of the check page
+                if self._cfg["screenshots"]:
+                    await page.screenshot(path=f"{_out_dir}/1-check-page.png")
+
+            except PlaywrightError as e:
+                raise CookidooNavigationException(
+                    "Could not check browser functionality."
+                ) from e
+            except CookidooSelectorException as e:
+                raise PlaywrightTimeoutError(
+                    "Could not check browser functionality."
+                ) from e
 
     async def login(
         self,

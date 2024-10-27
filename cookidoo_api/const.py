@@ -4,6 +4,7 @@ from typing import Final
 
 from cookidoo_api.types import CookidooConfig
 
+CHECK_BROWSER_URL: Final = "https://playwright.dev"
 LOGIN_START_URL: Final = "https://cookidoo.ch"
 LOGIN_START_SELECTOR: Final = "#layout--default > header > div > core-nav > nav > div.core-nav__container > ul.core-nav__links.unauthenticated-only > li:nth-child(2) > a"
 LOGIN_EMAIL_SELECTOR: Final = "#email"

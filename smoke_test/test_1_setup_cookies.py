@@ -9,6 +9,7 @@ class TestLoginAndValidation:
 
     async def test_cookidoo_login(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo validation of the token or login otherwise."""
+        await cookidoo.check_browser()  # Should login
         await cookidoo.login()  # Should login
         await cookidoo.login()  # Should only validate
         save_cookies(cookidoo.cookies)
