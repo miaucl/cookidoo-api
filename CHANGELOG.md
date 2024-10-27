@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.3.0
+
+- add check method to quickly verify browser functionality
+
 ## 0.2.0
 
 - add method to add items when in free account
