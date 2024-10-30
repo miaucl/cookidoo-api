@@ -18,6 +18,8 @@ from .types import (
     CookidooConfig,
     CookidooItem,
     CookidooItemStateType,
+    CookidooSubscription,
+    CookidooUserInfo,
 )
 
 __all__ = [
@@ -25,6 +27,8 @@ __all__ = [
     "CookidooItemStateType",
     "CookidooConfig",
     "CookidooAuthResponse",
+    "CookidooUserInfo",
+    "CookidooSubscription",
     "CookidooItem",
     "CookidooException",
     "CookidooConfigException",

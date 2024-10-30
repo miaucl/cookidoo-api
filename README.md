@@ -21,21 +21,15 @@ The developers of this module are in no way endorsed by or affiliated with Cooki
 
 ## Installation
 
-**Disclaimer: This library needs a runner (browser) to execute the calls through web automation. Make sure to have it correctly set up using one of the following options before proceeding.**
-
-[Setup runner](https://github.com/cookidoo-api/blob/master/runners)
-
-Once you have tested your runner, install the cookidoo library and use it with your preferred browser.
-
 `pip install cookidoo-api`
 
 ## Documentation
 
-See below for usage examples. See [Exceptions](#exceptions) for API-specific exceptions and mitigation strategies for common exceptions.
+See below for usage examples.
 
 ## Usage Example
 
-The API is based on the async implementation of the library [`playwright`](https://playwright.dev/python/docs/api/class-playwright) in collaboration with a runner for browser emulation.
+The API is based on the `aiohttp` library.
 
 Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 
@@ -48,19 +42,7 @@ Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/exam
 
 ## Exceptions
 
-In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/master/cookidoo_api/exceptions.py) can be thrown.
-They will either be
-
-- `CookidooActionException`
-- `CookidooAuthBotDetectionException`
-- `CookidooAuthException`
-- `CookidooConfigException`
-- `CookidooNavigationException`
-- `CookidooSelectorException`
-- `CookidooUnavailableException`
-- `CookidooUnexpectedStateException`
-
-depending on the context. All inherit from `CookidooException`.
+In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/master/cookidoo_api/exceptions.py) can be thrown, all inheriting from `CookidooException`.
 
 ### Another asyncio event loop is
 
@@ -89,38 +71,6 @@ You can fix this according to [this](https://stackoverflow.com/questions/6812329
 ```python
 asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 ```
-
-## Bot detection and captcha problems
-
-There is an inbuilt bot detection on cookidoo which can block the login process. There is a clear error message, when that happens. The tokens are valid for a fixed duration and therefore the library tries to minimize the amount of logins required to avoid the captcha process. Unfortunately, this is not always possible when developing or debugging a setup, and you might run into it. To continue, either wait a day or switch to a runner with a gui and enable `captcha` mode to manually solve the captcha during the login or a service such as [`capsolver`](https://www.capsolver.com/).
-
-It is generally advised, to first try the login in `fail` mode and only activate a recovery mode on a `CookidooAuthBotDetectionException` raised.
-
-### Captcha recovery mode `user_input`
-
-```python
-cookidoo = Cookidoo(<your headful browser setup>)
-await cookidoo.login(captcha_recovery_mode="user_input")
-```
-
-_Be aware, using this option with a headless browser will indefinitely block the process in login, as it is waiting for user action._
-
-### Captcha recovery mode `capsolver`
-
-This requires the `capsolver` to be installed.
-
-```bash
-pip install capsolver
-```
-
-```python
-cookidoo = Cookidoo(<your browser setup>)
-await cookidoo.login(captcha_recovery_mode="capsolver")
-```
-
-**This is not yet implemented.**
-
-Alternatively, they also provide a [browser extension](https://docs.capsolver.com/en/guide/extension/introductions/), which might be a cleaner way.
 
 ## Dev
 
