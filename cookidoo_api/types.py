@@ -2,16 +2,8 @@
 
 from typing import Literal, TypedDict
 
-CookidooBrowserType = Literal["chromium", "firefox", "webkit"]
-"""Cookidoo browser type"""
-
-CookidooCaptchaRecoveryType = Literal["fail", "user_input", "capsolver"]
-"""Cookidoo captcha recovery type"""
-
 CookidooItemStateType = Literal["pending", "checked"]
 """Cookidoo item state type"""
-
-CookidooWaiterStateType = Literal["attached", "detached", "hidden", "visible"]
 
 
 class CookidooConfig(TypedDict):
@@ -19,57 +11,52 @@ class CookidooConfig(TypedDict):
 
     Attributes
     ----------
-    language_code
+    country
+        The country code to use for the api
+    language
         The language code to use for the api
-    browser
-        The browser to use
-    remote_addr
-        If not set, local browser are used, otherwise use the remote addr as runner
-    remote_port
-        Set the port to connect to on the remote addr
-    headless
-        Switch between headless and headful mode
-
     email
         The email to login
     password
         The password to login
 
-    network_timeout
-        Duration to wait before considering a navigation as failed
-    timeout
-        Duration to wait before any action (selector, click, etc.) as failed
-    retries
-        Retry complex actions N times before considering it as failed
-    load_media
-        Control whether images and other media should be loaded
-
-    tracing
-        Trace all action happening and save it as trace.zip to review
-    screenshots
-        Make screenshots at important moments
-    out_dir
-        Where all the tracing and screenshots are exported to
-
     """
 
-    language_code: str
-    browser: CookidooBrowserType
-    remote_addr: str | None
-    remote_port: str | None
-    headless: bool
-
+    country: str
+    language: str
     email: str
     password: str
 
-    network_timeout: int
-    timeout: int
-    retries: int
-    load_media: bool
 
-    tracing: bool
-    screenshots: bool
-    out_dir: str
+class CookidooAuthResponse(TypedDict):
+    """An auth response class."""
+
+    username: str
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+
+class CookidooUserInfo(TypedDict):
+    """A user info class."""
+
+    username: str
+    description: str | None
+    picture: str | None
+
+
+class CookidooSubscription(TypedDict):
+    """A subscription class."""
+
+    active: bool
+    expires: str
+    startDate: str
+    status: str
+    subscriptionLevel: str
+    subscriptionSource: str
+    type: str
+    extendedType: str
 
 
 class CookidooItem(TypedDict):
@@ -79,16 +66,32 @@ class CookidooItem(TypedDict):
     ----------
     id
         The id of the item
-    label
+    name
         The label of the item
     description
         The description of the item, including the quantity or other helpful information
-    state
-        The state of the item
+    isOwned
+        Whether the items is checked or not
 
     """
 
     id: str
-    label: str
+    name: str
     description: str | None
-    state: CookidooItemStateType
+    isOwned: bool
+
+
+class IngredientQuantityJSON(TypedDict):
+    """The json for an ingredient quantity in the API."""
+
+    value: int | float
+
+
+class IngredientJSON(TypedDict):
+    """The json for an ingredient in the API."""
+
+    id: str
+    ingredientNotation: str
+    isOwned: bool
+    quantity: IngredientQuantityJSON | None
+    unitNotation: str | None
