@@ -25,7 +25,6 @@ COOKIE_HEADER: Final = "v-token={access_token}"
 TOKEN_ENDPOINT: Final = "https://{site}.login.vorwerk.com/oauth2/token"
 
 API_ENDPOINT: Final = "https://{country}.tmmobile.vorwerk-digital.com"
-VERIFICATION_PATH: Final = "profile/api/user"
 INGREDIENTS_PATH: Final = "shopping/{language}"
 EDIT_OWNERSHIP_INGREDIENTS_PATH: Final = (
     "shopping/{language}/owned-ingredients/ownership/edit"

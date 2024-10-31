@@ -30,10 +30,10 @@ from cookidoo_api.const import (
     REMOVE_INGREDIENTS_FOR_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_ENDPOINT,
-    VERIFICATION_PATH,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
+    CookidooConfigException,
     CookidooParseException,
     CookidooRequestException,
 )
@@ -57,7 +57,7 @@ class Cookidoo:
     _cfg: CookidooConfig
     _token_headers: dict[str, str]
     _api_headers: dict[str, str]
-    _auth_data: CookidooAuthResponse
+    _auth_data: CookidooAuthResponse | None
 
     def __init__(
         self,
@@ -80,6 +80,7 @@ class Cookidoo:
         self._token_headers = DEFAULT_TOKEN_HEADERS.copy()
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self.__expires_in: int
+        self._auth_data = None
 
     @property
     def expires_in(self) -> int:
@@ -94,67 +95,6 @@ class Cookidoo:
     def api_endpoint(self) -> str:
         """Get the api endpoint."""
         return API_ENDPOINT.format(**self._cfg)
-
-    async def validate(self) -> None:
-        """Validate the tokens.
-
-        Raises
-        ------
-        CookidooParseException
-            When the token does not exist
-        CookidooAuthException
-            When the jwt is not valid anymore
-
-        """
-        if not self._auth_data:
-            raise CookidooParseException("No auth data available")
-
-        try:
-            url = os.path.join(self.api_endpoint, VERIFICATION_PATH)
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s",
-                    url,
-                    r.status,
-                    await r.text(),
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except JSONDecodeError as e:
-                        _LOGGER.debug(
-                            "Exception: Cannot parse validation request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                        raise CookidooParseException(
-                            "Validation failed due to authorization failure "
-                            "but error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot login: %s", errmsg["error_description"]
-                    )
-                    raise CookidooAuthException(
-                        "Validation failed due to authorization failure, "
-                        "please reauthenticate before retrying."
-                    )
-                if r.status == HTTPStatus.BAD_REQUEST:
-                    _LOGGER.debug("Exception: Cannot validate: %s", await r.text())
-                    raise CookidooAuthException(
-                        "Validation failed due to bad request, please check your token."
-                    )
-                r.raise_for_status()
-
-        except TimeoutError as e:
-            _LOGGER.debug("Exception: Cannot validate:\n %s", traceback.format_exc())
-            raise CookidooRequestException(
-                "Authentication failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug("Exception: Cannot validate:\n %s", traceback.format_exc())
-            raise CookidooRequestException(
-                "Authentication failed due to request exception."
-            ) from e
 
     # async def test(self) -> None:
     #     """Test something."""
@@ -214,6 +154,8 @@ class Cookidoo:
 
         Raises
         ------
+        CookidooConfigException
+            If no login has happened yet
         CookidooRequestException
             If the request fails.
         CookidooParseException
@@ -224,89 +166,14 @@ class Cookidoo:
 
         """
         if not self._auth_data:
-            raise CookidooParseException("No auth data available")
+            raise CookidooConfigException("No auth data available, please log in first")
 
-        user_data = FormData()
-        user_data.add_field("grant_type", "refresh_token")
-        user_data.add_field("refresh_token", self._auth_data["refresh_token"])
-        user_data.add_field("client_id", COOKIDOO_CLIENT_ID)
+        refresh_data = FormData()
+        refresh_data.add_field("grant_type", "refresh_token")
+        refresh_data.add_field("refresh_token", self._auth_data["refresh_token"])
+        refresh_data.add_field("client_id", COOKIDOO_CLIENT_ID)
 
-        try:
-            url = TOKEN_ENDPOINT.format(site=DEFAULT_SITE)
-            async with self._session.post(
-                url, data=user_data, headers=self._token_headers
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s",
-                    url,
-                    r.status,
-                    await r.text(),
-                    # if r.status != 200
-                    # else "",  # do not log response on success, as it contains sensible data
-                    # TODO Remove
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except JSONDecodeError as e:
-                        _LOGGER.debug(
-                            "Exception: Cannot parse refresh request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                        raise CookidooParseException(
-                            "Refresh failed due to authorization failure "
-                            "but error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot refresh: %s", errmsg["error_description"]
-                    )
-                    raise CookidooAuthException(
-                        "Refresh failed due to authorization failure, "
-                        "please check your token."
-                    )
-                if r.status == HTTPStatus.BAD_REQUEST:
-                    _LOGGER.debug("Exception: Cannot refresh: %s", await r.text())
-                    raise CookidooAuthException(
-                        "Refresh failed due to bad request, please check your token."
-                    )
-                r.raise_for_status()
-
-                try:
-                    data = cast(
-                        CookidooAuthResponse,
-                        {
-                            key: val
-                            for key, val in (await r.json()).items()
-                            if key in CookidooAuthResponse.__annotations__
-                        },
-                    )
-                except JSONDecodeError as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot refresh:\n %s", traceback.format_exc()
-                    )
-                    raise CookidooParseException(
-                        "Cannot parse refresh request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug("Exception: Cannot refresh:\n %s", traceback.format_exc())
-            raise CookidooRequestException(
-                "Authentication failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug("Exception: Cannot refresh:\n %s", traceback.format_exc())
-            raise CookidooRequestException(
-                "Authentication failed due to request exception."
-            ) from e
-
-        self._api_headers["AUTHORIZATION"] = AUTHORIZATION_HEADER.format(
-            type=data["token_type"].lower().capitalize(),
-            access_token=data["access_token"],
-        )
-        self._auth_data = data
-        self.expires_in = data["expires_in"]
-
-        return data
+        return await self._request_access_token(refresh_data)
 
     async def login(self) -> CookidooAuthResponse:
         """Try to login.
@@ -332,19 +199,45 @@ class Cookidoo:
         user_data.add_field("username", self._cfg["email"])
         user_data.add_field("password", self._cfg["password"])
 
+        return await self._request_access_token(user_data)
+
+    async def _request_access_token(self, form_data: FormData) -> CookidooAuthResponse:
+        """Request a new access token.
+
+        Parameters
+        ----------
+        form_data
+            The data to be passed to the request with user credentials or refresh token
+
+        Returns
+        -------
+        CookidooAuthResponse
+            The auth response object.
+
+        Raises
+        ------
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+        CookidooAuthException
+            If the access token request fails due invalid credentials.
+            You should check your email and password or refresh token.
+
+        """
+
         try:
             url = TOKEN_ENDPOINT.format(site=DEFAULT_SITE)
             async with self._session.post(
-                url, data=user_data, headers=self._token_headers
+                url, data=form_data, headers=self._token_headers
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s",
                     url,
                     r.status,
-                    await r.text(),
-                    # if r.status != 200
-                    # else "",  # do not log response on success, as it contains sensible data
-                    # TODO Remove
+                    await r.text()
+                    if r.status != 200
+                    else "",  # do not log response on success, as it contains sensible data
                 )
 
                 if r.status == HTTPStatus.UNAUTHORIZED:
@@ -352,24 +245,27 @@ class Cookidoo:
                         errmsg = await r.json()
                     except JSONDecodeError as e:
                         _LOGGER.debug(
-                            "Exception: Cannot parse login request response:\n %s",
+                            "Exception: Cannot parse access token request response:\n %s",
                             traceback.format_exc(),
                         )
                         raise CookidooParseException(
-                            "Login failed due to authorization failure "
+                            "Access token request failed due to authorization failure "
                             "but error response could not be parsed."
                         ) from e
                     _LOGGER.debug(
-                        "Exception: Cannot login: %s", errmsg["error_description"]
+                        "Exception: Cannot request access token: %s",
+                        errmsg["error_description"],
                     )
                     raise CookidooAuthException(
-                        "Login failed due to authorization failure, "
-                        "please check your email and password."
+                        "Access token request failed due to authorization failure, "
+                        "please check your email and password or refresh token."
                     )
                 if r.status == HTTPStatus.BAD_REQUEST:
-                    _LOGGER.debug("Exception: Cannot login: %s", await r.text())
+                    _LOGGER.debug(
+                        "Exception: Cannot request access token: %s", await r.text()
+                    )
                     raise CookidooAuthException(
-                        "Login failed due to bad request, please check your email."
+                        "Access token request failed due to bad request, please check your email or refresh token."
                     )
                 r.raise_for_status()
 
@@ -384,18 +280,23 @@ class Cookidoo:
                     )
                 except JSONDecodeError as e:
                     _LOGGER.debug(
-                        "Exception: Cannot login:\n %s", traceback.format_exc()
+                        "Exception: Cannot request access token:\n %s",
+                        traceback.format_exc(),
                     )
                     raise CookidooParseException(
-                        "Cannot parse login request response."
+                        "Cannot parse access token request response."
                     ) from e
         except TimeoutError as e:
-            _LOGGER.debug("Exception: Cannot login:\n %s", traceback.format_exc())
+            _LOGGER.debug(
+                "Exception: Cannot request access token:\n %s", traceback.format_exc()
+            )
             raise CookidooRequestException(
                 "Authentication failed due to connection timeout."
             ) from e
         except ClientError as e:
-            _LOGGER.debug("Exception: Cannot login:\n %s", traceback.format_exc())
+            _LOGGER.debug(
+                "Exception: Cannot request access token:\n %s", traceback.format_exc()
+            )
             raise CookidooRequestException(
                 "Authentication failed due to request exception."
             ) from e

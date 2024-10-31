@@ -37,11 +37,12 @@ async def main():
         )
         # Login
         await cookidoo.login()
-        await cookidoo.validate()
         await cookidoo.refresh_token()
 
         # Info
         await cookidoo.get_user_info()
+        await cookidoo.get_active_subscription()
+        return
 
         # Shopping list
         await cookidoo.clear_shopping_list()
