@@ -45,10 +45,9 @@ async def main():
 
         # Shopping list
         await cookidoo.clear_shopping_list()
-        return
 
         # Ingredients
-        added_recipes = await cookidoo.add_ingredients_for_recipes(
+        added_ingredients = await cookidoo.add_ingredients_for_recipes(
             ["r59322", "r907016"]
         )
         _edited_ingredients = await cookidoo.edit_ingredients_ownership(
@@ -59,7 +58,7 @@ async def main():
                 }
                 for ingredient in filter(
                     lambda ingredient: ingredient["name"] == "Hefe",
-                    added_recipes,
+                    added_ingredients,
                 )
             ]
         )

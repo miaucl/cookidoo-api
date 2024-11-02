@@ -28,7 +28,7 @@ classifiers = [
   "Topic :: System :: Systems Administration",
 ]
 license = {text = "MIT License"}
-keywords = ["cookidoo", "todo", "web", "browser", "scaping", "home-assistant", "iot"]
+keywords = ["cookidoo", "todo", "home-assistant", "iot"]
 
 [tool.setuptools]
 

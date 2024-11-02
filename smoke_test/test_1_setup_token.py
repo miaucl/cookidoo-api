@@ -1,7 +1,8 @@
-"""Setup cookies for smoke test for cookidoo-api."""
+"""Setup token for smoke test for cookidoo-api."""
+
+import asyncio
 
 from cookidoo_api.cookidoo import Cookidoo
-from smoke_test.conftest import save_cookies
 
 
 class TestLoginAndValidation:
@@ -9,7 +10,9 @@ class TestLoginAndValidation:
 
     async def test_cookidoo_login(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo validation of the token or login otherwise."""
-        await cookidoo.check_browser()  # Should login
         await cookidoo.login()  # Should login
-        await cookidoo.login()  # Should only validate
-        save_cookies(cookidoo.cookies)
+        await asyncio.sleep(3)
+        expires_in_login = cookidoo.expires_in
+        await cookidoo.refresh_token()  # Should refresh
+        expires_in_refesh = cookidoo.expires_in
+        assert expires_in_refesh > expires_in_login
