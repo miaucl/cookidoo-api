@@ -42,10 +42,10 @@ async def main():
         # Info
         await cookidoo.get_user_info()
         await cookidoo.get_active_subscription()
-        return
 
         # Shopping list
         await cookidoo.clear_shopping_list()
+        return
 
         # Ingredients
         added_recipes = await cookidoo.add_ingredients_for_recipes(

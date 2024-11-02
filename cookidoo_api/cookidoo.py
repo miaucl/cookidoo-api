@@ -96,54 +96,6 @@ class Cookidoo:
         """Get the api endpoint."""
         return API_ENDPOINT.format(**self._cfg)
 
-    # async def test(self) -> None:
-    #     """Test something."""
-    #     try:
-    #         async with self._session.get(TEST, headers=self._api_headers) as r:
-    #             _LOGGER.debug(
-    #                 "Response from %s [%s]: %s",
-    #                 TEST,
-    #                 r.status,
-    #                 await r.text(),
-    #             )
-
-    #             if r.status == HTTPStatus.UNAUTHORIZED:
-    #                 try:
-    #                     errmsg = await r.json()
-    #                 except JSONDecodeError as e:
-    #                     _LOGGER.debug(
-    #                         "Exception: Cannot parse validation request response:\n %s",
-    #                         traceback.format_exc(),
-    #                     )
-    #                     raise CookidooParseException(
-    #                         "Validation failed due to authorization failure "
-    #                         "but error response could not be parsed."
-    #                     ) from e
-    #                 _LOGGER.debug(
-    #                     "Exception: Cannot login: %s", errmsg["error_description"]
-    #                 )
-    #                 raise CookidooAuthException(
-    #                     "Validation failed due to authorization failure, "
-    #                     "please reauthenticate before retrying."
-    #                 )
-    #             if r.status == HTTPStatus.BAD_REQUEST:
-    #                 _LOGGER.debug("Exception: Cannot validate: %s", await r.text())
-    #                 raise CookidooAuthException(
-    #                     "Validation failed due to bad request, please check your token."
-    #                 )
-    #             r.raise_for_status()
-
-    #     except TimeoutError as e:
-    #         _LOGGER.debug("Exception: Cannot validate:\n %s", traceback.format_exc())
-    #         raise CookidooRequestException(
-    #             "Authentication failed due to connection timeout."
-    #         ) from e
-    #     except ClientError as e:
-    #         _LOGGER.debug("Exception: Cannot validate:\n %s", traceback.format_exc())
-    #         raise CookidooRequestException(
-    #             "Authentication failed due to request exception."
-    #         ) from e
-
     async def refresh_token(self) -> CookidooAuthResponse:
         """Try to refresh the token.
 
@@ -243,19 +195,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse access token request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Access token request failed due to authorization failure "
-                            "but error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot request access token: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot request access token: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Access token request failed due to authorization failure, "
                         "please check your email and password or refresh token."
@@ -344,19 +293,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Loading user info failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot get user info: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get user info: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Loading user info failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -433,19 +379,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Loading active subscription failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot get active subscription: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get active subscription: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Loading active subscription failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -498,6 +441,94 @@ class Cookidoo:
                 "Loading active subscription failed due to request exception."
             ) from e
 
+    async def get_ingredients(
+        self,
+    ) -> list[CookidooItem]:
+        """Get recipe items.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+
+        Returns
+        -------
+        list[CookidooItem]
+            The list of the recipe items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = os.path.join(
+                self.api_endpoint,
+                INGREDIENTS_PATH.format(**self._cfg),
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get recipe items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading recipe items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return [
+                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        for recipe in (await r.json())["recipes"]
+                        for ingredient in recipe["recipeIngredientGroups"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get recipe items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading recipe items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipe items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot recipe items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe items failed due to request exception."
+            ) from e
+
     async def add_ingredients_for_recipes(
         self,
         recipe_ids: list[str],
@@ -542,19 +573,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Add ingredients for recipes failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot add ingredients for recipes: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add ingredients for recipes: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Add ingredients for recipes failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -631,19 +659,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Remove ingredients for recipes failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot remove ingredients for recipes: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove ingredients for recipes: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Remove ingredients for recipes failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -665,97 +690,6 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Remove ingredients for recipes failed due to request exception."
-            ) from e
-
-    async def get_ingredients(
-        self,
-    ) -> list[CookidooItem]:
-        """Get recipe items.
-
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-
-        Returns
-        -------
-        list[CookidooItem]
-            The list of the recipe items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        try:
-            url = os.path.join(
-                self.api_endpoint,
-                INGREDIENTS_PATH.format(**self._cfg),
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except JSONDecodeError as e:
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                        raise CookidooParseException(
-                            "Loading recipe items failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot get recipe items: %s",
-                        errmsg["error_description"],
-                    )
-                    raise CookidooAuthException(
-                        "Loading recipe items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return [
-                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
-                        for recipe in (await r.json())["recipes"]
-                        for ingredient in recipe["recipeIngredientGroups"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get recipe items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading recipe items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get recipe items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipe items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot recipe items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipe items failed due to request exception."
             ) from e
 
     async def edit_ingredients_ownership(
@@ -811,19 +745,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Edit recipe items ownership failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot edit recipe items ownership: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit recipe item ownership: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Edit recipe items ownership failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -900,19 +831,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Loading additional items failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot get additional items: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get additional items: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Loading additional items failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -1002,19 +930,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Add additional items failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot add additional items: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add additional items: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Add additional items failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -1104,19 +1029,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Edit additional items failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot edit additional items: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit additional items: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Edit additional items failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -1207,19 +1129,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Edit additional items ownership failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot edit additional items ownership: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit additional items ownership: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Edit additional items ownership failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -1296,19 +1215,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Remove additional items failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot remove additional items ownership: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove additional items: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Remove additional items failed due to authorization failure, "
                         "the authorization token is invalid or expired."
@@ -1365,19 +1281,16 @@ class Cookidoo:
                 if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
                         errmsg = await r.json()
-                    except JSONDecodeError as e:
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
                             "Exception: Cannot parse request response:\n %s",
                             traceback.format_exc(),
                         )
-                        raise CookidooParseException(
-                            "Clear shopping lst failed due to authorization failure but "
-                            "error response could not be parsed."
-                        ) from e
-                    _LOGGER.debug(
-                        "Exception: Cannot clear shopping list: %s",
-                        errmsg["error_description"],
-                    )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot clear shopping list: %s",
+                            errmsg["error_description"],
+                        )
                     raise CookidooAuthException(
                         "Clear shopping list failed due to authorization failure, "
                         "the authorization token is invalid or expired."
