@@ -92,6 +92,20 @@ class Cookidoo:
         self.__expires_in = int(time.time()) + int(expires_in)
 
     @property
+    def auth_data(self) -> CookidooAuthResponse | None:
+        """Auth data."""
+        return self._auth_data.copy() if self._auth_data else None
+
+    @auth_data.setter
+    def auth_data(self, auth_data: CookidooAuthResponse) -> None:
+        self._api_headers["AUTHORIZATION"] = AUTHORIZATION_HEADER.format(
+            type=auth_data["token_type"].lower().capitalize(),
+            access_token=auth_data["access_token"],
+        )
+        self._auth_data = auth_data
+        self.expires_in = auth_data["expires_in"]
+
+    @property
     def api_endpoint(self) -> str:
         """Get the api endpoint."""
         return API_ENDPOINT.format(**self._cfg)
@@ -250,14 +264,9 @@ class Cookidoo:
                 "Authentication failed due to request exception."
             ) from e
 
-        self._api_headers["AUTHORIZATION"] = AUTHORIZATION_HEADER.format(
-            type=data["token_type"].lower().capitalize(),
-            access_token=data["access_token"],
-        )
-        self._auth_data = data
-        self.expires_in = data["expires_in"]
+        self.auth_data = data
 
-        return data
+        return data.copy()
 
     async def get_user_info(
         self,
