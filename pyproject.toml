@@ -201,6 +201,7 @@ source = ["tests"]
 
 [tool.coverage.report]
 format="text"
+show_missing = true
 
 # Regexes for lines to exclude from consideration
 exclude_also = [

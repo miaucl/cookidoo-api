@@ -1,7 +1,9 @@
 """Smoke test for cookidoo-api."""
 
 from collections.abc import AsyncGenerator
+import json
 import os
+from typing import cast
 
 from aiohttp import ClientSession
 from dotenv import load_dotenv
@@ -9,8 +11,29 @@ import pytest
 
 from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.types import CookidooAuthResponse
 
 load_dotenv()
+
+
+def save_token(token: CookidooAuthResponse) -> None:
+    """Save the token locally."""
+    with open(".token", "w", encoding="utf-8") as file:
+        file.write(json.dumps(token))
+
+
+def load_token() -> CookidooAuthResponse:
+    """Load the token locally."""
+    # Open and read the file
+    with open(".token", encoding="utf-8") as file:
+        return cast(CookidooAuthResponse, json.loads(file.read() or "{}"))
+
+
+@pytest.fixture(name="auth_data")
+async def auth_data() -> CookidooAuthResponse:
+    """Load the token."""
+
+    return load_token()
 
 
 @pytest.fixture(name="session")
@@ -20,8 +43,8 @@ async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
         yield session
 
 
-@pytest.fixture(name="cookidoo")
-async def cookidoo_api_client(session: ClientSession) -> Cookidoo:
+@pytest.fixture(name="cookidoo_no_auth")
+async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
 
     cookidoo = Cookidoo(
@@ -35,9 +58,22 @@ async def cookidoo_api_client(session: ClientSession) -> Cookidoo:
     return cookidoo
 
 
-@pytest.fixture(name="cookidoo_auth")
-async def cookidoo_authenticated_api_client(cookidoo: Cookidoo) -> Cookidoo:
+@pytest.fixture(name="cookidoo")
+async def cookidoo_authenticated_api_client(
+    session: ClientSession, auth_data: CookidooAuthResponse
+) -> Cookidoo:
     """Create authenticated Cookidoo instance."""
 
-    await cookidoo.login()
+    cookidoo = Cookidoo(
+        session,
+        {
+            **DEFAULT_COOKIDOO_CONFIG,
+            "email": os.environ["EMAIL"],
+            "password": os.environ["PASSWORD"],
+        },
+    )
+
+    # Restore auth data from saved token
+    cookidoo.auth_data = auth_data
+
     return cookidoo

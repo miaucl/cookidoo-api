@@ -119,6 +119,7 @@ class TestLogin:
             payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
         )
 
+        assert cookidoo.auth_data is None
         data = await cookidoo.login()
         for key, value in data.items():
             assert value == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE[key]
