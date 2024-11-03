@@ -2,7 +2,7 @@
 
 from typing import Final
 
-from cookidoo_api.types import CookidooConfig
+from cookidoo_api.types import CookidooConfig, CookidooLocalizationConfig
 
 COOKIDOO_CLIENT_ID: Final = "kupferwerk-client-nwot"
 COOKIDOO_CLIENT_SECRET: Final = "Ls50ON1woySqs1dCdJge"
@@ -24,7 +24,7 @@ COOKIE_HEADER: Final = "v-token={access_token}"
 
 TOKEN_ENDPOINT: Final = "https://{site}.login.vorwerk.com/oauth2/token"
 
-API_ENDPOINT: Final = "https://{country}.tmmobile.vorwerk-digital.com"
+API_ENDPOINT: Final = "https://{country_code}.tmmobile.vorwerk-digital.com"
 INGREDIENTS_PATH: Final = "shopping/{language}"
 EDIT_OWNERSHIP_INGREDIENTS_PATH: Final = (
     "shopping/{language}/owned-ingredients/ownership/edit"
@@ -49,8 +49,13 @@ DEFAULT_SITE = "eu"
 
 DEFAULT_COOKIDOO_CONFIG = CookidooConfig(
     {
-        "country": "ch",
-        "language": "de-CH",
+        "localization": CookidooLocalizationConfig(
+            {
+                "country_code": "ch",
+                "language": "de-CH",
+                "url": "https://cookidoo.ch/foundation/de-CH",
+            }
+        ),
         "email": "your@email",
         "password": "1234password!",
     }

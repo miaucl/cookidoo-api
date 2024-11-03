@@ -108,7 +108,7 @@ class Cookidoo:
     @property
     def api_endpoint(self) -> URL:
         """Get the api endpoint."""
-        return URL(API_ENDPOINT.format(**self._cfg))
+        return URL(API_ENDPOINT.format(**self._cfg["localization"]))
 
     async def refresh_token(self) -> CookidooAuthResponse:
         """Try to refresh the token.
@@ -290,7 +290,9 @@ class Cookidoo:
         """
 
         try:
-            url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(**self._cfg)
+            url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.get(url, headers=self._api_headers) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -373,7 +375,9 @@ class Cookidoo:
         """
 
         try:
-            url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(**self._cfg)
+            url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.get(url, headers=self._api_headers) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -471,7 +475,9 @@ class Cookidoo:
         """
 
         try:
-            url = self.api_endpoint / INGREDIENTS_PATH.format(**self._cfg)
+            url = self.api_endpoint / INGREDIENTS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.get(url, headers=self._api_headers) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -560,7 +566,7 @@ class Cookidoo:
         json_data = {"recipeIDs": recipe_ids}
         try:
             url = self.api_endpoint / ADD_INGREDIENTS_FOR_RECIPES_PATH.format(
-                **self._cfg
+                **self._cfg["localization"]
             )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
@@ -645,7 +651,7 @@ class Cookidoo:
         json_data = {"recipeIDs": recipe_ids}
         try:
             url = self.api_endpoint / REMOVE_INGREDIENTS_FOR_RECIPES_PATH.format(
-                **self._cfg
+                **self._cfg["localization"]
             )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
@@ -730,7 +736,7 @@ class Cookidoo:
         }
         try:
             url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENTS_PATH.format(
-                **self._cfg
+                **self._cfg["localization"]
             )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
@@ -816,7 +822,9 @@ class Cookidoo:
         """
 
         try:
-            url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(**self._cfg)
+            url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.get(url, headers=self._api_headers) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -910,7 +918,9 @@ class Cookidoo:
         """
         json_data = {"itemsValue": additional_item_names}
         try:
-            url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(**self._cfg)
+            url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
             ) as r:
@@ -1006,7 +1016,9 @@ class Cookidoo:
             ]
         }
         try:
-            url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(**self._cfg)
+            url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
             ) as r:
@@ -1104,7 +1116,7 @@ class Cookidoo:
         }
         try:
             url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg
+                **self._cfg["localization"]
             )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
@@ -1188,7 +1200,9 @@ class Cookidoo:
         """
         json_data = {"additionalItemIDs": additional_item_ids}
         try:
-            url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(**self._cfg)
+            url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.post(
                 url, headers=self._api_headers, json=json_data
             ) as r:
@@ -1253,7 +1267,9 @@ class Cookidoo:
 
         """
         try:
-            url = self.api_endpoint / INGREDIENTS_PATH.format(**self._cfg)
+            url = self.api_endpoint / INGREDIENTS_PATH.format(
+                **self._cfg["localization"]
+            )
             async with self._session.delete(url, headers=self._api_headers) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()

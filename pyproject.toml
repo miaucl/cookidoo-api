@@ -36,7 +36,7 @@ keywords = ["cookidoo", "todo", "home-assistant", "iot"]
 include = ["cookidoo_api*"]
 
 [tool.setuptools.package-data]
-cookidoo_api = ["py.typed"]
+cookidoo_api = ["py.typed", '*.json']
 
 [tool.setuptools.dynamic]
 version = {attr = "cookidoo_api.__version__"}
@@ -180,7 +180,7 @@ split-on-trailing-comma = false
 # Allow for main entry & scripts to write to stdout
 "cookidoo_api/__main__.py" = ["T201"]
 "cookidoo_api/scripts/*" = ["T201"]
-"script/*" = ["T20"]
+"scripts/*" = ["T20"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25

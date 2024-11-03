@@ -10,6 +10,11 @@ import aiohttp
 from dotenv import load_dotenv
 
 from cookidoo_api import DEFAULT_COOKIDOO_CONFIG, Cookidoo
+from cookidoo_api.helpers import (
+    get_country_options,
+    get_language_options,
+    get_localization_options,
+)
 
 load_dotenv()
 
@@ -26,6 +31,12 @@ logging.basicConfig(
 async def main():
     """Run main example function."""
     async with aiohttp.ClientSession() as session:
+        # Show all country_codes, languages and some localizations
+        _country_codes = get_country_options()
+        _languages = get_language_options()
+        _localizations_ch = get_localization_options(country="ch")
+        _localizations_en = get_localization_options(language="en")
+
         # Create Cookidoo instance with email and password
         cookidoo = Cookidoo(
             session,

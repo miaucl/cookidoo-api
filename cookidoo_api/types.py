@@ -6,15 +6,21 @@ CookidooItemStateType = Literal["pending", "checked"]
 """Cookidoo item state type"""
 
 
+class CookidooLocalizationConfig(TypedDict):
+    """A localization config class."""
+
+    country_code: str
+    language: str
+    url: str
+
+
 class CookidooConfig(TypedDict):
     """Cookidoo config type.
 
     Attributes
     ----------
-    country
-        The country code to use for the api
-    language
-        The language code to use for the api
+    localization
+        The localization for the api including country, language and url
     email
         The email to login
     password
@@ -22,8 +28,7 @@ class CookidooConfig(TypedDict):
 
     """
 
-    country: str
-    language: str
+    localization: CookidooLocalizationConfig
     email: str
     password: str
 
