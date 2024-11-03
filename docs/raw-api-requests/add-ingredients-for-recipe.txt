@@ -1,0 +1,26 @@
+POST https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add HTTP/2.0
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJ<redacted>
+content-type: application/json; charset=UTF-8
+content-length: 25
+accept-encoding: gzip
+
+{"recipeIDs":["r907015"]}
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Sun, 03 Nov 2024 13:33:34 GMT
+set-cookie: v-authenticated=c1c4e026a4611640e299d6978fcac0e2599b4843e490db69e9d64dc6014ec0c7; path=/; secure; expires=Tue, 03 Dec 2024 13:33:34 GMT
+set-cookie: v-token=eyJhbGciOiJ<redacted>; path=/; secure; expires=Tue, 03 Dec 2024 13:33:34 GMT; httponly
+strict-transport-security: max-age=31536000
+cache-control: no-cache, no-store, must-revalidate
+vary: accept-encoding
+x-cache: Miss from cloudfront
+via: 1.1 0796439594da8d89bc262ec25ca7f192.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: Mw2sgsgkrB1CdD2-xMTasacDWzrDn42aN0sXDJ7jnLDAmrZmUI4EhQ==
+content-length: 2379
+
+{"data":[{"id":"r907015","title":"Kokos Pralinen","locale":"ch","language":"de","status":"ok","ulid":"01JBS3P8KHNEE21AWD9SYF4Z5M","hasVariants":false,"descriptiveAssets":[{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e"},{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f"}],"isCustomerRecipe":false,"recipeIngredientGroups":[{"localId":"com.vorwerk.ingredients.Ingredient-rpf-322","optional":false,"quantity":{"value":260},"unit_ref":"11-unit-rdpf3","preparation":"","unitNotation":"g","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-322","ingredientNotation":"Kokosraspeln","isOwned":false,"shoppingCategory_ref":"ShoppingCategory-rpf-6","id":"01JBS3P8KH8CJ8E30FRQKV93G6"},{"localId":"com.vorwerk.ingredients.Ingredient-rpf-319","optional":false,"quantity":{"value":400},"unit_ref":"11-unit-rdpf3","preparation":"","unitNotation":"g","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-319","ingredientNotation":"gezuckerte Kondensmilch","isOwned":false,"shoppingCategory_ref":"ShoppingCategory-rpf-2","id":"01JBS3P8KH6QXRE9MT0R07VNMK"},{"localId":"com.vorwerk.ingredients.Ingredient-rpf-17","optional":false,"quantity":{"value":40},"unit_ref":"11-unit-rdpf3","preparation":", in Stücken","unitNotation":"g","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-17","ingredientNotation":"Butter","isOwned":false,"shoppingCategory_ref":"ShoppingCategory-rpf-2","id":"01JBS3P8KHPHEPXYNN0A72G9GJ"}]}]}

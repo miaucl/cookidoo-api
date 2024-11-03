@@ -97,6 +97,10 @@ Following VSCode integrations may be helpful:
 - [mypy](https://marketplace.visualstudio.com/items?itemName=matangover.mypy)
 - [markdownlint](https://marketplace.visualstudio.com/items?itemName=DavidAnson.vscode-markdownlint)
 
+### Raw API Requests
+
+The raw requests intercepted between the Cookidoo Android App and the backend can be found here `./docs/raw-api-requests`. They have been used to reconstruct the API which is implemented in this library.
+
 ### Releasing
 
 It is only possible to release a _final version_ on the `master` branch. For it to pass the gates of the `publish` workflow, it must have the same version in the `tag`, the `cookidoo_api/__init__.py` and an entry in the `CHANGELOG.md` file.
