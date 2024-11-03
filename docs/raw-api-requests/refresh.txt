@@ -1,0 +1,25 @@
+POST https://eu.login.vorwerk.com/oauth2/token HTTP/2.0
+cookie: vrkPreAccessGranted=true
+authorization: Basic a3VwZmVyd2Vyay1jbGllbnQtbndvdDpMczUwT04xd295U3FzMWRDZEpnZQ==
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+content-type: application/x-www-form-urlencoded
+content-length: 1495
+accept-encoding: gzip
+
+grant_type=refresh_token&refresh_token=eyJhbGciOiJ<redacted>&client_id=kupferwerk-client-nwot
+
+HTTP/2.0 200 
+content-type: application/json;charset=UTF-8
+date: Sun, 03 Nov 2024 13:41:04 GMT
+pragma: no-cache
+strict-transport-security: max-age=31536000
+cache-control: no-store
+x-cache: Miss from cloudfront
+via: 1.1 3591be88662e5675a9dc1cc4e0a9c392.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: MknpCULsh5YDGevBJtX1MMLTQ2CTKdbPBjCcJcRlXHWLVinNCIxgfg==
+content-length: 4272
+
+{"access_token":"eyJhbGciOiJ<redacted>","expires_in":43199,"id_token":"eyJhbGciOiJSUzI1NiI<redacted>","iss":"https://eu.login.vorwerk.com/","jti":"d7b73c06-6693-46cf-af9d-63c9e082208d","refresh_token":"eyJhbGciOiJSUzI1NiIsImtp<redacted>","scope":"marcossapi openid profile email Online offline_access","token_type":"bearer","user_name":"<email_redacted>@gmail.com"}

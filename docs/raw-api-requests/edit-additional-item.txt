@@ -1,0 +1,25 @@
+POST https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/edit HTTP/2.0
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJ<redacted>
+content-type: application/json; charset=UTF-8
+content-length: 72
+accept-encoding: gzip
+
+{"additionalItems":[{"id":"01JBS3VWVG6CRM8NG4TADPMHZG","name":"Fisch"}]}
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Sun, 03 Nov 2024 13:38:01 GMT
+set-cookie: v-authenticated=c1c4e026a4611640e299d6978fcac0e2599b4843e490db69e9d64dc6014ec0c7; path=/; secure; expires=Tue, 03 Dec 2024 13:38:01 GMT
+set-cookie: v-token=eyJhbGciOiJ<redacted>; path=/; secure; expires=Tue, 03 Dec 2024 13:38:01 GMT; httponly
+strict-transport-security: max-age=31536000
+cache-control: no-cache, no-store, must-revalidate
+x-cache: Miss from cloudfront
+via: 1.1 0796439594da8d89bc262ec25ca7f192.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: aE0jA_dr_AyMXMANqbsEWEHjXiIno-ecp0UeQL_0fMJX2wSyOwWQVA==
+content-length: 107
+
+{"data":[{"id":"01JBS3VWVG6CRM8NG4TADPMHZG","name":"Fisch","isOwned":true,"ownedTimestamp":1730641035146}]}

@@ -1,51 +1,47 @@
 """Cookidoo API package."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
-from .const import (
-    DEFAULT_COOKIDOO_CONFIG,
-    DEFAULT_NETWORK_TIMEOUT,
-    DEFAULT_RETRIES,
-    DEFAULT_TIMEOUT,
-)
+from .const import DEFAULT_COOKIDOO_CONFIG
 from .cookidoo import Cookidoo
 from .exceptions import (
-    CookidooActionException,
-    CookidooAuthBotDetectionException,
     CookidooAuthException,
     CookidooConfigException,
     CookidooException,
-    CookidooNavigationException,
-    CookidooSelectorException,
+    CookidooParseException,
+    CookidooRequestException,
+    CookidooResponseException,
     CookidooUnavailableException,
-    CookidooUnexpectedStateException,
 )
+from .helpers import get_country_options, get_language_options, get_localization_options
 from .types import (
-    CookidooBrowserType,
-    CookidooCaptchaRecoveryType,
+    CookidooAuthResponse,
     CookidooConfig,
     CookidooItem,
     CookidooItemStateType,
+    CookidooLocalizationConfig,
+    CookidooSubscription,
+    CookidooUserInfo,
 )
 
 __all__ = [
     "Cookidoo",
-    "CookidooBrowserType",
-    "CookidooCaptchaRecoveryType",
+    "get_country_options",
+    "get_language_options",
+    "get_localization_options",
     "CookidooItemStateType",
+    "CookidooLocalizationConfig",
     "CookidooConfig",
+    "CookidooAuthResponse",
+    "CookidooUserInfo",
+    "CookidooSubscription",
     "CookidooItem",
     "CookidooException",
     "CookidooConfigException",
     "CookidooAuthException",
-    "CookidooAuthBotDetectionException",
-    "CookidooSelectorException",
-    "CookidooActionException",
+    "CookidooParseException",
+    "CookidooRequestException",
+    "CookidooResponseException",
     "CookidooUnavailableException",
-    "CookidooUnexpectedStateException",
-    "CookidooNavigationException",
     "DEFAULT_COOKIDOO_CONFIG",
-    "DEFAULT_RETRIES",
-    "DEFAULT_NETWORK_TIMEOUT",
-    "DEFAULT_TIMEOUT",
 ]

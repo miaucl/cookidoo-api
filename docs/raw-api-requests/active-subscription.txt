@@ -1,0 +1,28 @@
+GET https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions HTTP/2.0
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJ<redacted>
+accept-encoding: gzip
+if-modified-since: Sun, 03 Nov 2024 13:26:28 GMT
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/json
+date: Sun, 03 Nov 2024 13:26:28 GMT
+x-xss-protection: 0
+set-cookie: v-authenticated=c1c4e026a4611640e299d6978fcac0e2599b4843e490db69e9d64dc6014ec0c7; path=/; secure; expires=Tue, 03 Dec 2024 13:26:28 GMT
+set-cookie: v-token=eyJhbGciOiJ<redacted>; path=/; secure; expires=Tue, 03 Dec 2024 13:26:28 GMT; httponly
+strict-transport-security: max-age=31536000
+x-frame-options: DENY
+x-content-type-options: nosniff
+x-cache: Miss from cloudfront
+via: 1.1 72901e1a1a6af8228b948e1ec3586ace.cloudfront.net (CloudFront)
+x-amz-cf-pop: MXP63-P4
+x-amz-cf-id: _1ka6Bl3Lf8vl51posPiNnAqQOJzT2BUrZVCBFq_7fWB3n3SC34DrQ==
+content-length: 385
+
+[{"active":false,"startDate":"2024-09-15T00:00:00Z","expires":"2024-10-15T23:59:00Z","type":"TRIAL","extendedType":"TRIAL","autoRenewalProduct":"Cookidoo 1 Month Free","autoRenewalProductCode":null,"countryOfResidence":"ch","subscriptionLevel":"NONE","status":"ENDED","marketMismatch":false,"subscriptionSource":"COMMERCE","_created":"2024-11-02T22:11:58.524122898Z","_modified":null}]

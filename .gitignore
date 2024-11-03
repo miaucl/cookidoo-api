@@ -13,4 +13,4 @@ build/
 site
 out
 scratch*
-.cookies
+.token

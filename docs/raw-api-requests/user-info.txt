@@ -1,0 +1,36 @@
+GET https://ch.tmmobile.vorwerk-digital.com/community/profile/de-CH HTTP/2.0
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJ<redacted>
+accept-encoding: gzip
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Sun, 03 Nov 2024 13:26:28 GMT
+x-frame-options: SAMEORIGIN
+set-cookie: v-authenticated=c1c4e026a4611640e299d6978fcac0e2599b4843e490db69e9d64dc6014ec0c7; path=/; secure; expires=Tue, 03 Dec 2024 13:26:28 GMT
+set-cookie: v-token=eyJhbGciOiJ<redacted>; path=/; secure; expires=Tue, 03 Dec 2024 13:26:28 GMT; httponly
+x-permitted-cross-domain-policies: none
+x-xss-protection: 0
+cache-control: no-cache, no-store, must-revalidate, max-age=600
+x-content-type-options: nosniff
+origin-agent-cluster: ?1
+vary: Accept-Encoding
+strict-transport-security: max-age=31536000
+x-download-options: noopen
+cross-origin-opener-policy: same-origin
+referrer-policy: no-referrer
+x-dns-prefetch-control: off
+cross-origin-resource-policy: same-origin
+x-cache: Miss from cloudfront
+via: 1.1 72901e1a1a6af8228b948e1ec3586ace.cloudfront.net (CloudFront)
+x-amz-cf-pop: MXP63-P4
+x-amz-cf-id: b2MRR-Lu_8UhAn3rswS5ZoWxs-_IY3bZvR3CHLPmS9DOSUVDf8ZiCg==
+content-length: 501
+
+{"id":"4a74c102-3ee6-4bcd-9227-2c403900b8de","isPublic":false,"userInfo":{"username":"<redacted> API","description":"","picture":"","pictureTemplate":""},"savedSearches":[{"id":"default","search":{"countries":["ch"],"languages":["de"],"accessories":["includingFriend","includingBladeCover","includingBladeCoverWithPeeler","includingCutter","includingSensor"]}}],"foodPreferences":[],"meta":{"cloudinaryPublicId":"61c22d8465a60c86de8ca7ce045665bfa35546d78ba6f971ffbed3780d4fa026"},"thermomixes":[]}

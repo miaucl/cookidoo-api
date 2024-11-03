@@ -1,122 +1,64 @@
-"""Helpers for the Cookidoo API."""
+"""Cookidoo API helpers."""
 
-from datetime import UTC, datetime
+import asyncio
 import json
-import re
-import socket
+import logging
+import os
 from typing import cast
 
-from playwright.async_api import Cookie
+from cookidoo_api.types import CookidooItem, CookidooLocalizationConfig, IngredientJSON
 
-ipv4_pattern = re.compile(r"^(\d{1,3}\.){3}\d{1,3}$")
+_LOGGER = logging.getLogger(__name__)
 
-
-def cookies_serialize(cookies: list[Cookie]) -> str:
-    """Serialize all cookies from the login session to a string for persistency.
-
-    Parameters
-    ----------
-    cookies
-        The cookies in the session to persist
-
-    str
-        The serialized data to persist
-
-    """
-    return json.dumps(cookies)
+localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
 
 
-def cookies_deserialize(cookies: str) -> list[Cookie]:
-    """Deserialize all cookies from the login session from a persisted string.
-
-    Parameters
-    ----------
-    cookies
-        The persisted session cookies as string
-
-    Returns
-    -------
-    list[Cookie]
-        The session cookies
-
-    """
-    return cast(list[Cookie], json.loads(cookies))
-
-
-def merge_cookies(old_cookies: list[Cookie], new_cookies: list[Cookie]) -> list[Cookie]:
-    """Merge old an new cookies, avoiding removing other cookies also present.
-
-    Parameters
-    ----------
-    old_cookies
-        The old cookies already persisted
-    new_cookies
-        The new cookies to persist
-
-    Returns
-    -------
-    list[Cookie]
-        The merged list of the cookies
-
-    """
-    cookies = new_cookies[:]
-    # Look at all old cookies NOT present in the new cookies and append to the list
-    for old_cookie in old_cookies:
-        if not next(
-            (
-                cookie
-                for cookie in cookies
-                if cookie.get("name") == old_cookie.get("name")
-            ),
-            None,
-        ):
-            cookies.append(old_cookie)
-    return cookies
+def cookidoo_item_from_ingredient(
+    ingredient: IngredientJSON,
+) -> CookidooItem:
+    """Convert an ingredient received from the API to a cookidoo item."""
+    return CookidooItem(
+        id=ingredient["id"],
+        name=ingredient["ingredientNotation"],
+        isOwned=ingredient["isOwned"],
+        description=f"{ingredient['quantity']['value']} {ingredient['unitNotation']}"
+        if ingredient["unitNotation"] and ingredient["quantity"]
+        else str(ingredient["quantity"]["value"])
+        if ingredient["quantity"]
+        else "",
+    )
 
 
-def error_message_selector(page: str, selector: str | list[str]) -> str:
-    """Create an error message for an unmet selector on a page.
-
-    Parameters
-    ----------
-    page
-        The page of where the selector should appear
-    selector
-        The selector or list of selectors which was not found
-
-    """
-    return f"Selector not found in page.\n\tPage: {page}\n\tSelector:\n\t\t{selector if isinstance(selector, str) else '\n\t\t'.join(selector)}"
-
-
-def resolve_remote_addr(addr: str) -> str:
-    """Resolve the remote address, be it localhost, an IP or a DNS.
-
-    Parameters
-    ----------
-    addr
-        The value to resolve, localhost, IP or DNS
-
-    Returns
-    -------
-    str
-        The IP (or localhost)
-
-    Raises
-    ------
-    socket.gaierror
-        If the DNS could not be resolved due
-
-    """
-    try:
-        return (
-            addr
-            if addr == "localhost" or ipv4_pattern.match(addr)
-            else socket.gethostbyname(addr)
+def __get_localization_options(
+    country: str | None = None,
+    language: str | None = None,
+) -> list[CookidooLocalizationConfig]:
+    with open(localization_file_path, encoding="utf-8") as file:
+        options = cast(list[CookidooLocalizationConfig], json.loads(file.read()))
+        return list(
+            filter(
+                lambda option: (not country or option["country_code"] == country)
+                and (not language or option["language"] == language),
+                options,
+            )
         )
-    except socket.gaierror as e:
-        return f"Error resolving {addr}: {e}"
 
 
-def timestamped_out_dir(out_dir: str) -> str:
-    """Create a unique timestamped out dir."""
-    return f"{out_dir}/{int(datetime.now(UTC).timestamp())}"
+async def get_localization_options(
+    country: str | None = None,
+    language: str | None = None,
+) -> list[CookidooLocalizationConfig]:
+    """Get a list of possible localization options."""
+    return await asyncio.get_running_loop().run_in_executor(
+        None, __get_localization_options, country, language
+    )
+
+
+async def get_country_options() -> list[str]:
+    """Get a list of possible country options."""
+    return list({option["country_code"] for option in await get_localization_options()})
+
+
+async def get_language_options() -> list[str]:
+    """Get a list of possible language options."""
+    return list({option["language"] for option in await get_localization_options()})

@@ -13,24 +13,16 @@ class CookidooAuthException(CookidooException):
     """When an authentication error is encountered."""
 
 
-class CookidooAuthBotDetectionException(CookidooAuthException):
-    """When an authentication error is encountered due to bot detection."""
+class CookidooParseException(CookidooException):
+    """When data could not be parsed."""
 
 
-class CookidooNavigationException(CookidooException):
-    """When an page has not been found."""
+class CookidooRequestException(CookidooException):
+    """When a request returns an error."""
 
 
-class CookidooSelectorException(CookidooException):
-    """When an expected selector has not been found."""
-
-
-class CookidooActionException(CookidooException):
-    """When an expected action could not be performed."""
-
-
-class CookidooUnexpectedStateException(CookidooException):
-    """When an unexpected state is present."""
+class CookidooResponseException(CookidooException):
+    """When a response could not be parsed."""
 
 
 class CookidooUnavailableException(CookidooException):

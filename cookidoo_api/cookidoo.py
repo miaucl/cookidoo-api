@@ -1,663 +1,802 @@
 """Cookidoo api implementation."""
 
+from http import HTTPStatus
+from json import JSONDecodeError
 import logging
+import time
+import traceback
+from typing import cast
 
-from playwright.async_api import (
-    Cookie,
-    Error as PlaywrightError,
-    TimeoutError as PlaywrightTimeoutError,
-    async_playwright,
-)
+from aiohttp import ClientError, ClientSession, FormData
+from yarl import URL
 
-from cookidoo_api.actions import clicker, selector
 from cookidoo_api.const import (
-    CHECK_BROWSER_URL,
-    COOKIE_VALIDATION_SELECTOR,
-    COOKIE_VALIDATION_URL,
+    ADD_ADDITIONAL_ITEMS_PATH,
+    ADD_INGREDIENTS_FOR_RECIPES_PATH,
+    ADDITIONAL_ITEMS_PATH,
+    API_ENDPOINT,
+    AUTHORIZATION_HEADER,
+    COMMUNITY_PROFILE_PATH,
+    COOKIDOO_CLIENT_ID,
+    DEFAULT_API_HEADERS,
     DEFAULT_COOKIDOO_CONFIG,
-    DEFAULT_NETWORK_TIMEOUT,
-    LOGIN_CAPTCHA_SELECTOR,
-    LOGIN_EMAIL_SELECTOR,
-    LOGIN_ERROR_NOTIFICATION_SELECTOR,
-    LOGIN_PASSWORD_SELECTOR,
-    LOGIN_START_SELECTOR,
-    LOGIN_START_URL,
-    LOGIN_SUBMIT_SELECTOR,
+    DEFAULT_SITE,
+    DEFAULT_TOKEN_HEADERS,
+    EDIT_ADDITIONAL_ITEMS_PATH,
+    EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
+    EDIT_OWNERSHIP_INGREDIENTS_PATH,
+    INGREDIENTS_PATH,
+    REMOVE_ADDITIONAL_ITEMS_PATH,
+    REMOVE_INGREDIENTS_FOR_RECIPES_PATH,
+    SUBSCRIPTIONS_PATH,
+    TOKEN_ENDPOINT,
 )
 from cookidoo_api.exceptions import (
-    CookidooActionException,
-    CookidooAuthBotDetectionException,
     CookidooAuthException,
-    CookidooNavigationException,
-    CookidooSelectorException,
+    CookidooConfigException,
+    CookidooParseException,
+    CookidooRequestException,
 )
-from cookidoo_api.helpers import (
-    cookies_deserialize,
-    cookies_serialize,
-    error_message_selector,
-    merge_cookies,
-    timestamped_out_dir,
+from cookidoo_api.helpers import cookidoo_item_from_ingredient
+from cookidoo_api.types import (
+    CookidooAuthResponse,
+    CookidooConfig,
+    CookidooItem,
+    CookidooSubscription,
+    CookidooUserInfo,
+    IngredientJSON,
 )
-from cookidoo_api.jobs import (
-    CookidooBrowser,
-    LandingPage,
-    ShoppingList,
-    add_items,
-    add_items_alternative,
-    clear_items,
-    create_additional_items,
-    delete_additional_items,
-    get_additional_items,
-    get_items,
-    remove_items,
-    update_additional_items,
-    update_items,
-)
-from cookidoo_api.types import CookidooCaptchaRecoveryType, CookidooConfig, CookidooItem
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class Cookidoo:
-    """Unofficial Cookidoo API interface.
+    """Unofficial Cookidoo API interface."""
 
-    Attributes
-    ----------
-    _cfg
-        Cookidoo config
-    _cookies
-        The cookies from the login
-
-    """
-
+    _session: ClientSession
     _cfg: CookidooConfig
-    _cookies: list[Cookie]
+    _token_headers: dict[str, str]
+    _api_headers: dict[str, str]
+    _auth_data: CookidooAuthResponse | None
 
     def __init__(
-        self, cfg: CookidooConfig = DEFAULT_COOKIDOO_CONFIG, cookies: str = ""
+        self,
+        session: ClientSession,
+        cfg: CookidooConfig = DEFAULT_COOKIDOO_CONFIG,
     ) -> None:
         """Init function for Bring API.
 
         Parameters
         ----------
+        session
+            The client session for aiohttp requests
         cfg
             Cookidoo config
-        cookies
-            Session cookies that already exist
 
 
         """
+        self._session = session
         self._cfg = cfg
-        self._cookies = cookies_deserialize(cookies) if cookies else []
+        self._token_headers = DEFAULT_TOKEN_HEADERS.copy()
+        self._api_headers = DEFAULT_API_HEADERS.copy()
+        self.__expires_in: int
+        self._auth_data = None
 
     @property
-    def cookies(self) -> str:
-        """Getter for the cookies."""
-        return cookies_serialize(self._cookies)
+    def expires_in(self) -> int:
+        """Refresh token expiration."""
+        return max(0, self.__expires_in - int(time.time()))
 
-    @cookies.setter
-    def cookies(self, value: str) -> None:
-        """Setter for the cookies."""
-        self._cookies = cookies_deserialize(value)
+    @expires_in.setter
+    def expires_in(self, expires_in: int | str) -> None:
+        self.__expires_in = int(time.time()) + int(expires_in)
 
-    async def validate_cookies(self, out_dir: str = "out/validation") -> None:
-        """Validate the cookies.
+    @property
+    def auth_data(self) -> CookidooAuthResponse | None:
+        """Auth data."""
+        return self._auth_data.copy() if self._auth_data else None
 
-        Parameters
-        ----------
-        out_dir
-            Get directory to store output such as trace or screenshots
+    @auth_data.setter
+    def auth_data(self, auth_data: CookidooAuthResponse) -> None:
+        self._api_headers["AUTHORIZATION"] = AUTHORIZATION_HEADER.format(
+            type=auth_data["token_type"].lower().capitalize(),
+            access_token=auth_data["access_token"],
+        )
+        self._auth_data = auth_data
+        self.expires_in = auth_data["expires_in"]
+
+    @property
+    def api_endpoint(self) -> URL:
+        """Get the api endpoint."""
+        return URL(API_ENDPOINT.format(**self._cfg["localization"]))
+
+    async def refresh_token(self) -> CookidooAuthResponse:
+        """Try to refresh the token.
+
+        Returns
+        -------
+        CookidooAuthResponse
+            The auth response object.
 
         Raises
         ------
+        CookidooConfigException
+            If no login has happened yet
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
         CookidooAuthException
-            When the cookies are not valid anymore
+            If the login fails due invalid credentials.
+            You should check your email and password.
 
         """
-        _out_dir = timestamped_out_dir(out_dir)
+        if not self._auth_data:
+            raise CookidooConfigException("No auth data available, please log in first")
 
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
-        ):
-            try:
-                # Go to account page
-                await page.goto(COOKIE_VALIDATION_URL)
+        refresh_data = FormData()
+        refresh_data.add_field("grant_type", "refresh_token")
+        refresh_data.add_field("refresh_token", self._auth_data["refresh_token"])
+        refresh_data.add_field("client_id", COOKIDOO_CLIENT_ID)
 
-                # Take a screenshot of the account page
-                if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{_out_dir}/1-cookie-validation.png")
+        return await self._request_access_token(refresh_data)
 
-                # Await the welcome message
-                try:
-                    await page.wait_for_selector(COOKIE_VALIDATION_SELECTOR)
-                except PlaywrightTimeoutError as e:
-                    raise CookidooSelectorException(
-                        f"Welcome message not found due to a timeout.\n{error_message_selector(page.url, COOKIE_VALIDATION_SELECTOR)}"
-                    ) from e
-                _LOGGER.debug("Successful validation of the cookies")
-                cookies = await page.context.cookies()
-                if _LOGGER.level <= logging.DEBUG:
-                    old_session_cookie = next(
-                        (
-                            cookie
-                            for cookie in self._cookies
-                            if cookie.get("name") == "session"
-                        ),
-                        None,
-                    )
-                    new_session_cookie = next(
-                        (
-                            cookie
-                            for cookie in cookies
-                            if cookie.get("name") == "session"
-                        ),
-                        None,
-                    )
-                    old_token_cookie = next(
-                        (
-                            cookie
-                            for cookie in self._cookies
-                            if cookie.get("name") == "v-token"
-                        ),
-                        None,
-                    )
-                    new_token_cookie = next(
-                        (
-                            cookie
-                            for cookie in cookies
-                            if cookie.get("name") == "v-token"
-                        ),
-                        None,
-                    )
-                    old_auth_cookie = next(
-                        (
-                            cookie
-                            for cookie in self._cookies
-                            if cookie.get("name") == "v-authenticated"
-                        ),
-                        None,
-                    )
-                    new_auth_cookie = next(
-                        (
-                            cookie
-                            for cookie in cookies
-                            if cookie.get("name") == "v-authenticated"
-                        ),
-                        None,
-                    )
-                    if (
-                        not new_session_cookie
-                        or not new_token_cookie
-                        or not new_auth_cookie
-                    ):
+    async def login(self) -> CookidooAuthResponse:
+        """Try to login.
+
+        Returns
+        -------
+        CookidooAuthResponse
+            The auth response object.
+
+        Raises
+        ------
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+        CookidooAuthException
+            If the login fails due invalid credentials.
+            You should check your email and password.
+
+        """
+        user_data = FormData()
+        user_data.add_field("grant_type", "password")
+        user_data.add_field("username", self._cfg["email"])
+        user_data.add_field("password", self._cfg["password"])
+
+        return await self._request_access_token(user_data)
+
+    async def _request_access_token(self, form_data: FormData) -> CookidooAuthResponse:
+        """Request a new access token.
+
+        Parameters
+        ----------
+        form_data
+            The data to be passed to the request with user credentials or refresh token
+
+        Returns
+        -------
+        CookidooAuthResponse
+            The auth response object.
+
+        Raises
+        ------
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+        CookidooAuthException
+            If the access token request fails due invalid credentials.
+            You should check your email and password or refresh token.
+
+        """
+
+        try:
+            url = TOKEN_ENDPOINT.format(site=DEFAULT_SITE)
+            async with self._session.post(
+                url, data=form_data, headers=self._token_headers
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s",
+                    url,
+                    r.status,
+                    await r.text()
+                    if r.status != 200
+                    else "",  # do not log response on success, as it contains sensible data
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
                         _LOGGER.debug(
-                            "New session does not contain all expected cookies: %s",
-                            cookies,
+                            "Exception: Cannot parse access token request response:\n %s",
+                            traceback.format_exc(),
                         )
                     else:
-                        if not old_session_cookie or old_session_cookie.get(
-                            "name"
-                        ) != new_session_cookie.get("name"):
-                            _LOGGER.debug("New 'session' cookie available")
-                        if not old_token_cookie or old_token_cookie.get(
-                            "name"
-                        ) != new_token_cookie.get("name"):
-                            _LOGGER.debug("New 'token' cookie available")
-                        if not old_auth_cookie or old_auth_cookie.get(
-                            "name"
-                        ) != new_auth_cookie.get("name"):
-                            _LOGGER.debug("New 'auth' cookie available")
-                self._cookies = merge_cookies(self._cookies, cookies)
-            except CookidooSelectorException as e:
-                raise CookidooAuthException("Cookies are not valid.") from e
+                        _LOGGER.debug(
+                            "Exception: Cannot request access token: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Access token request failed due to authorization failure, "
+                        "please check your email and password or refresh token."
+                    )
+                if r.status == HTTPStatus.BAD_REQUEST:
+                    _LOGGER.debug(
+                        "Exception: Cannot request access token: %s", await r.text()
+                    )
+                    raise CookidooAuthException(
+                        "Access token request failed due to bad request, please check your email or refresh token."
+                    )
+                r.raise_for_status()
 
-    async def check_browser(
+                try:
+                    data = cast(
+                        CookidooAuthResponse,
+                        {
+                            key: val
+                            for key, val in (await r.json()).items()
+                            if key in CookidooAuthResponse.__annotations__
+                        },
+                    )
+                except JSONDecodeError as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot request access token:\n %s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Cannot parse access token request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot request access token:\n %s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Authentication failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot request access token:\n %s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Authentication failed due to request exception."
+            ) from e
+
+        self.auth_data = data
+
+        return data.copy()
+
+    async def get_user_info(
         self,
-        out_dir: str = "out/check_browser",
-    ) -> None:
-        """Check whether a connection to the browser can be established.
+    ) -> CookidooUserInfo:
+        """Get user info.
 
-        Parameters
-        ----------
-        self
-            Cookidoo class
-        out_dir
-            The directory to store output such as trace or screenshots
+        Returns
+        -------
+        CookidooUserInfo
+            The user info
 
         Raises
         ------
-        CookidooNavigationException
-            When the browser is not available
-
-        """
-        _out_dir = timestamped_out_dir(out_dir)
-
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-        ):
-            try:
-                _LOGGER.debug("Check browser functionality")
-
-                _LOGGER.debug("Create new browser context")
-                context = await browser.new_context()
-
-                # Set timeouts
-                context.set_default_navigation_timeout(
-                    self._cfg.get("network_timeout", DEFAULT_NETWORK_TIMEOUT)
-                )
-
-                # Get a new page
-                _LOGGER.debug("Open known check page in browser context")
-                page = await context.new_page()
-
-                # Go to check page
-                await page.goto(CHECK_BROWSER_URL)
-
-                # Take a screenshot of the check page
-                if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{_out_dir}/1-check-page.png")
-
-            except PlaywrightError as e:
-                raise CookidooNavigationException(
-                    "Could not check browser functionality."
-                ) from e
-            except CookidooSelectorException as e:
-                raise PlaywrightTimeoutError(
-                    "Could not check browser functionality."
-                ) from e
-
-    async def login(
-        self,
-        captcha_recovery_mode: CookidooCaptchaRecoveryType = "fail",
-        force_session_refresh: bool = False,
-        out_dir: str = "out/login",
-    ) -> None:
-        """Login to the cookidoo website and store the cookies. Also functions to refresh the session.
-
-        Parameters
-        ----------
-        self
-            Cookidoo class
-        captcha_recovery_mode
-            Captcha recovery is useful when you have been detected as a bot or automation script. It lets you use one of the following strategies:
-            - fail: Do nothing and fail (default)
-            - user_input: Wait indefinitely for the user to solve the captcha (only viable for non-headless setups)
-            - capsolver: Using capsolver to solve the captcha (tbd)
-        force_session_refresh
-            Force the token refresh and skip cookie validation
-        out_dir
-            The directory to store output such as trace or screenshots
-
-        Raises
-        ------
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-        CookidooAuthBotDetectionException
-            When a captcha has been detected and is blocking the login process
         CookidooAuthException
-            Bad username or password
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        _out_dir = timestamped_out_dir(out_dir)
 
-        # Check cookies and short circuit
-        if self._cookies and not force_session_refresh:
-            try:
-                await self.validate_cookies()
-            except CookidooAuthException as e:
-                _LOGGER.warning(
-                    "Cached token could not be validated, proceeding with login process: %s",
-                    str(e),
+        try:
+            url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
                 )
-            else:
-                return
 
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
-        ):
-            try:
-                _LOGGER.debug("Attempt login")
-
-                # Go to login start page
-                await page.goto(LOGIN_START_URL)
-
-                # Take a screenshot of the login start page
-                if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{_out_dir}/1-login-start.png")
-
-                # Await the button and click on "Login"
-                login_el = await selector(page, LOGIN_START_SELECTOR)
-                await clicker(page, login_el, "Cannot not click on login")
-
-                # Take a screenshot of the login details page
-                if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{_out_dir}/2-login-details.png")
-
-                # Await the email field and enter email and password
-                try:
-                    # If captcha recovery mode is user_input, wait here until captcha is solved
-                    if captcha_recovery_mode == "user_input":
-                        if not self._cfg["headless"]:
-                            _LOGGER.fatal(
-                                "Using captcha_recovery_mode='user_input' is not supported for headless runners. Process is blocked, manual abort required!"
-                            )
-                        await page.wait_for_selector(
-                            LOGIN_EMAIL_SELECTOR, timeout=1000000
-                        )
-                    elif captcha_recovery_mode == "capsolver":
-                        if not self._cfg["headless"]:
-                            _LOGGER.warning(
-                                "Capsolver is not yet implemented. Should you have the capsolver browser extension installed, ignore this warning."
-                            )
-                        await page.wait_for_selector(
-                            LOGIN_EMAIL_SELECTOR, timeout=1000000
-                        )
-                    # Assume, login should success normally
-                    else:
-                        await page.wait_for_selector(LOGIN_EMAIL_SELECTOR)
-                except PlaywrightTimeoutError as e:
-                    login_error_reason = "generic"
+                if r.status == HTTPStatus.UNAUTHORIZED:
                     try:
-                        await page.wait_for_selector(LOGIN_CAPTCHA_SELECTOR)
-                        # Captcha against bot detection...
-                        login_error_reason = "captcha"
-                    except Exception as _e:
-                        # It is not a captcha
-                        pass
-
-                    if login_error_reason == "captcha":
-                        raise CookidooAuthBotDetectionException(
-                            "Cannot login due to captcha."
-                        ) from e
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
                     else:
-                        raise CookidooSelectorException(
-                            f"Email field not found due to a timeout.\n{error_message_selector(page.url, LOGIN_EMAIL_SELECTOR)}"
-                        ) from e
+                        _LOGGER.debug(
+                            "Exception: Cannot get user info: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading user info failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
                 try:
-                    await page.fill(LOGIN_EMAIL_SELECTOR, self._cfg["email"])
-                    await page.fill(LOGIN_PASSWORD_SELECTOR, self._cfg["password"])
-                except PlaywrightError as e:
-                    raise CookidooSelectorException(
-                        f"Email or password field not found.\n{error_message_selector(page.url, LOGIN_EMAIL_SELECTOR)}"
+                    return cast(
+                        CookidooUserInfo,
+                        {
+                            key: val
+                            for key, val in (await r.json())["userInfo"].items()
+                            if key in CookidooUserInfo.__annotations__
+                        },
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get user info:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading user info failed during parsing of request response."
                     ) from e
-                except ValueError as e:
-                    raise CookidooSelectorException(
-                        f"Email or password field do not contain strings.\nEmail: {type(self._cfg['email'])}\nPassword: {type(self._cfg['password'])}"
-                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get user info:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading user info failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot user info:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading user info failed due to request exception."
+            ) from e
 
-                # Take a screenshot of the login details page filled
-                if self._cfg["screenshots"]:
-                    await page.screenshot(path=f"{_out_dir}/3-login-details-filled.png")
+    async def get_active_subscription(
+        self,
+    ) -> CookidooSubscription | None:
+        """Get active subscription if any.
 
-                submit_el = await selector(page, LOGIN_SUBMIT_SELECTOR)
-                await clicker(page, submit_el, "Cannot not click on submit")
+        Returns
+        -------
+        CookidooSubscription
+            The active subscription
 
-                cookies = await page.context.cookies()
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
-                for cookie in cookies:
-                    if (
-                        cookie.get("name") == "v-token"
-                        and cookie.get("value")
-                        and cookie.get("expires")
+        """
+
+        try:
+            url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get active subscription: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading active subscription failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    if subscription := next(
+                        (
+                            subscription
+                            for subscription in (await r.json())
+                            if subscription["active"]
+                        ),
+                        None,
                     ):
-                        val = cookie.get("value")
-                        exp = cookie.get("expires")
-                        assert val, "Value for cookie not set"
-                        assert exp, "Expiration for cookie not set"
-                        _LOGGER.info(
-                            "Session cookie 'v-token' found, consider login successful!"
+                        return cast(
+                            CookidooSubscription,
+                            {
+                                key: val
+                                for key, val in subscription.items()
+                                if key in CookidooSubscription.__annotations__
+                            },
                         )
-                        break
-                # If no v-token available, login must have failed, looking for reason
-                else:
-                    try:
-                        await page.wait_for_selector(LOGIN_EMAIL_SELECTOR, timeout=500)
-                        await page.wait_for_selector(
-                            LOGIN_ERROR_NOTIFICATION_SELECTOR, timeout=500
-                        )
-                        element = await page.query_selector(
-                            LOGIN_ERROR_NOTIFICATION_SELECTOR
-                        )
-                        text_content = (
-                            await element.text_content()
-                            if element
-                            else "Element not found"
-                        )
-                    except Exception as _e:
-                        # It is not a bad login
-                        pass
                     else:
-                        # Wrong username or password...
-                        raise CookidooAuthException(
-                            f"Bad username or password.\nNotification displayed: {text_content}"
+                        return None
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get active subscription:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading active subscription failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get active subscription:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading user info failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot active subscription:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading active subscription failed due to request exception."
+            ) from e
+
+    async def get_ingredients(
+        self,
+    ) -> list[CookidooItem]:
+        """Get recipe items.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+
+        Returns
+        -------
+        list[CookidooItem]
+            The list of the recipe items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / INGREDIENTS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
                         )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get recipe items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading recipe items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
 
-                self._cookies = merge_cookies(self._cookies, cookies)
+                r.raise_for_status()
 
-            except CookidooActionException as e:
-                raise CookidooAuthException(
-                    "Could not get auth token as the login process failed."
-                ) from e
-            except CookidooSelectorException as e:
-                raise CookidooAuthException(
-                    "Could not get auth token as the login process failed."
-                ) from e
+                try:
+                    return [
+                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        for recipe in (await r.json())["recipes"]
+                        for ingredient in recipe["recipeIngredientGroups"]
+                    ]
 
-    async def get_items(
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get recipe items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading recipe items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipe items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot recipe items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe items failed due to request exception."
+            ) from e
+
+    async def add_ingredients_for_recipes(
         self,
-        pending: bool = False,
-        checked: bool = False,
-        out_dir: str = "out/get_items",
+        recipe_ids: list[str],
     ) -> list[CookidooItem]:
-        """Get items.
+        """Add ingredients for recipes.
 
         Parameters
         ----------
         cfg
             Cookidoo config
-        pending
-            Get the pending items
-        checked
-            Get the checked items
-        out_dir
-            Get directory to store output such as trace or screenshots
+        recipe_ids
+            The recipe ids for the ingredients to add to the shopping list
 
         Returns
         -------
         list[CookidooItem]
-            The list of the items
+            The list of the added ingredients
 
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
+        json_data = {"recipeIDs": recipe_ids}
+        try:
+            url = self.api_endpoint / ADD_INGREDIENTS_FOR_RECIPES_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await get_items(self._cfg, page, _out_dir, pending, checked)
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add ingredients for recipes: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add ingredients for recipes failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
 
-    async def update_items(
+                r.raise_for_status()
+                try:
+                    return [
+                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        for recipe in (await r.json())["data"]
+                        for ingredient in recipe["recipeIngredientGroups"]
+                    ]
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added ingredients:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added ingredients failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add ingredients for recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add ingredients for recipes failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add ingredients for recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add ingredients for recipes failed due to request exception."
+            ) from e
+
+    async def remove_ingredients_for_recipes(
         self,
-        items: list[CookidooItem],
-        out_dir: str = "out/update_items",
-    ) -> list[CookidooItem]:
-        """Update items.
+        recipe_ids: list[str],
+    ) -> None:
+        """Remove ingredients for recipes.
 
         Parameters
         ----------
         cfg
             Cookidoo config
-        items
-            Get items to update, only the state can be changed
-        out_dir
-            Get directory to store output such as trace or screenshots
+        recipe_ids
+            The recipe ids for the ingredients to remove to the shopping list
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIDs": recipe_ids}
+        try:
+            url = self.api_endpoint / REMOVE_INGREDIENTS_FOR_RECIPES_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove ingredients for recipes: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove ingredients for recipes failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove ingredients for recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove ingredients for recipes failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove ingredients for recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove ingredients for recipes failed due to request exception."
+            ) from e
+
+    async def edit_ingredients_ownership(
+        self,
+        ingredients: list[CookidooItem],
+    ) -> list[CookidooItem]:
+        """Edit ownership recipe items.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+        ingredients
+            The recipe items to change the the `is_owned` value for
 
         Returns
         -------
         list[CookidooItem]
-            The list of the items
+            The list of the edited recipe items
 
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-        CookidooUnexpectedStateException
-            When something should be changes such as the state, but it is already in that state
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
+        json_data = {
+            "ingredients": [
+                {
+                    "id": ingredient["id"],
+                    "isOwned": ingredient["isOwned"],
+                    "ownedTimestamp": int(time.time()),
+                }
+                for ingredient in ingredients
+            ]
+        }
+        try:
+            url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENTS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await update_items(self._cfg, page, _out_dir, items)
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit recipe item ownership: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Edit recipe items ownership failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
 
-    async def add_items(
-        self,
-        recipe_id: str,
-        out_dir: str = "out/add_items",
-    ) -> None:
-        """Add items to list from recipe.
+                r.raise_for_status()
+                try:
+                    return [
+                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        for ingredient in (await r.json())["data"]
+                    ]
 
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-        recipe_id
-            The id of the recipe to add the items to the shopping list
-        out_dir
-            Get directory to store output such as trace or screenshots
-
-        Raises
-        ------
-        CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooNavigationException
-            When the page could not be found
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-
-        """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
-        ):
-            return await add_items(self._cfg, page, recipe_id, _out_dir)
-
-    async def add_items_alternative(
-        self,
-        recipe_name: str,
-        out_dir: str = "out/add_items_alternative",
-    ) -> None:
-        """Add items to list from recipe.
-
-         This is an alternative implementation which works also for free account, as on the recipe page the "Add to Shopping List" is not available for free accounts.
-
-
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-        recipe_name
-            The name to search of the recipe to add the items to the shopping list. The first element found will be selected.
-        out_dir
-            Get directory to store output such as trace or screenshots
-
-        Raises
-        ------
-        CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooNavigationException
-            When the page could not be found
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-
-        """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as page,
-        ):
-            return await add_items_alternative(self._cfg, page, recipe_name, _out_dir)
-
-    async def remove_items(
-        self,
-        recipe_id: str,
-        out_dir: str = "out/remove_items",
-    ) -> None:
-        """Remove items from list of recipe.
-
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-        recipe_id
-            The id of the recipe to remove the items from the shopping list
-        out_dir
-            Get directory to store output such as trace or screenshots
-
-        Raises
-        ------
-        CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-
-        """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await remove_items(self._cfg, page, recipe_id, _out_dir)
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get edited recipe items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading edited recipe items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit recipe items ownership:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit recipe items ownership failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit recipe items ownership:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit recipe items ownership failed due to request exception."
+            ) from e
 
     async def get_additional_items(
         self,
-        pending: bool = False,
-        checked: bool = False,
-        out_dir: str = "out/get_additional_items",
     ) -> list[CookidooItem]:
         """Get additional items.
 
@@ -665,12 +804,6 @@ class Cookidoo:
         ----------
         cfg
             Cookidoo config
-        pending
-            Get the pending items
-        checked
-            Get the checked items
-        out_dir
-            Get directory to store output such as trace or screenshots
 
         Returns
         -------
@@ -680,74 +813,84 @@ class Cookidoo:
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
 
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await get_additional_items(
-                self._cfg, page, _out_dir, pending, checked
+        try:
+            url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
             )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-    async def update_additional_items(
-        self,
-        additional_items: list[CookidooItem],
-        out_dir: str = "out/update_additional_items",
-    ) -> list[CookidooItem]:
-        """Update additional items.
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get additional items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading additional items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
 
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-        additional_items
-            The additional items to update, only the state and label can be changed
-        out_dir
-            Get directory to store output such as trace or screenshots
+                r.raise_for_status()
 
-        Returns
-        -------
-        list[CookidooItem]
-            The list of the additional items
+                try:
+                    return [
+                        cast(
+                            CookidooItem,
+                            {
+                                key: val
+                                for key, val in additional_item.items()
+                                if key in CookidooItem.__annotations__
+                            },
+                        )
+                        for additional_item in (await r.json())["additionalItems"]
+                    ]
 
-        Raises
-        ------
-        CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-        CookidooUnexpectedStateException
-            When something should be changes such as the state, but it is already in that state
-
-        """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await update_additional_items(
-                self._cfg, page, _out_dir, additional_items
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get additional items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading additional items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get additional items:\n%s",
+                traceback.format_exc(),
             )
+            raise CookidooRequestException(
+                "Loading additional items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading additional items failed due to request exception."
+            ) from e
 
-    async def create_additional_items(
+    async def add_additional_items(
         self,
-        additional_item_labels: list[str],
-        out_dir: str = "out/create_additional_items",
+        additional_item_names: list[str],
     ) -> list[CookidooItem]:
         """Create additional items.
 
@@ -755,130 +898,415 @@ class Cookidoo:
         ----------
         cfg
             Cookidoo config
-        additional_item_labels
-            The additional item labels to create, only the label can be set, as the default state `pending` is forced (chain with immediate update call for work-around)
-        out_dir
-            Get directory to store output such as trace or screenshots
+        additional_item_names
+            The additional item names to create, only the label can be set, as the default state `is_owned=false` is forced (chain with immediate update call for work-around)
 
         Returns
         -------
         list[CookidooItem]
-            The list of the additional items
+            The list of the added additional items
 
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-        CookidooUnexpectedStateException
-            When something should be changes such as the state, but it is already in that state
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await create_additional_items(
-                self._cfg,
-                page,
-                _out_dir,
-                [
-                    CookidooItem(
-                        {
-                            "id": "",  # Will be set in the job
-                            "label": label,
-                            "state": "pending",  # Forced default state for new additional items
-                            "description": "",  # NA for additional items
-                        }
-                    )
-                    for label in additional_item_labels
-                ],
+        json_data = {"itemsValue": additional_item_names}
+        try:
+            url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
             )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-    async def delete_additional_items(
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add additional items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add additional items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return [
+                        cast(CookidooItem, additional_item)
+                        for additional_item in (await r.json())["data"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added additional items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added additional items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add additional items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add additional items failed due to request exception."
+            ) from e
+
+    async def edit_additional_items(
         self,
-        additional_items: list[CookidooItem] | list[str],
-        out_dir: str = "out/delete_additional_items",
-    ) -> None:
-        """Delete additional items.
+        additional_items: list[CookidooItem],
+    ) -> list[CookidooItem]:
+        """Edit additional items.
 
         Parameters
         ----------
         cfg
             Cookidoo config
         additional_items
-            The additional items to delete, only the id is required
-        out_dir
-            Get directory to store output such as trace or screenshots
+            The additional items to change the the `name` value for
+
+        Returns
+        -------
+        list[CookidooItem]
+            The list of the edited additional items
 
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
-        CookidooUnexpectedStateException
-            When something should be changes such as the state, but it is already in that state
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
-
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            await delete_additional_items(
-                self._cfg,
-                page,
-                _out_dir,
-                additional_items,
+        json_data = {
+            "additionalItems": [
+                {
+                    "id": additional_item["id"],
+                    "name": additional_item["name"],
+                }
+                for additional_item in additional_items
+            ]
+        }
+        try:
+            url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
             )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-    async def clear_items(
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit additional items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Edit additional items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return [
+                        cast(CookidooItem, additional_item)
+                        for additional_item in (await r.json())["data"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get edited additional items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading edited additional items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit additional items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit additional items failed due to request exception."
+            ) from e
+
+    async def edit_additional_items_ownership(
         self,
-        out_dir: str = "out/clear_items",
-    ) -> None:
-        """Clear items from list.
-
-        This a destructive operation and cannot be undone. This remove all items, regardless of item state.
+        additional_items: list[CookidooItem],
+    ) -> list[CookidooItem]:
+        """Edit ownership additional items.
 
         Parameters
         ----------
         cfg
             Cookidoo config
-        out_dir
-            Get directory to store output such as trace or screenshots
+        additional_items
+            The additional items to change the the `is_owned` value for
+
+        Returns
+        -------
+        list[CookidooItem]
+            The list of the edited additional items
 
         Raises
         ------
         CookidooAuthException
-            When the cookies are not valid anymore
-        CookidooSelectorException
-            When the page does not behave as expected and some content is not available
-        CookidooActionException
-            When the page does not allow to perform an expected action
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
 
         """
-        await self.validate_cookies()
+        json_data = {
+            "additionalItems": [
+                {
+                    "id": additional_item["id"],
+                    "isOwned": additional_item["isOwned"],
+                    "ownedTimestamp": int(time.time()),
+                }
+                for additional_item in additional_items
+            ]
+        }
+        try:
+            url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
 
-        _out_dir = timestamped_out_dir(out_dir)
-        async with (
-            async_playwright() as p,
-            CookidooBrowser(self._cfg, p) as browser,
-            LandingPage(self._cfg, browser, self._cookies, _out_dir) as landing_page,
-            ShoppingList(self._cfg, landing_page, _out_dir) as page,
-        ):
-            return await clear_items(self._cfg, page, _out_dir)
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot edit additional items ownership: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Edit additional items ownership failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return [
+                        cast(CookidooItem, additional_item)
+                        for additional_item in (await r.json())["data"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get edited additional items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading edited additional items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit additional items ownership:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit additional items ownership failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute edit additional items ownership:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Edit additional items ownership failed due to request exception."
+            ) from e
+
+    async def remove_additional_items(
+        self,
+        additional_item_ids: list[str],
+    ) -> None:
+        """Remove additional items.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+        additional_item_ids
+            The additional item ids to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"additionalItemIDs": additional_item_ids}
+        try:
+            url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove additional items: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove additional items failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove additional items failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove additional items:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove additional items failed due to request exception."
+            ) from e
+
+    async def clear_shopping_list(
+        self,
+    ) -> None:
+        """Remove all additional items, ingredients and recipes.
+
+        Parameters
+        ----------
+        cfg
+            Cookidoo config
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / INGREDIENTS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.delete(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot clear shopping list: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Clear shopping list failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute clear shopping list:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Clear shopping list failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute clear shopping list:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Clear shopping list failed due to request exception."
+            ) from e

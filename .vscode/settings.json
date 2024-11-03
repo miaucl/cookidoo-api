@@ -1,10 +1,12 @@
 {
   "cSpell.words": [
     "aiohttp",
+    "aioresponses",
     "asyncio",
     "capsolver",
     "Cookidoo",
     "dotenv",
+    "errmsg",
     "gaierror",
     "headful",
     "jlesage",

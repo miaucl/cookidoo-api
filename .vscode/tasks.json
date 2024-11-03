@@ -81,6 +81,22 @@
       "options": {
         "cwd": "${workspaceFolder}"
       }
+    },
+    {
+      "label": "Python: Process cookidoo localization extract",
+      "type": "shell",
+      "command": "scripts/run-in-env.sh python scripts/process-localization-extract.py",
+      "problemMatcher": [],
+      "group": {
+        "kind": "build"
+      },
+      "presentation": {
+        "focus": true,
+        "reveal": "always"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     }
   ]
 }

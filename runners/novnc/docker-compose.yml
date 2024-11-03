@@ -1,9 +1,0 @@
-services:
-  chromium:
-    build:
-      context: .
-    container_name: chromium
-    image: chromium
-    ports:
-      - 5800:5800
-      - 9222:9223

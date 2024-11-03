@@ -1,0 +1,26 @@
+GET https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH HTTP/2.0
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJ<redacted>
+accept-encoding: gzip
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Sun, 03 Nov 2024 13:26:29 GMT
+set-cookie: v-authenticated=c1c4e026a4611640e299d6978fcac0e2599b4843e490db69e9d64dc6014ec0c7; path=/; secure; expires=Tue, 03 Dec 2024 13:26:29 GMT
+set-cookie: v-token=eyJhbGciOiJ<redacted>; path=/; secure; expires=Tue, 03 Dec 2024 13:26:29 GMT; httponly
+strict-transport-security: max-age=31536000
+vary: accept-encoding
+cache-control: no-cache, no-store, must-revalidate
+x-cache: Miss from cloudfront
+via: 1.1 72901e1a1a6af8228b948e1ec3586ace.cloudfront.net (CloudFront)
+x-amz-cf-pop: MXP63-P4
+x-amz-cf-id: Frrq3Al5UN3vWq4eXK_B8UXbgsmtqxeNHYJxOiN1q5xGHSrQBGyvJA==
+content-length: 3817
+
+{"recipes":[{"id":"r907016","ulid":"01JBS24P4D0T35V0VAKF7XHB60","title":"Mini-Pavlova mit Orangen","locale":"ch","status":"ok","language":"de","hasVariants":false,"isCustomerRecipe":false,"descriptiveAssets":[{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006"},{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c7868b18e43639134880b2777d7fcd9f/Derivates/f7e9031db49d24e9e8e37e98618a830dda45b596","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c7868b18e43639134880b2777d7fcd9f/Derivates/f7e9031db49d24e9e8e37e98618a830dda45b596","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c7868b18e43639134880b2777d7fcd9f/Derivates/f7e9031db49d24e9e8e37e98618a830dda45b596"}],"recipeIngredientGroups":[{"id":"01JBS24P4DVD34T4HS2KM292VT","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-9","optional":false,"quantity":{"value":200},"unit_ref":"11-unit-rdpf3","preparation":"","unitNotation":"g","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-9","ingredientNotation":"Zucker","shoppingCategory_ref":"ShoppingCategory-rpf-6"},{"id":"01JBS24P4DQR9QT7VTPCPQGGNA","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-116","optional":false,"quantity":{"value":4},"unit_ref":"","preparation":", kalt","unitNotation":"","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-116","ingredientNotation":"Eiweisse","shoppingCategory_ref":"ShoppingCategory-rpf-10"},{"id":"01JBS24P4DA9G35VZAHT9DXM7J","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-269","optional":false,"quantity":{"value":1},"unit_ref":"65-unit-rdpf3","preparation":"","unitNotation":"Prise","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-269","ingredientNotation":"Salz","shoppingCategory_ref":"ShoppingCategory-rpf-5"},{"id":"01JBS24P4DNV65WQ1HT0N2QD6D","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-46","optional":false,"quantity":{"value":1},"unit_ref":"23-unit-rdpf3","preparation":"","unitNotation":"TL","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-46","ingredientNotation":"Zitronensaft","shoppingCategory_ref":"ShoppingCategory-rpf-9"},{"id":"01JBS24P4D3Q79CVDNVM23676P","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-288","optional":false,"quantity":{"value":1},"unit_ref":"25-unit-rdpf3","preparation":"","unitNotation":"EL","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-288","ingredientNotation":"Maizena","shoppingCategory_ref":"ShoppingCategory-rpf-7"},{"id":"01JBS24P4DQNXK2BZSYF3KGPHJ","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-316","optional":false,"quantity":{"value":4},"unit_ref":"","preparation":", geschält, filetiert","unitNotation":"","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-316","ingredientNotation":"Orangen","shoppingCategory_ref":"ShoppingCategory-rpf-8"},{"id":"01JBS24P4DVB33Y4M5SZGJ3R5A","isOwned":false,"localId":"com.vorwerk.ingredients.Ingredient-rpf-620","optional":false,"quantity":{"value":180},"unit_ref":"11-unit-rdpf3","preparation":"","unitNotation":"g","ingredient_ref":"com.vorwerk.ingredients.Ingredient-rpf-620","ingredientNotation":"Crème fraîche","shoppingCategory_ref":"ShoppingCategory-rpf-2"}]}],"customerRecipes":[],"additionalItems":[]}

@@ -1,70 +1,79 @@
 """Smoke test for cookidoo-api."""
 
+from collections.abc import AsyncGenerator
+import json
 import os
+from typing import cast
 
+from aiohttp import ClientSession
 from dotenv import load_dotenv
 import pytest
 
-from cookidoo_api.const import (
-    DEFAULT_COOKIDOO_CONFIG,
-    DEFAULT_NETWORK_TIMEOUT,
-    DEFAULT_TIMEOUT,
-)
+from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.types import CookidooAuthResponse
 
 load_dotenv()
 
-TEST_RECIPE = "r59322"
-TEST_RECIPE_ALTERNATIVE = "Vollwert-Brötchen/Baguettes"
-TEST_ITEMS_COUNT = 7
-TEST_ITEM_LABEL = "Wasser"
-TEST_ITEM_DESCRIPTION = "220 g"
-TEST_ADDITIONAL_ITEM_CREATE = ["Schokolade", "Apfel", "Orange", "Mehl"]
-TEST_ADDITIONAL_ITEM_LABEL = TEST_ADDITIONAL_ITEM_CREATE[0]
+
+def save_token(token: CookidooAuthResponse) -> None:
+    """Save the token locally."""
+    with open(".token", "w", encoding="utf-8") as file:
+        file.write(json.dumps(token))
 
 
-def save_cookies(cookies: str) -> None:
-    """Save the cookies locally."""
-    with open(".cookies", "w", encoding="utf-8") as file:
-        file.write(cookies)
-
-
-def load_cookies() -> str:
-    """Load the cookies locally."""
+def load_token() -> CookidooAuthResponse:
+    """Load the token locally."""
     # Open and read the file
-    with open(".cookies", encoding="utf-8") as file:
-        return file.read()
+    with open(".token", encoding="utf-8") as file:
+        return cast(CookidooAuthResponse, json.loads(file.read() or "{}"))
 
 
-@pytest.fixture(name="cookies_str")
-async def cookies_str() -> str:
-    """Load the cookies as str."""
+@pytest.fixture(name="auth_data")
+async def auth_data() -> CookidooAuthResponse:
+    """Load the token."""
 
-    return load_cookies()
+    return load_token()
 
 
-@pytest.fixture(name="cookidoo")
-async def cookidoo_api_client(cookies_str: str) -> Cookidoo:
+@pytest.fixture(name="session")
+async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
+    """Create  a client session."""
+    async with ClientSession() as session:
+        yield session
+
+
+@pytest.fixture(name="cookidoo_no_auth")
+async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
 
     cookidoo = Cookidoo(
+        session,
         {
             **DEFAULT_COOKIDOO_CONFIG,
-            # Use local headless executable
-            "browser": "chromium",
-            "headless": True,
-            # Increase timeouts, as the github actions are not that powerful :)
-            "network_timeout": DEFAULT_NETWORK_TIMEOUT * 10,
-            "timeout": DEFAULT_TIMEOUT * 10,
-            # Do not load media
-            "load_media": False,
-            # Load credentials from env
             "email": os.environ["EMAIL"],
             "password": os.environ["PASSWORD"],
-            # Enable tracing
-            "tracing": True,
-            "screenshots": True,
         },
-        cookies_str,
     )
+    return cookidoo
+
+
+@pytest.fixture(name="cookidoo")
+async def cookidoo_authenticated_api_client(
+    session: ClientSession, auth_data: CookidooAuthResponse
+) -> Cookidoo:
+    """Create authenticated Cookidoo instance."""
+
+    cookidoo = Cookidoo(
+        session,
+        {
+            **DEFAULT_COOKIDOO_CONFIG,
+            "email": os.environ["EMAIL"],
+            "password": os.environ["PASSWORD"],
+        },
+    )
+
+    # Restore auth data from saved token
+    cookidoo.auth_data = auth_data
+
     return cookidoo

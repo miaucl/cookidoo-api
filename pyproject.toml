@@ -14,7 +14,6 @@ authors = [
 ]
 dependencies = [
   "aiohttp",
-  "playwright",
   "python-dotenv",
 ]
 requires-python = ">=3.12"
@@ -29,7 +28,7 @@ classifiers = [
   "Topic :: System :: Systems Administration",
 ]
 license = {text = "MIT License"}
-keywords = ["cookidoo", "todo", "web", "browser", "scaping", "home-assistant", "iot"]
+keywords = ["cookidoo", "todo", "home-assistant", "iot"]
 
 [tool.setuptools]
 
@@ -37,7 +36,7 @@ keywords = ["cookidoo", "todo", "web", "browser", "scaping", "home-assistant", "
 include = ["cookidoo_api*"]
 
 [tool.setuptools.package-data]
-cookidoo_api = ["py.typed"]
+cookidoo_api = ["py.typed", '*.json']
 
 [tool.setuptools.dynamic]
 version = {attr = "cookidoo_api.__version__"}
@@ -181,7 +180,7 @@ split-on-trailing-comma = false
 # Allow for main entry & scripts to write to stdout
 "cookidoo_api/__main__.py" = ["T201"]
 "cookidoo_api/scripts/*" = ["T201"]
-"script/*" = ["T20"]
+"scripts/*" = ["T20"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 25
@@ -192,7 +191,7 @@ testpaths = [
     "tests",
 ]
 log_cli = true
-log_cli_level = "DEBUG"
+# log_cli_level = "DEBUG"
 log_cli_format = "%(asctime)s%(msecs)03d [%(levelname)8s] %(name)s:%(lineno)s %(message)s"
 log_cli_date_format = "%Y%m%dT%H%M%S."
 
@@ -202,7 +201,7 @@ source = ["tests"]
 
 [tool.coverage.report]
 format="text"
-omit = ["cookidoo_api/actions/**", "cookidoo_api/jobs/**", "cookidoo_api/cookidoo.py"]
+show_missing = true
 
 # Regexes for lines to exclude from consideration
 exclude_also = [

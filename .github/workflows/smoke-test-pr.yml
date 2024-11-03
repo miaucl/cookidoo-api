@@ -1,12 +1,9 @@
-name: Smoke test
+name: Smoke test (PR)
 
 on: 
-  push:
-    branches:
-      - master
-  schedule:
-    - cron: '0 23 * * 0' # Run every Sunday at 23:00 PM
-  workflow_dispatch: # Allows manual triggering
+  pull_request_target:
+    types:
+      - labeled
 
 env:
   python-version: "3.12"
@@ -16,8 +13,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  smoke_test:
+  smoke_test_pr:
     runs-on: ubuntu-latest
+    if: ${{ github.event.label.name == 'run smoke test' }}
     steps:
       - name: Get User Permission
         id: checkAccess
@@ -34,7 +32,7 @@ jobs:
           echo "Current permission level is ${{ steps.checkAccess.outputs.user-permission }}"
           echo "Job originally triggered by ${{ github.actor }}"
           exit 1
-      - name: Checkout code
+      - name: Checkout current code
         uses: actions/checkout@v4
       - name: Set up Python ${{ env.python-version }}
         uses: actions/setup-python@v5
@@ -55,8 +53,22 @@ jobs:
             pip install -r requirements_test.txt
       - name: Prepare empty token
         run: touch .token
-      - name: Test with pytest
-        run: pytest smoke_test -v -x
+      - name: Prepare cookies with pytest
+        run: pytest smoke_test/test_1_setup_token.py -v -x
         env:
           EMAIL: ${{ vars.EMAIL }}
-          PASSWORD: ${{ secrets.PASSWORD }}          
+          PASSWORD: ${{ secrets.PASSWORD }}
+      # !!!!!!!!!!!!!!!!!!!!
+      # From here on, we run new code which does not have access to the password, only the token
+      # !!!!!!!!!!!!!!!!!!!!
+      - name: Checkout new code
+        uses: actions/checkout@v4
+        with:
+          ref: "${{ github.event.pull_request.merge_commit_sha }}"
+          clean: false
+      - name: Test with pytest
+        run: pytest smoke_test/test_2_methods.py -v -x
+        env:
+          EMAIL: ${{ vars.EMAIL }}
+          PASSWORD: <redacted>
+          
