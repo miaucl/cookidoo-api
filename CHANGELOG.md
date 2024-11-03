@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.4.0
+
+- switch from web automation to proper API (based on Android App)
+
 ## 0.3.0
 
 - add check method to quickly verify browser functionality
