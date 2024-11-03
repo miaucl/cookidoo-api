@@ -16,14 +16,14 @@ class TestLocalization:
 
     async def test_get_localization_options(self) -> None:
         """Test get localization options."""
-        assert len(get_localization_options()) == 373
-        assert len(get_localization_options(country="ch")) == 4
-        assert len(get_localization_options(language="en")) == 38
+        assert len(await get_localization_options()) == 373
+        assert len(await get_localization_options(country="ch")) == 4
+        assert len(await get_localization_options(language="en")) == 38
 
     async def test_get_country_options(self) -> None:
         """Test get country options."""
-        assert len(get_country_options()) == 54
+        assert len(await get_country_options()) == 54
 
     async def test_get_language_options(self) -> None:
         """Test get language options."""
-        assert len(get_language_options()) == 31
+        assert len(await get_language_options()) == 31

@@ -32,10 +32,10 @@ async def main():
     """Run main example function."""
     async with aiohttp.ClientSession() as session:
         # Show all country_codes, languages and some localizations
-        _country_codes = get_country_options()
-        _languages = get_language_options()
-        _localizations_ch = get_localization_options(country="ch")
-        _localizations_en = get_localization_options(language="en")
+        _country_codes = await get_country_options()
+        _languages = await get_language_options()
+        _localizations_ch = await get_localization_options(country="ch")
+        _localizations_en = await get_localization_options(language="en")
 
         # Create Cookidoo instance with email and password
         cookidoo = Cookidoo(

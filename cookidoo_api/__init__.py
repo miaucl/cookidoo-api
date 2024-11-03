@@ -1,6 +1,6 @@
 """Cookidoo API package."""
 
-__version__ = "0.4.0-rc0"
+__version__ = "0.4.0-rc1"
 
 from .const import DEFAULT_COOKIDOO_CONFIG
 from .cookidoo import Cookidoo
