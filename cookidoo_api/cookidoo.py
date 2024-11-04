@@ -42,6 +42,7 @@ from cookidoo_api.types import (
     CookidooAuthResponse,
     CookidooConfig,
     CookidooItem,
+    CookidooLocalizationConfig,
     CookidooSubscription,
     CookidooUserInfo,
     IngredientJSON,
@@ -81,6 +82,11 @@ class Cookidoo:
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self.__expires_in: int
         self._auth_data = None
+
+    @property
+    def localization(self) -> CookidooLocalizationConfig:
+        """Localization."""
+        return self._cfg["localization"].copy()
 
     @property
     def expires_in(self) -> int:
@@ -453,11 +459,6 @@ class Cookidoo:
     ) -> list[CookidooItem]:
         """Get recipe items.
 
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-
         Returns
         -------
         list[CookidooItem]
@@ -543,8 +544,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         recipe_ids
             The recipe ids for the ingredients to add to the shopping list
 
@@ -633,8 +632,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         recipe_ids
             The recipe ids for the ingredients to remove to the shopping list
 
@@ -704,8 +701,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         ingredients
             The recipe items to change the the `is_owned` value for
 
@@ -800,11 +795,6 @@ class Cookidoo:
     ) -> list[CookidooItem]:
         """Get additional items.
 
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
-
         Returns
         -------
         list[CookidooItem]
@@ -896,8 +886,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         additional_item_names
             The additional item names to create, only the label can be set, as the default state `is_owned=false` is forced (chain with immediate update call for work-around)
 
@@ -986,8 +974,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         additional_items
             The additional items to change the the `name` value for
 
@@ -1084,8 +1070,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         additional_items
             The additional items to change the the `is_owned` value for
 
@@ -1183,8 +1167,6 @@ class Cookidoo:
 
         Parameters
         ----------
-        cfg
-            Cookidoo config
         additional_item_ids
             The additional item ids to remove
 
@@ -1250,11 +1232,6 @@ class Cookidoo:
         self,
     ) -> None:
         """Remove all additional items, ingredients and recipes.
-
-        Parameters
-        ----------
-        cfg
-            Cookidoo config
 
         Raises
         ------

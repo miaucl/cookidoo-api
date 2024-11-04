@@ -1,6 +1,6 @@
 """Cookidoo API package."""
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from .const import DEFAULT_COOKIDOO_CONFIG
 from .cookidoo import Cookidoo
@@ -18,7 +18,6 @@ from .types import (
     CookidooAuthResponse,
     CookidooConfig,
     CookidooItem,
-    CookidooItemStateType,
     CookidooLocalizationConfig,
     CookidooSubscription,
     CookidooUserInfo,
@@ -29,7 +28,6 @@ __all__ = [
     "get_country_options",
     "get_language_options",
     "get_localization_options",
-    "CookidooItemStateType",
     "CookidooLocalizationConfig",
     "CookidooConfig",
     "CookidooAuthResponse",

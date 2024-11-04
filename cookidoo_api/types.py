@@ -1,9 +1,6 @@
 """Cookidoo API types."""
 
-from typing import Literal, TypedDict
-
-CookidooItemStateType = Literal["pending", "checked"]
-"""Cookidoo item state type"""
+from typing import TypedDict
 
 
 class CookidooLocalizationConfig(TypedDict):

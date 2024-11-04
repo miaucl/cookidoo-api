@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.5.0
+
+- add localization getter for the Cookidoo instance
+
 ## 0.4.0
 
 - switch from web automation to proper API (based on Android App)
