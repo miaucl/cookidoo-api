@@ -42,6 +42,7 @@ from cookidoo_api.types import (
     CookidooAuthResponse,
     CookidooConfig,
     CookidooItem,
+    CookidooLocalizationConfig,
     CookidooSubscription,
     CookidooUserInfo,
     IngredientJSON,
@@ -81,6 +82,11 @@ class Cookidoo:
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self.__expires_in: int
         self._auth_data = None
+
+    @property
+    def localization(self) -> CookidooLocalizationConfig:
+        """Localization."""
+        return self._cfg["localization"].copy()
 
     @property
     def expires_in(self) -> int:
