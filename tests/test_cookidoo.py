@@ -7,6 +7,7 @@ from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
 
+from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -25,6 +26,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS,
+    COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
 )
@@ -124,6 +126,7 @@ class TestLogin:
         for key, value in data.items():
             assert value == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE[key]
         assert cookidoo.expires_in > 0
+        assert cookidoo.localization == DEFAULT_COOKIDOO_CONFIG["localization"]
 
         mocked.post(
             "https://eu.login.vorwerk.com/oauth2/token",
@@ -306,6 +309,81 @@ class TestGetActiveSubscription:
 
         with pytest.raises(exception):
             await cookidoo.get_active_subscription()
+
+
+class TestGetShoppingListRecipes:
+    """Tests for get_shopping_list_recipes method."""
+
+    async def test_get_shopping_list_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_shopping_list_recipes."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_shopping_list_recipes()
+        assert data
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.get_shopping_list_recipes()
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_shopping_list_recipes()
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.get_shopping_list_recipes()
 
 
 class TestGetIngredients:

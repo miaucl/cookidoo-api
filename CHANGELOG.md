@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.6.0
+
+- add a method to get the recipes on a shopping list
+
 ## 0.5.0
 
 - add localization getter for the Cookidoo instance
