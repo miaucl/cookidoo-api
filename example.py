@@ -54,18 +54,21 @@ async def main():
         await cookidoo.get_user_info()
         await cookidoo.get_active_subscription()
 
+        # Recipe details
+        _recipe_details = await cookidoo.get_recipe_details("r59322")
+
         # Shopping list
         await cookidoo.clear_shopping_list()
 
         # Ingredients
-        added_ingredients = await cookidoo.add_ingredients_for_recipes(
+        added_ingredients = await cookidoo.add_ingredient_items_for_recipes(
             ["r59322", "r907016"]
         )
-        _edited_ingredients = await cookidoo.edit_ingredients_ownership(
+        _edited_ingredients = await cookidoo.edit_ingredient_items_ownership(
             [
                 {
                     **ingredient,
-                    "isOwned": not ingredient["isOwned"],
+                    "is_owned": not ingredient["is_owned"],
                 }
                 for ingredient in filter(
                     lambda ingredient: ingredient["name"] == "Hefe",
@@ -73,9 +76,9 @@ async def main():
                 )
             ]
         )
-        _ingredients = await cookidoo.get_ingredients()
+        _ingredients = await cookidoo.get_ingredient_items()
         _recipes = await cookidoo.get_shopping_list_recipes()
-        await cookidoo.remove_ingredients_for_recipes(["r59322"])
+        await cookidoo.remove_ingredient_items_for_recipes(["r59322"])
 
         # Additional items
         added_additional_items = await cookidoo.add_additional_items(
@@ -85,7 +88,7 @@ async def main():
             [
                 {
                     **additional_item,
-                    "isOwned": not additional_item["isOwned"],
+                    "is_owned": not additional_item["is_owned"],
                 }
                 for additional_item in filter(
                     lambda additional_item: additional_item["name"] == "Fisch",

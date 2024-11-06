@@ -86,6 +86,193 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
     }
 ]
 
+COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
+    "id": "r907015",
+    "tags": [
+        {"id": "40-recipetag-rdpf3", "name": "Fingerfood"},
+        {"id": "143-recipetag-rdpf3", "name": "Vegetarisch"},
+        {"id": "166-recipetag-rdpf3", "name": "alkoholfrei"},
+        {"id": "167-recipetag-rdpf3", "name": "Glutenfrei"},
+        {"id": "212-marketingtag-rdpf3", "name": "Weihnachten"},
+        {"id": "233-marketingtag-rdpf3", "name": "Winter"},
+        {"id": "247-marketingtag-rdpf3", "name": "Geschenk"},
+        {"id": "8-marketingtag-rdpf3", "name": "Europäisch"},
+        {"id": "209-marketingtag-rdpf3", "name": "Herbst"},
+        {"id": "230-marketingtag-rdpf3", "name": "Sommer"},
+        {"id": "228-marketingtag-rdpf3", "name": "Frühling"},
+        {"id": "238-marketingtag-rdpf3", "name": "Geburtstag"},
+        {"id": "253-marketingtag-rdpf3", "name": "Party"},
+    ],
+    "times": [
+        {"type": "activeTime", "comment": "", "quantity": {"value": 2700}},
+        {"type": "totalTime", "comment": "", "quantity": {"value": 32400}},
+    ],
+    "title": "Kokos Pralinen",
+    "locale": "ch",
+    "status": "ok",
+    "markets": ["ch"],
+    "language": "de",
+    "categories": [
+        {
+            "id": "VrkNavCategory-RPF-011",
+            "title": "Desserts, Pâtisserie und Süssigkeiten",
+            "subtitle": "",
+            "defaultTitle": "Desserts and sweets",
+        },
+        {
+            "id": "VrkNavCategory-RPF-020",
+            "title": "Snacks",
+            "subtitle": "",
+            "defaultTitle": "Snacks and finger food",
+        },
+    ],
+    "difficulty": "easy",
+    "exportDate": "2024-10-28T16:08:56Z",
+    "ingredients": [
+        {
+            "id": "com.vorwerk.ingredients.Ingredient-rpf-322",
+            "title": "Kokosraspeln",
+            "defaultTitle": "coconut, dried, grated, unsweetened",
+            "primaryNotation": "Kokosnuss, getrocknet, geraspelt, ungesüsst",
+            "shoppingCategory_ref": "com.vorwerk.categories.ShoppingCategory-rpf-6",
+        },
+        {
+            "id": "com.vorwerk.ingredients.Ingredient-rpf-319",
+            "title": "gezuckerte Kondensmilch",
+            "defaultTitle": "condensed milk, sweetened",
+            "primaryNotation": "gezuckerte Kondensmilch",
+            "shoppingCategory_ref": "com.vorwerk.categories.ShoppingCategory-rpf-2",
+        },
+        {
+            "id": "com.vorwerk.ingredients.Ingredient-rpf-17",
+            "title": "Butter",
+            "defaultTitle": "butter, unsalted (from cows' milk)",
+            "primaryNotation": "Butter",
+            "shoppingCategory_ref": "com.vorwerk.categories.ShoppingCategory-rpf-2",
+        },
+    ],
+    "servingSize": {"quantity": {"value": 50}, "unitNotation": "Stück"},
+    "recipeUtensils": [
+        {"utensilRef": "5460-utensil-rdpf3", "utensilNotation": "Kühlschrank"}
+    ],
+    "categories_refs": ["VrkNavCategory-RPF-011", "VrkNavCategory-RPF-020"],
+    "nutritionGroups": [
+        {
+            "name": "",
+            "recipeNutritions": [
+                {
+                    "quantity": 1,
+                    "nutritions": [
+                        {"type": "kJ", "number": 275, "unittype": "kJ"},
+                        {"type": "kcal", "number": 65.7, "unittype": "kcal"},
+                        {"type": "protein", "number": 1, "unittype": "g"},
+                        {"type": "carb2", "number": 5.6, "unittype": "g"},
+                        {"type": "fat", "number": 4.7, "unittype": "g"},
+                        {"type": "dietaryFibre", "number": 0.8, "unittype": "g"},
+                    ],
+                    "unitNotation": "Stück",
+                }
+            ],
+        }
+    ],
+    "optionalDevices": [],
+    "publicationDate": "2024-10-29T06:00:00Z",
+    "targetCountries": ["ch"],
+    "recipeStepGroups": [
+        {
+            "title": "",
+            "recipeSteps": [
+                {
+                    "title": "1",
+                    "formattedText": "<NOBR>200 g Kokosraspeln</NOBR> in den Mixtopf geben und <nobr>15 Sek./Stufe 8</nobr> zerkleinern. In eine Schüssel umfüllen und beiseitestellen.",
+                },
+                {
+                    "title": "2",
+                    "formattedText": "Kondensmilch und Butter in den Mixtopf geben und <nobr>6 Min./100°C/Stufe 2</nobr> kochen.",
+                },
+                {
+                    "title": "3",
+                    "formattedText": "Gemahlene Kokosraspeln zugeben und <nobr>2 Min./Stufe 4</nobr> vermischen. In eine Schüssel umfüllen und mindestens 8 Stunden, am besten über Nacht, in den Kühlschrank stellen.",
+                },
+                {
+                    "title": "4",
+                    "formattedText": "60 g Kokosraspeln auf einen Teller geben. Aus der Kokos-Milch-Mischung kleine Kugeln formen <NOBR>(ca. Ø 1 cm)</NOBR>, in den Kokosraspeln wälzen und bis zum Servieren kühl stellen.",
+                },
+            ],
+        }
+    ],
+    "additionalDevices": [],
+    "descriptiveAssets": [
+        {
+            "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+            "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+            "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+        },
+        {
+            "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f",
+            "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f",
+            "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4c59187077a8767c919bd168a066c224/Derivates/dd52ed01ce418450cb05f7ef7eb9caf32d934b6f",
+        },
+    ],
+    "thermomixVersions": ["TM5", "TM6"],
+    "additionalInformation": [
+        {
+            "type": "VrkRecipeAdditionalInformationType",
+            "content": "Die Pralinen sollen kühl aufbewahrt und gegessen werden. Sie können auch eingefroren werden.",
+        }
+    ],
+    "recipeIngredientGroups": [
+        {
+            "title": "",
+            "recipeIngredients": [
+                {
+                    "localId": "com.vorwerk.ingredients.Ingredient-rpf-322",
+                    "optional": False,
+                    "quantity": {"value": 260},
+                    "unit_ref": "11-unit-rdpf3",
+                    "preparation": "",
+                    "unitNotation": "g",
+                    "ingredient_ref": "com.vorwerk.ingredients.Ingredient-rpf-322",
+                    "ingredientNotation": "Kokosraspeln",
+                },
+                {
+                    "localId": "com.vorwerk.ingredients.Ingredient-rpf-319",
+                    "optional": False,
+                    "quantity": {"value": 400},
+                    "unit_ref": "11-unit-rdpf3",
+                    "preparation": "",
+                    "unitNotation": "g",
+                    "ingredient_ref": "com.vorwerk.ingredients.Ingredient-rpf-319",
+                    "ingredientNotation": "gezuckerte Kondensmilch",
+                },
+                {
+                    "localId": "com.vorwerk.ingredients.Ingredient-rpf-17",
+                    "optional": False,
+                    "quantity": {"value": 40},
+                    "unit_ref": "11-unit-rdpf3",
+                    "preparation": ", in Stücken",
+                    "unitNotation": "g",
+                    "ingredient_ref": "com.vorwerk.ingredients.Ingredient-rpf-17",
+                    "ingredientNotation": "Butter",
+                },
+            ],
+        }
+    ],
+    "inCollections": [
+        {
+            "id": "col500561",
+            "title": "Schneeweiss und Zuckersüss",
+            "recipesCount": {"value": 6, "text": "other"},
+            "market": "ch",
+            "descriptiveAssets": [
+                {
+                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/collection/ras/Assets/38cf56dff995c01c9a4ce2ce3b9f0bf8/Derivates/d8d563384bbd2652791aedfcb3200dde0e6221cb"
+                }
+            ],
+        }
+    ],
+}
+
 COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES = {
     "recipes": [
         {

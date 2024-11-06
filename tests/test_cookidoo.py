@@ -26,6 +26,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS,
+    COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
@@ -311,6 +312,90 @@ class TestGetActiveSubscription:
             await cookidoo.get_active_subscription()
 
 
+class TestGetRecipeDetails:
+    """Tests for get_recipe_details method."""
+
+    async def test_get_recipe_details(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_recipe_details."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            payload=COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_recipe_details("r907015")
+        assert data
+        assert isinstance(data, object)
+        assert data["id"] == "r907015"
+        assert data["name"] == "Kokos Pralinen"
+        assert isinstance(data["categories"], list)
+        assert isinstance(data["collections"], list)
+        assert isinstance(data["ingredients"], list)
+        assert isinstance(data["notes"], list)
+        assert isinstance(data["utensils"], list)
+        assert isinstance(data["active_time"], int)
+        assert isinstance(data["total_time"], int)
+        assert isinstance(data["serving_size"], str)
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.get_recipe_details("r907015")
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_recipe_details("r907015")
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.get_recipe_details("r907015")
+
+
 class TestGetShoppingListRecipes:
     """Tests for get_shopping_list_recipes method."""
 
@@ -387,12 +472,12 @@ class TestGetShoppingListRecipes:
 
 
 class TestGetIngredients:
-    """Tests for get_ingredients method."""
+    """Tests for get_ingredient_items method."""
 
-    async def test_get_ingredients(
+    async def test_get_ingredient_items(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test for get_ingredients."""
+        """Test for get_ingredient_items."""
 
         mocked.get(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
@@ -400,7 +485,7 @@ class TestGetIngredients:
             status=HTTPStatus.OK,
         )
 
-        data = await cookidoo.get_ingredients()
+        data = await cookidoo.get_ingredient_items()
         assert data
         assert isinstance(data, list)
         assert len(data) == 14
@@ -423,7 +508,7 @@ class TestGetIngredients:
         )
 
         with pytest.raises(CookidooRequestException):
-            await cookidoo.get_ingredients()
+            await cookidoo.get_ingredient_items()
 
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
@@ -433,7 +518,7 @@ class TestGetIngredients:
             payload={"error_description": ""},
         )
         with pytest.raises(CookidooAuthException):
-            await cookidoo.get_ingredients()
+            await cookidoo.get_ingredient_items()
 
     @pytest.mark.parametrize(
         ("status", "exception"),
@@ -458,16 +543,16 @@ class TestGetIngredients:
         )
 
         with pytest.raises(exception):
-            await cookidoo.get_ingredients()
+            await cookidoo.get_ingredient_items()
 
 
 class TestAddIngredientsForRecipes:
-    """Tests for add_ingredients_for_recipes method."""
+    """Tests for add_ingredient_items_for_recipes method."""
 
-    async def test_add_ingredients_for_recipes(
+    async def test_add_ingredient_items_for_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test for add_ingredients_for_recipes."""
+        """Test for add_ingredient_items_for_recipes."""
 
         mocked.post(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
@@ -475,7 +560,7 @@ class TestAddIngredientsForRecipes:
             status=HTTPStatus.OK,
         )
 
-        data = await cookidoo.add_ingredients_for_recipes(["r59322", "r907016"])
+        data = await cookidoo.add_ingredient_items_for_recipes(["r59322", "r907016"])
         assert data
         assert isinstance(data, list)
         assert len(data) == 14
@@ -498,7 +583,7 @@ class TestAddIngredientsForRecipes:
         )
 
         with pytest.raises(CookidooRequestException):
-            await cookidoo.add_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.add_ingredient_items_for_recipes(["r59322", "r907016"])
 
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
@@ -508,7 +593,7 @@ class TestAddIngredientsForRecipes:
             payload={"error_description": ""},
         )
         with pytest.raises(CookidooAuthException):
-            await cookidoo.add_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.add_ingredient_items_for_recipes(["r59322", "r907016"])
 
     @pytest.mark.parametrize(
         ("status", "exception"),
@@ -533,16 +618,16 @@ class TestAddIngredientsForRecipes:
         )
 
         with pytest.raises(exception):
-            await cookidoo.add_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.add_ingredient_items_for_recipes(["r59322", "r907016"])
 
 
 class TestRemoveIngredientsForRecipes:
-    """Tests for remove_ingredients_for_recipes method."""
+    """Tests for remove_ingredient_items_for_recipes method."""
 
-    async def test_remove_ingredients_for_recipes(
+    async def test_remove_ingredient_items_for_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test for remove_ingredients_for_recipes."""
+        """Test for remove_ingredient_items_for_recipes."""
 
         mocked.post(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
@@ -550,7 +635,7 @@ class TestRemoveIngredientsForRecipes:
             status=HTTPStatus.OK,
         )
 
-        await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
+        await cookidoo.remove_ingredient_items_for_recipes(["r59322", "r907016"])
 
     @pytest.mark.parametrize(
         "exception",
@@ -570,7 +655,7 @@ class TestRemoveIngredientsForRecipes:
         )
 
         with pytest.raises(CookidooRequestException):
-            await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.remove_ingredient_items_for_recipes(["r59322", "r907016"])
 
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
@@ -580,7 +665,7 @@ class TestRemoveIngredientsForRecipes:
             payload={"error_description": ""},
         )
         with pytest.raises(CookidooAuthException):
-            await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.remove_ingredient_items_for_recipes(["r59322", "r907016"])
 
     @pytest.mark.parametrize(
         ("status", "exception"),
@@ -605,16 +690,16 @@ class TestRemoveIngredientsForRecipes:
         )
 
         with pytest.raises(exception):
-            await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
+            await cookidoo.remove_ingredient_items_for_recipes(["r59322", "r907016"])
 
 
 class TestEditIngredientsOwnership:
-    """Tests for edit_ingredients_ownership method."""
+    """Tests for edit_ingredient_items_ownership method."""
 
-    async def test_edit_ingredients_ownership(
+    async def test_edit_ingredient_items_ownership(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test for edit_ingredients_ownership."""
+        """Test for edit_ingredient_items_ownership."""
 
         mocked.post(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/owned-ingredients/ownership/edit",
@@ -622,12 +707,12 @@ class TestEditIngredientsOwnership:
             status=HTTPStatus.OK,
         )
 
-        data = await cookidoo.edit_ingredients_ownership(
+        data = await cookidoo.edit_ingredient_items_ownership(
             [
                 {
                     "id": "01JBQG02JQD3XPFMM5CXE51K25",
                     "name": "Hefe",
-                    "isOwned": True,
+                    "is_owned": True,
                     "description": "1 Würfel",
                 }
             ]
@@ -635,7 +720,7 @@ class TestEditIngredientsOwnership:
         assert data
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["isOwned"]
+        assert data[0]["is_owned"]
 
     @pytest.mark.parametrize(
         "exception",
@@ -655,12 +740,12 @@ class TestEditIngredientsOwnership:
         )
 
         with pytest.raises(CookidooRequestException):
-            await cookidoo.edit_ingredients_ownership(
+            await cookidoo.edit_ingredient_items_ownership(
                 [
                     {
                         "id": "01JBQG02JQD3XPFMM5CXE51K25",
                         "name": "Hefe",
-                        "isOwned": True,
+                        "is_owned": True,
                         "description": "1 Würfel",
                     }
                 ]
@@ -674,12 +759,12 @@ class TestEditIngredientsOwnership:
             payload={"error_description": ""},
         )
         with pytest.raises(CookidooAuthException):
-            await cookidoo.edit_ingredients_ownership(
+            await cookidoo.edit_ingredient_items_ownership(
                 [
                     {
                         "id": "01JBQG02JQD3XPFMM5CXE51K25",
                         "name": "Hefe",
-                        "isOwned": True,
+                        "is_owned": True,
                         "description": "1 Würfel",
                     }
                 ]
@@ -708,12 +793,12 @@ class TestEditIngredientsOwnership:
         )
 
         with pytest.raises(exception):
-            await cookidoo.edit_ingredients_ownership(
+            await cookidoo.edit_ingredient_items_ownership(
                 [
                     {
                         "id": "01JBQG02JQD3XPFMM5CXE51K25",
                         "name": "Hefe",
-                        "isOwned": True,
+                        "is_owned": True,
                         "description": "1 Würfel",
                     }
                 ]
@@ -871,12 +956,12 @@ class TestAddAdditionalItems:
 
 
 class TestRemoveAdditionalItems:
-    """Tests for remove_ingredients_for_recipes method."""
+    """Tests for remove_ingredient_items_for_recipes method."""
 
-    async def test_remove_ingredients_for_recipes(
+    async def test_remove_ingredient_items_for_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test for remove_ingredients_for_recipes."""
+        """Test for remove_ingredient_items_for_recipes."""
 
         mocked.post(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/remove",
@@ -969,15 +1054,14 @@ class TestEditAdditionalItemsOwnership:
                 {
                     "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
                     "name": "Fisch",
-                    "isOwned": True,
-                    "description": None,
+                    "is_owned": True,
                 }
             ]
         )
         assert data
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["isOwned"]
+        assert data[0]["is_owned"]
 
     @pytest.mark.parametrize(
         "exception",
@@ -1002,8 +1086,7 @@ class TestEditAdditionalItemsOwnership:
                     {
                         "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
                         "name": "Fisch",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
@@ -1021,8 +1104,7 @@ class TestEditAdditionalItemsOwnership:
                     {
                         "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
                         "name": "Fisch",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
@@ -1055,8 +1137,7 @@ class TestEditAdditionalItemsOwnership:
                     {
                         "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
                         "name": "Fisch",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
@@ -1081,8 +1162,7 @@ class TestEditAdditionalItems:
                 {
                     "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
                     "name": "Vogel",
-                    "isOwned": True,
-                    "description": None,
+                    "is_owned": True,
                 }
             ]
         )
@@ -1114,8 +1194,7 @@ class TestEditAdditionalItems:
                     {
                         "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
                         "name": "Vogel",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
@@ -1133,8 +1212,7 @@ class TestEditAdditionalItems:
                     {
                         "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
                         "name": "Vogel",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
@@ -1167,8 +1245,7 @@ class TestEditAdditionalItems:
                     {
                         "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
                         "name": "Vogel",
-                        "isOwned": True,
-                        "description": None,
+                        "is_owned": True,
                     }
                 ]
             )
