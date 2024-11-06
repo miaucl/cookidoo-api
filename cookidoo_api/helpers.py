@@ -6,11 +6,31 @@ import logging
 import os
 from typing import cast
 
-from cookidoo_api.types import CookidooItem, CookidooLocalizationConfig, IngredientJSON
+from cookidoo_api.types import (
+    CookidooItem,
+    CookidooLocalizationConfig,
+    CookidooRecipe,
+    IngredientJSON,
+    RecipeJSON,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
+
+
+def cookidoo_recipe_from_json(
+    recipe: RecipeJSON,
+) -> CookidooRecipe:
+    """Convert an ingredient received from the API to a cookidoo item."""
+    return CookidooRecipe(
+        id=recipe["id"],
+        name=recipe["title"],
+        ingredients=[
+            cookidoo_item_from_ingredient(ingredient)
+            for ingredient in recipe["recipeIngredientGroups"]
+        ],
+    )
 
 
 def cookidoo_item_from_ingredient(

@@ -83,6 +83,25 @@ class CookidooItem(TypedDict):
     isOwned: bool
 
 
+class CookidooRecipe(TypedDict):
+    """Cookidoo recipe type.
+
+    Attributes
+    ----------
+    id
+        The id of the recipe
+    name
+        The label of the recipe
+    ingredients
+        The ingredients of the recipe
+
+    """
+
+    id: str
+    name: str
+    ingredients: list[CookidooItem]
+
+
 class IngredientQuantityJSON(TypedDict):
     """The json for an ingredient quantity in the API."""
 
@@ -97,3 +116,11 @@ class IngredientJSON(TypedDict):
     isOwned: bool
     quantity: IngredientQuantityJSON | None
     unitNotation: str | None
+
+
+class RecipeJSON(TypedDict):
+    """The json for a recipe in the API."""
+
+    id: str
+    title: str
+    recipeIngredientGroups: list[IngredientJSON]

@@ -74,6 +74,7 @@ async def main():
             ]
         )
         _ingredients = await cookidoo.get_ingredients()
+        _recipes = await cookidoo.get_shopping_list_recipes()
         await cookidoo.remove_ingredients_for_recipes(["r59322"])
 
         # Additional items

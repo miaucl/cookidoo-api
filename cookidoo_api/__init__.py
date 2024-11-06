@@ -1,6 +1,6 @@
 """Cookidoo API package."""
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .const import DEFAULT_COOKIDOO_CONFIG
 from .cookidoo import Cookidoo
@@ -19,6 +19,7 @@ from .types import (
     CookidooConfig,
     CookidooItem,
     CookidooLocalizationConfig,
+    CookidooRecipe,
     CookidooSubscription,
     CookidooUserInfo,
 )
@@ -34,6 +35,7 @@ __all__ = [
     "CookidooUserInfo",
     "CookidooSubscription",
     "CookidooItem",
+    "CookidooRecipe",
     "CookidooException",
     "CookidooConfigException",
     "CookidooAuthException",

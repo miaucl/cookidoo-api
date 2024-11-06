@@ -20,8 +20,10 @@ class TestMethods:
         sub = await cookidoo.get_active_subscription()
         assert sub is None  # Test account uses the free plan
 
-    async def test_cookidoo_ingredients(self, cookidoo: Cookidoo) -> None:
-        """Test cookidoo ingredients."""
+    async def test_cookidoo_shopping_list_recipe_and_ingredients(
+        self, cookidoo: Cookidoo
+    ) -> None:
+        """Test cookidoo shopping list recipe and ingredients."""
         added_ingredients = await cookidoo.add_ingredients_for_recipes(
             ["r59322", "r907016"]
         )
@@ -49,6 +51,10 @@ class TestMethods:
         ingredients = await cookidoo.get_ingredients()
         assert isinstance(ingredients, list)
         assert len(ingredients) == 14
+
+        recipes = await cookidoo.get_shopping_list_recipes()
+        assert isinstance(recipes, list)
+        assert len(recipes) == 2
 
         await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
         ingredients_empty = await cookidoo.get_ingredients()
