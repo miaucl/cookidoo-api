@@ -25,13 +25,14 @@ COOKIE_HEADER: Final = "v-token={access_token}"
 TOKEN_ENDPOINT: Final = "https://{site}.login.vorwerk.com/oauth2/token"
 
 API_ENDPOINT: Final = "https://{country_code}.tmmobile.vorwerk-digital.com"
+RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
-INGREDIENTS_PATH: Final = "shopping/{language}"
-EDIT_OWNERSHIP_INGREDIENTS_PATH: Final = (
+INGREDIENT_ITEMS_PATH: Final = "shopping/{language}"
+EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH: Final = (
     "shopping/{language}/owned-ingredients/ownership/edit"
 )
-ADD_INGREDIENTS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/add"
-REMOVE_INGREDIENTS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/remove"
+ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/add"
+REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/remove"
 ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}"
 ADD_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/add"
 EDIT_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/edit"

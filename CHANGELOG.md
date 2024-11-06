@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 0.7.0
+
+- add a method to get the recipe details
+- rename the ingredients to ingredient_items to have a logical group of items for the shopping list
+- pure ingredients are only a part of the recipe now
+
 ## 0.6.0
 
 - add a method to get the recipes on a shopping list

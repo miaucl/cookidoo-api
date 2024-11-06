@@ -12,7 +12,7 @@ from yarl import URL
 
 from cookidoo_api.const import (
     ADD_ADDITIONAL_ITEMS_PATH,
-    ADD_INGREDIENTS_FOR_RECIPES_PATH,
+    ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     ADDITIONAL_ITEMS_PATH,
     API_ENDPOINT,
     AUTHORIZATION_HEADER,
@@ -24,10 +24,11 @@ from cookidoo_api.const import (
     DEFAULT_TOKEN_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
-    EDIT_OWNERSHIP_INGREDIENTS_PATH,
-    INGREDIENTS_PATH,
+    EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
+    INGREDIENT_ITEMS_PATH,
+    RECIPE_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
-    REMOVE_INGREDIENTS_FOR_RECIPES_PATH,
+    REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_ENDPOINT,
@@ -39,18 +40,24 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import (
-    cookidoo_item_from_ingredient,
+    cookidoo_additional_item_from_json,
+    cookidoo_ingredient_item_from_json,
+    cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
 )
 from cookidoo_api.types import (
+    AdditionalItemJSON,
+    CookidooAdditionalItem,
     CookidooAuthResponse,
     CookidooConfig,
-    CookidooItem,
+    CookidooIngredientItem,
     CookidooLocalizationConfig,
     CookidooRecipe,
+    CookidooRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
-    IngredientJSON,
+    ItemJSON,
+    RecipeDetailsJSON,
     RecipeJSON,
 )
 
@@ -460,6 +467,89 @@ class Cookidoo:
                 "Loading active subscription failed due to request exception."
             ) from e
 
+    async def get_recipe_details(self, id: str) -> CookidooRecipeDetails:
+        """Get recipe details.
+
+        Parameters
+        ----------
+        id
+            The id of the recipe
+
+        Returns
+        -------
+        CookidooRecipeDetails
+            The recipe details
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / RECIPE_PATH.format(
+                **self._cfg["localization"], id=id
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get recipe details: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading recipe details failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return cookidoo_recipe_details_from_json(
+                        cast(RecipeDetailsJSON, await r.json())
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get recipe details:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading recipe details failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipe details:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe details failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot recipe details:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe details failed due to request exception."
+            ) from e
+
     async def get_shopping_list_recipes(
         self,
     ) -> list[CookidooRecipe]:
@@ -541,15 +631,15 @@ class Cookidoo:
                 "Loading recipes failed due to request exception."
             ) from e
 
-    async def get_ingredients(
+    async def get_ingredient_items(
         self,
-    ) -> list[CookidooItem]:
-        """Get recipe items.
+    ) -> list[CookidooIngredientItem]:
+        """Get ingredient items.
 
         Returns
         -------
-        list[CookidooItem]
-            The list of the recipe items
+        list[CookidooIngredientItem]
+            The list of the ingredient items
 
         Raises
         ------
@@ -563,7 +653,7 @@ class Cookidoo:
         """
 
         try:
-            url = self.api_endpoint / INGREDIENTS_PATH.format(
+            url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
                 **self._cfg["localization"]
             )
             async with self._session.get(url, headers=self._api_headers) as r:
@@ -581,11 +671,11 @@ class Cookidoo:
                         )
                     else:
                         _LOGGER.debug(
-                            "Exception: Cannot get recipe items: %s",
+                            "Exception: Cannot get ingredient items: %s",
                             errmsg["error_description"],
                         )
                     raise CookidooAuthException(
-                        "Loading recipe items failed due to authorization failure, "
+                        "Loading ingredient items failed due to authorization failure, "
                         "the authorization token is invalid or expired."
                     )
 
@@ -593,51 +683,51 @@ class Cookidoo:
 
                 try:
                     return [
-                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
                         for recipe in (await r.json())["recipes"]
                         for ingredient in recipe["recipeIngredientGroups"]
                     ]
 
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get recipe items:\n%s",
+                        "Exception: Cannot get ingredient items:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
-                        "Loading recipe items failed during parsing of request response."
+                        "Loading ingredient items failed during parsing of request response."
                     ) from e
         except TimeoutError as e:
             _LOGGER.debug(
-                "Exception: Cannot get recipe items:\n%s",
+                "Exception: Cannot get ingredient items:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Loading recipe items failed due to connection timeout."
+                "Loading ingredient items failed due to connection timeout."
             ) from e
         except ClientError as e:
             _LOGGER.debug(
-                "Exception: Cannot recipe items:\n%s",
+                "Exception: Cannot ingredient items:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Loading recipe items failed due to request exception."
+                "Loading ingredient items failed due to request exception."
             ) from e
 
-    async def add_ingredients_for_recipes(
+    async def add_ingredient_items_for_recipes(
         self,
         recipe_ids: list[str],
-    ) -> list[CookidooItem]:
-        """Add ingredients for recipes.
+    ) -> list[CookidooIngredientItem]:
+        """Add ingredient items for recipes.
 
         Parameters
         ----------
         recipe_ids
-            The recipe ids for the ingredients to add to the shopping list
+            The recipe ids for the ingredient items to add to the shopping list
 
         Returns
         -------
-        list[CookidooItem]
-            The list of the added ingredients
+        list[CookidooIngredientItem]
+            The list of the added ingredient items
 
         Raises
         ------
@@ -651,7 +741,7 @@ class Cookidoo:
         """
         json_data = {"recipeIDs": recipe_ids}
         try:
-            url = self.api_endpoint / ADD_INGREDIENTS_FOR_RECIPES_PATH.format(
+            url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
                 **self._cfg["localization"]
             )
             async with self._session.post(
@@ -671,56 +761,56 @@ class Cookidoo:
                         )
                     else:
                         _LOGGER.debug(
-                            "Exception: Cannot add ingredients for recipes: %s",
+                            "Exception: Cannot add ingredient items for recipes: %s",
                             errmsg["error_description"],
                         )
                     raise CookidooAuthException(
-                        "Add ingredients for recipes failed due to authorization failure, "
+                        "Add ingredient items for recipes failed due to authorization failure, "
                         "the authorization token is invalid or expired."
                     )
 
                 r.raise_for_status()
                 try:
                     return [
-                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
                         for recipe in (await r.json())["data"]
                         for ingredient in recipe["recipeIngredientGroups"]
                     ]
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get added ingredients:\n%s",
+                        "Exception: Cannot get added ingredient items:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
-                        "Loading added ingredients failed during parsing of request response."
+                        "Loading added ingredient items failed during parsing of request response."
                     ) from e
         except TimeoutError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute add ingredients for recipes:\n%s",
+                "Exception: Cannot execute add ingredient items for recipes:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Add ingredients for recipes failed due to connection timeout."
+                "Add ingredient items for recipes failed due to connection timeout."
             ) from e
         except ClientError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute add ingredients for recipes:\n%s",
+                "Exception: Cannot execute add ingredient items for recipes:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Add ingredients for recipes failed due to request exception."
+                "Add ingredient items for recipes failed due to request exception."
             ) from e
 
-    async def remove_ingredients_for_recipes(
+    async def remove_ingredient_items_for_recipes(
         self,
         recipe_ids: list[str],
     ) -> None:
-        """Remove ingredients for recipes.
+        """Remove ingredient items for recipes.
 
         Parameters
         ----------
         recipe_ids
-            The recipe ids for the ingredients to remove to the shopping list
+            The recipe ids for the ingredient items to remove to the shopping list
 
         Raises
         ------
@@ -734,7 +824,7 @@ class Cookidoo:
         """
         json_data = {"recipeIDs": recipe_ids}
         try:
-            url = self.api_endpoint / REMOVE_INGREDIENTS_FOR_RECIPES_PATH.format(
+            url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
                 **self._cfg["localization"]
             )
             async with self._session.post(
@@ -754,47 +844,47 @@ class Cookidoo:
                         )
                     else:
                         _LOGGER.debug(
-                            "Exception: Cannot remove ingredients for recipes: %s",
+                            "Exception: Cannot remove ingredient items for recipes: %s",
                             errmsg["error_description"],
                         )
                     raise CookidooAuthException(
-                        "Remove ingredients for recipes failed due to authorization failure, "
+                        "Remove ingredient items for recipes failed due to authorization failure, "
                         "the authorization token is invalid or expired."
                     )
 
                 r.raise_for_status()
         except TimeoutError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute remove ingredients for recipes:\n%s",
+                "Exception: Cannot execute remove ingredient items for recipes:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Remove ingredients for recipes failed due to connection timeout."
+                "Remove ingredient items for recipes failed due to connection timeout."
             ) from e
         except ClientError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute remove ingredients for recipes:\n%s",
+                "Exception: Cannot execute remove ingredient items for recipes:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Remove ingredients for recipes failed due to request exception."
+                "Remove ingredient items for recipes failed due to request exception."
             ) from e
 
-    async def edit_ingredients_ownership(
+    async def edit_ingredient_items_ownership(
         self,
-        ingredients: list[CookidooItem],
-    ) -> list[CookidooItem]:
-        """Edit ownership recipe items.
+        ingredient_items: list[CookidooIngredientItem],
+    ) -> list[CookidooIngredientItem]:
+        """Edit ownership ingredient items.
 
         Parameters
         ----------
-        ingredients
-            The recipe items to change the the `is_owned` value for
+        ingredient_items
+            The ingredient items to change the the `is_owned` value for
 
         Returns
         -------
-        list[CookidooItem]
-            The list of the edited recipe items
+        list[CookidooIngredientItem]
+            The list of the edited ingredient items
 
         Raises
         ------
@@ -809,15 +899,15 @@ class Cookidoo:
         json_data = {
             "ingredients": [
                 {
-                    "id": ingredient["id"],
-                    "isOwned": ingredient["isOwned"],
+                    "id": ingredient_item["id"],
+                    "isOwned": ingredient_item["is_owned"],
                     "ownedTimestamp": int(time.time()),
                 }
-                for ingredient in ingredients
+                for ingredient_item in ingredient_items
             ]
         }
         try:
-            url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENTS_PATH.format(
+            url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH.format(
                 **self._cfg["localization"]
             )
             async with self._session.post(
@@ -837,54 +927,54 @@ class Cookidoo:
                         )
                     else:
                         _LOGGER.debug(
-                            "Exception: Cannot edit recipe item ownership: %s",
+                            "Exception: Cannot edit recipe ingredient items ownership: %s",
                             errmsg["error_description"],
                         )
                     raise CookidooAuthException(
-                        "Edit recipe items ownership failed due to authorization failure, "
+                        "Edit ingredient items ownership failed due to authorization failure, "
                         "the authorization token is invalid or expired."
                     )
 
                 r.raise_for_status()
                 try:
                     return [
-                        cookidoo_item_from_ingredient(cast(IngredientJSON, ingredient))
+                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
                         for ingredient in (await r.json())["data"]
                     ]
 
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get edited recipe items:\n%s",
+                        "Exception: Cannot get edited ingredient items:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
-                        "Loading edited recipe items failed during parsing of request response."
+                        "Loading edited ingredient items failed during parsing of request response."
                     ) from e
         except TimeoutError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute edit recipe items ownership:\n%s",
+                "Exception: Cannot execute edit ingredient items ownership:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Edit recipe items ownership failed due to connection timeout."
+                "Edit ingredient items ownership failed due to connection timeout."
             ) from e
         except ClientError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute edit recipe items ownership:\n%s",
+                "Exception: Cannot execute edit ingredient items ownership:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
-                "Edit recipe items ownership failed due to request exception."
+                "Edit ingredient items ownership failed due to request exception."
             ) from e
 
     async def get_additional_items(
         self,
-    ) -> list[CookidooItem]:
+    ) -> list[CookidooAdditionalItem]:
         """Get additional items.
 
         Returns
         -------
-        list[CookidooItem]
+        list[CookidooAdditionalItem]
             The list of the additional items
 
         Raises
@@ -929,13 +1019,8 @@ class Cookidoo:
 
                 try:
                     return [
-                        cast(
-                            CookidooItem,
-                            {
-                                key: val
-                                for key, val in additional_item.items()
-                                if key in CookidooItem.__annotations__
-                            },
+                        cookidoo_additional_item_from_json(
+                            cast(AdditionalItemJSON, additional_item)
                         )
                         for additional_item in (await r.json())["additionalItems"]
                     ]
@@ -968,7 +1053,7 @@ class Cookidoo:
     async def add_additional_items(
         self,
         additional_item_names: list[str],
-    ) -> list[CookidooItem]:
+    ) -> list[CookidooAdditionalItem]:
         """Create additional items.
 
         Parameters
@@ -978,7 +1063,7 @@ class Cookidoo:
 
         Returns
         -------
-        list[CookidooItem]
+        list[CookidooAdditionalItem]
             The list of the added additional items
 
         Raises
@@ -1024,7 +1109,9 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return [
-                        cast(CookidooItem, additional_item)
+                        cookidoo_additional_item_from_json(
+                            cast(AdditionalItemJSON, additional_item)
+                        )
                         for additional_item in (await r.json())["data"]
                     ]
 
@@ -1055,8 +1142,8 @@ class Cookidoo:
 
     async def edit_additional_items(
         self,
-        additional_items: list[CookidooItem],
-    ) -> list[CookidooItem]:
+        additional_items: list[CookidooAdditionalItem],
+    ) -> list[CookidooAdditionalItem]:
         """Edit additional items.
 
         Parameters
@@ -1066,7 +1153,7 @@ class Cookidoo:
 
         Returns
         -------
-        list[CookidooItem]
+        list[CookidooAdditionalItem]
             The list of the edited additional items
 
         Raises
@@ -1120,7 +1207,9 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return [
-                        cast(CookidooItem, additional_item)
+                        cookidoo_additional_item_from_json(
+                            cast(AdditionalItemJSON, additional_item)
+                        )
                         for additional_item in (await r.json())["data"]
                     ]
 
@@ -1151,8 +1240,8 @@ class Cookidoo:
 
     async def edit_additional_items_ownership(
         self,
-        additional_items: list[CookidooItem],
-    ) -> list[CookidooItem]:
+        additional_items: list[CookidooAdditionalItem],
+    ) -> list[CookidooAdditionalItem]:
         """Edit ownership additional items.
 
         Parameters
@@ -1162,7 +1251,7 @@ class Cookidoo:
 
         Returns
         -------
-        list[CookidooItem]
+        list[CookidooAdditionalItem]
             The list of the edited additional items
 
         Raises
@@ -1179,7 +1268,7 @@ class Cookidoo:
             "additionalItems": [
                 {
                     "id": additional_item["id"],
-                    "isOwned": additional_item["isOwned"],
+                    "isOwned": additional_item["is_owned"],
                     "ownedTimestamp": int(time.time()),
                 }
                 for additional_item in additional_items
@@ -1217,7 +1306,9 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return [
-                        cast(CookidooItem, additional_item)
+                        cookidoo_additional_item_from_json(
+                            cast(AdditionalItemJSON, additional_item)
+                        )
                         for additional_item in (await r.json())["data"]
                     ]
 
@@ -1331,7 +1422,7 @@ class Cookidoo:
 
         """
         try:
-            url = self.api_endpoint / INGREDIENTS_PATH.format(
+            url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
                 **self._cfg["localization"]
             )
             async with self._session.delete(url, headers=self._api_headers) as r:

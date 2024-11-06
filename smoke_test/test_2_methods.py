@@ -20,11 +20,18 @@ class TestMethods:
         sub = await cookidoo.get_active_subscription()
         assert sub is None  # Test account uses the free plan
 
+    async def test_cookidoo_recipe_details(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo recipe details."""
+        recipe_details = await cookidoo.get_recipe_details("r59322")
+        assert isinstance(recipe_details, object)
+        assert recipe_details["id"] == "r59322"
+        assert recipe_details["name"] == "Vollwert-Brötchen/Baguettes"
+
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo
     ) -> None:
         """Test cookidoo shopping list recipe and ingredients."""
-        added_ingredients = await cookidoo.add_ingredients_for_recipes(
+        added_ingredients = await cookidoo.add_ingredient_items_for_recipes(
             ["r59322", "r907016"]
         )
         assert isinstance(added_ingredients, list)
@@ -32,11 +39,11 @@ class TestMethods:
         assert "Zucker" in (
             added_ingredient["name"] for added_ingredient in added_ingredients
         )
-        edited_ingredients = await cookidoo.edit_ingredients_ownership(
+        edited_ingredients = await cookidoo.edit_ingredient_items_ownership(
             [
                 {
                     **ingredient,
-                    "isOwned": not ingredient["isOwned"],
+                    "is_owned": not ingredient["is_owned"],
                 }
                 for ingredient in filter(
                     lambda ingredient: ingredient["name"] == "Hefe",
@@ -46,9 +53,9 @@ class TestMethods:
         )
         assert isinstance(edited_ingredients, list)
         assert len(edited_ingredients) == 1
-        assert edited_ingredients[0]["isOwned"]
+        assert edited_ingredients[0]["is_owned"]
 
-        ingredients = await cookidoo.get_ingredients()
+        ingredients = await cookidoo.get_ingredient_items()
         assert isinstance(ingredients, list)
         assert len(ingredients) == 14
 
@@ -56,8 +63,8 @@ class TestMethods:
         assert isinstance(recipes, list)
         assert len(recipes) == 2
 
-        await cookidoo.remove_ingredients_for_recipes(["r59322", "r907016"])
-        ingredients_empty = await cookidoo.get_ingredients()
+        await cookidoo.remove_ingredient_items_for_recipes(["r59322", "r907016"])
+        ingredients_empty = await cookidoo.get_ingredient_items()
         assert isinstance(ingredients_empty, list)
         assert len(ingredients_empty) == 0
 
@@ -79,7 +86,7 @@ class TestMethods:
             [
                 {
                     **additional_item,
-                    "isOwned": not additional_item["isOwned"],
+                    "is_owned": not additional_item["is_owned"],
                 }
                 for additional_item in filter(
                     lambda additional_item: additional_item["name"] == "Fisch",
@@ -89,7 +96,7 @@ class TestMethods:
         )
         assert isinstance(edited_additional_items, list)
         assert len(edited_additional_items) == 1
-        assert edited_additional_items[0]["isOwned"]
+        assert edited_additional_items[0]["is_owned"]
 
         edited_additional_items = await cookidoo.edit_additional_items(
             [
