@@ -20,12 +20,14 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_RECIPES,
+    COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION,
     COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS,
+    COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
@@ -1321,3 +1323,298 @@ class TestClearShoppingList:
 
         with pytest.raises(exception):
             await cookidoo.clear_shopping_list()
+
+
+class TestCountManagedLists:
+    """Tests for count_managed_lists method."""
+
+    async def test_count_managed_lists(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for count_managed_lists."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            payload=COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
+            status=HTTPStatus.OK,
+        )
+
+        count_recipes, count_pages = await cookidoo.count_managed_collections()
+        assert count_recipes == 1
+        assert count_pages == 1
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.count_managed_collections()
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.count_managed_collections()
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.count_managed_collections()
+
+
+class TestGetManagedLists:
+    """Tests for get_managed_lists method."""
+
+    async def test_get_managed_lists(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_managed_lists."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            payload=COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_managed_collections()
+        assert data
+        assert isinstance(data, list)
+        assert len(data) == 1
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.get_managed_collections()
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_managed_collections()
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.get_managed_collections()
+
+
+class TestAddManagedCollection:
+    """Tests for add_managed_collection method."""
+
+    async def test_add_managed_collection(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for add_managed_collection."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            payload=COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.add_managed_collection("col500561")
+        assert data
+        assert data["id"] == "col500561"
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.add_managed_collection("col500561")
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.add_managed_collection("col500561")
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.add_managed_collection("col500561")
+
+
+class TestRemoveManagedCollection:
+    """Tests for remove_managed_collection method."""
+
+    async def test_remove_managed_collection(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for remove_managed_collection."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            payload=None,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.remove_managed_collection("col500561")
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.remove_managed_collection("col500561")
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.remove_managed_collection("col500561")
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            # (HTTPStatus.OK, CookidooParseException), # There is nothing to parse
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.remove_managed_collection("col500561")

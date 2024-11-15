@@ -11,7 +11,7 @@ from cookidoo_api.helpers import (
     get_language_options,
     get_localization_options,
 )
-from cookidoo_api.types import RecipeDetailsJSON
+from cookidoo_api.raw_types import RecipeDetailsJSON
 from tests.responses import COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS
 
 load_dotenv()

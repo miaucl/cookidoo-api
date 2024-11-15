@@ -128,3 +128,22 @@ class TestMethods:
         additional_items = await cookidoo.get_additional_items()
         assert isinstance(additional_items, list)
         assert len(additional_items) == 0
+
+    async def test_cookidoo_managed_collections(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo managed collections."""
+        added_managed_collection = await cookidoo.add_managed_collection("col500401")
+        assert added_managed_collection["id"] == "col500401"
+
+        managed_collections = await cookidoo.get_managed_collections()
+        assert isinstance(managed_collections, list)
+        assert len(managed_collections) == 1
+
+        count_collections, count_pages = await cookidoo.count_managed_collections()
+        assert count_collections == 1
+        assert count_pages == 1
+
+        await cookidoo.remove_managed_collection("col500401")
+
+        managed_collections = await cookidoo.get_managed_collections()
+        assert isinstance(managed_collections, list)
+        assert len(managed_collections) == 0

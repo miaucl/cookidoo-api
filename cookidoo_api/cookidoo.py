@@ -13,6 +13,7 @@ from yarl import URL
 from cookidoo_api.const import (
     ADD_ADDITIONAL_ITEMS_PATH,
     ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
+    ADD_MANAGED_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
     API_ENDPOINT,
     AUTHORIZATION_HEADER,
@@ -26,9 +27,11 @@ from cookidoo_api.const import (
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
     INGREDIENT_ITEMS_PATH,
+    MANAGED_COLLECTIONS_PATH,
     RECIPE_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
     REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
+    REMOVE_MANAGED_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_ENDPOINT,
@@ -41,24 +44,29 @@ from cookidoo_api.exceptions import (
 )
 from cookidoo_api.helpers import (
     cookidoo_additional_item_from_json,
+    cookidoo_collection_from_json,
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
 )
-from cookidoo_api.types import (
+from cookidoo_api.raw_types import (
     AdditionalItemJSON,
+    ItemJSON,
+    ManagedCollectionJSON,
+    RecipeDetailsJSON,
+    RecipeJSON,
+)
+from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooAuthResponse,
+    CookidooCollection,
     CookidooConfig,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
-    CookidooRecipe,
-    CookidooRecipeDetails,
+    CookidooShoppingRecipe,
+    CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
-    ItemJSON,
-    RecipeDetailsJSON,
-    RecipeJSON,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -467,7 +475,7 @@ class Cookidoo:
                 "Loading active subscription failed due to request exception."
             ) from e
 
-    async def get_recipe_details(self, id: str) -> CookidooRecipeDetails:
+    async def get_recipe_details(self, id: str) -> CookidooShoppingRecipeDetails:
         """Get recipe details.
 
         Parameters
@@ -477,7 +485,7 @@ class Cookidoo:
 
         Returns
         -------
-        CookidooRecipeDetails
+        CookidooShoppingRecipeDetails
             The recipe details
 
         Raises
@@ -552,12 +560,12 @@ class Cookidoo:
 
     async def get_shopping_list_recipes(
         self,
-    ) -> list[CookidooRecipe]:
+    ) -> list[CookidooShoppingRecipe]:
         """Get recipes.
 
         Returns
         -------
-        list[CookidooRecipe]
+        list[CookidooShoppingRecipe]
             The list of the recipes
 
         Raises
@@ -1464,4 +1472,323 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Clear shopping list failed due to request exception."
+            ) from e
+
+    async def count_managed_collections(self) -> tuple[int, int]:
+        """Get managed collections.
+
+        Returns
+        -------
+        tuple[int, int]
+            The number of managed collections and the number of pages
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot count managed collections: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading managed collections failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    json = await r.json()
+                    return (
+                        int(json["page"]["totalElements"]),
+                        int(json["page"]["totalPages"]),
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot count managed collections%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading managed collections during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot count managed collections:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading managed collections due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot count managed collections%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading managed collections due to request exception."
+            ) from e
+
+    async def get_managed_collections(self, page: int = 0) -> list[CookidooCollection]:
+        """Get managed collections.
+
+        Parameters
+        ----------
+        page
+            The page of the managed collections
+
+        Returns
+        -------
+        list[CookidooCollection]
+            The list of the managed collections
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(
+                url, headers=self._api_headers, params={"page": page}
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get managed collections: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading managed collections failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return [
+                        cookidoo_collection_from_json(cast(ManagedCollectionJSON, list))
+                        for list in (await r.json())["managedlists"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get managed collections%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading managed collections during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get managed collections:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading managed collections due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get managed collections%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading managed collections due to request exception."
+            ) from e
+
+    async def add_managed_collection(
+        self,
+        managed_collection_id: str,
+    ) -> CookidooCollection:
+        """Add managed collections.
+
+        Parameters
+        ----------
+        managed_collection_id
+            The managed collection id to add
+
+        Returns
+        -------
+        CookidooCollection
+            The added managed collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"collectionId": managed_collection_id}
+        try:
+            url = self.api_endpoint / ADD_MANAGED_COLLECTION_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add managed collection: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add managed collection failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_collection_from_json(
+                        cast(ManagedCollectionJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added ingredient items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added managed collection failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add managed collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add managed collection failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add managed collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add managed collection failed due to request exception."
+            ) from e
+
+    async def remove_managed_collection(
+        self,
+        managed_collection_id: str,
+    ) -> None:
+        """Remove managed collection.
+
+        Parameters
+        ----------
+        managed_collection_id
+            The managed collection id to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
+                **self._cfg["localization"], id=managed_collection_id
+            )
+            async with self._session.delete(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove managed collection: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove managed collection failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove managed collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove managed collection failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove managed collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove managed collection failed due to request exception."
             ) from e
