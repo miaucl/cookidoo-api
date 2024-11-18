@@ -1,4 +1,4 @@
-aiohttp~=3.10
+aiohttp~=3.11
 mypy>=1.8.0
 pydantic>=2.9.2
 pre-commit>=3.6.1

@@ -1,2 +1,2 @@
-aiohttp~=3.10
+aiohttp~=3.11
 python-dotenv~=1.0.1
