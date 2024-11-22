@@ -115,7 +115,6 @@ class CookidooAdditionalItem(CookidooItem):
 
     pass
 
-
 class CookidooRecipe(TypedDict):
     """Cookidoo recipe type.
 
@@ -331,3 +330,28 @@ class RecipeDetailsJSON(TypedDict):
     recipeUtensils: list[RecipeDetailsUtensilsJSON]
     servingSize: RecipeDetailsServingSizeJSON
     times: list[RecipeDetailsTimeJSON]
+
+class CreatedRecipeYield(TypedDict):
+    value: str
+    unitText: str
+
+class CreatedRecipeContent(TypedDict):
+    name: str
+    image: str
+    totalTime: str
+    prepTime: str
+    tool: list[str]
+    recipeYield: CreatedRecipeYield
+    recipeIngredient: list[str]
+    recipeInstructions: list[str]
+
+class CreatedRecipe(TypedDict):
+    recipeId: str
+    authorId: str
+    modifiedAt: str
+    createdAt: str
+    status: str
+    workStatus: str
+    recipeContent: CreatedRecipeContent
+
+

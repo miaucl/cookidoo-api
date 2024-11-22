@@ -26,6 +26,7 @@ TOKEN_ENDPOINT: Final = "https://{site}.login.vorwerk.com/oauth2/token"
 
 API_ENDPOINT: Final = "https://{country_code}.tmmobile.vorwerk-digital.com"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
+CREATED_RECIPES_PATH: Final = "created-recipes"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
 INGREDIENT_ITEMS_PATH: Final = "shopping/{language}"
 EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH: Final = (
