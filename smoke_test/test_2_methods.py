@@ -147,3 +147,24 @@ class TestMethods:
         managed_collections = await cookidoo.get_managed_collections()
         assert isinstance(managed_collections, list)
         assert len(managed_collections) == 0
+
+    async def test_cookidoo_custom_collections(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo custom collections."""
+        added_custom_collection = await cookidoo.add_custom_collection(
+            "TEST_COLLECTION"
+        )
+        assert added_custom_collection["name"] == "TEST_COLLECTION"
+
+        custom_collections = await cookidoo.get_custom_collections()
+        assert isinstance(custom_collections, list)
+        assert len(custom_collections) == 1
+
+        count_collections, count_pages = await cookidoo.count_custom_collections()
+        assert count_collections == 1
+        assert count_pages == 1
+
+        await cookidoo.remove_custom_collection(added_custom_collection["id"])
+
+        custom_collections = await cookidoo.get_custom_collections()
+        assert isinstance(custom_collections, list)
+        assert len(custom_collections) == 0

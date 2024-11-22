@@ -1370,3 +1370,41 @@ COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION = {
     },
     "code": None,
 }
+
+COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS = {
+    "customlists": [
+        {
+            "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+            "title": "Testliste1",
+            "version": 4,
+            "created": "2024-11-06T22:33:18.873+00:00",
+            "modified": "2024-11-06T22:36:25.914+00:00",
+            "chapters": [{"title": "", "recipes": []}],
+            "assets": {"images": {"square": "", "portrait": "", "landscape": ""}},
+            "sharedListId": None,
+            "shared": False,
+            "listType": "CUSTOMLIST",
+            "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        }
+    ],
+    "page": {"page": 0, "totalPages": 1, "totalElements": 1},
+    "links": {"self": "/organize/de-CH/api/custom-list?page=0"},
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION = {
+    "message": "Rezeptliste wurde erfolgreich erstellt!",
+    "content": {
+        "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+        "title": "Testliste",
+        "version": 1,
+        "created": "2024-11-06T22:33:18.873+00:00",
+        "modified": "2024-11-06T22:33:18.873+00:00",
+        "chapters": [{"title": "", "recipes": []}],
+        "assets": {"images": {"square": "", "portrait": "", "landscape": ""}},
+        "sharedListId": None,
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        "listType": "CUSTOMLIST",
+        "shared": False,
+    },
+    "code": None,
+}
