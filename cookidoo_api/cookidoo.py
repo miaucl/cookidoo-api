@@ -32,6 +32,7 @@ from cookidoo_api.const import (
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_ENDPOINT,
+    CREATED_RECIPES_PATH
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -59,6 +60,7 @@ from cookidoo_api.types import (
     ItemJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    CreatedRecipe
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -465,6 +467,72 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Loading active subscription failed due to request exception."
+            ) from e
+
+    async def get_my_recipes( self,) -> list[CreatedRecipe] :
+        """ Get all your custom made recipes
+
+         Returns
+        -------
+        list[CreatedRecipe]
+            The recipe details
+        """
+
+        try:
+            url = self.api_endpoint / CREATED_RECIPES_PATH.format(
+                **self._cfg["localization"]
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get recipe details: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading recipe details failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return cast(list[CreatedRecipe], await r.json())
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get recipe details:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading recipe details failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipe details:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe details failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot recipe details:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipe details failed due to request exception."
             ) from e
 
     async def get_recipe_details(self, id: str) -> CookidooRecipeDetails:
