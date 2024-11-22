@@ -15,6 +15,7 @@ from cookidoo_api.const import (
     ADD_CUSTOM_COLLECTION_PATH,
     ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     ADD_MANAGED_COLLECTION_PATH,
+    ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
     API_ENDPOINT,
     AUTHORIZATION_HEADER,
@@ -35,6 +36,7 @@ from cookidoo_api.const import (
     REMOVE_CUSTOM_COLLECTION_PATH,
     REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     REMOVE_MANAGED_COLLECTION_PATH,
+    REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_ENDPOINT,
@@ -1708,7 +1710,7 @@ class Cookidoo:
 
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get added ingredient items:\n%s",
+                        "Exception: Cannot get added managed collection:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
@@ -2027,7 +2029,7 @@ class Cookidoo:
 
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get added ingredient items:\n%s",
+                        "Exception: Cannot get added custom collection:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
@@ -2114,4 +2116,181 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Remove custom collection failed due to request exception."
+            ) from e
+
+    async def add_recipes_to_custom_collection(
+        self,
+        custom_collection_id: str,
+        recipe_ids: list[str],
+    ) -> CookidooCollection:
+        """Add recipes to a custom collections.
+
+        Parameters
+        ----------
+        custom_collection_id
+            The custom collection to add the recipes to
+        recipe_ids
+            The recipe ids to add to a custom collection
+
+        Returns
+        -------
+        CookidooCollection
+            The changed custom collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIds": recipe_ids}
+        try:
+            url = self.api_endpoint / ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH.format(
+                **self._cfg["localization"], id=custom_collection_id
+            )
+            async with self._session.put(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add recipes to custom collection: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add recipes to custom collection failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_collection_from_json(
+                        cast(CustomCollectionJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added recipes:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added recipes failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipes to custom collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add recipes to custom collection failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipes to custom collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add recipes to custom collection failed due to request exception."
+            ) from e
+
+    async def remove_recipe_from_custom_collection(
+        self,
+        custom_collection_id: str,
+        recipe_id: str,
+    ) -> CookidooCollection:
+        """Remove recipe from a custom collections.
+
+        Parameters
+        ----------
+        custom_collection_id
+            The custom collection to remove the recipe from
+        recipe_id
+            The recipe id to remove from a custom collection
+
+        Returns
+        -------
+        CookidooCollection
+            The changed custom collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH.format(
+                **self._cfg["localization"], id=custom_collection_id, recipe=recipe_id
+            )
+            async with self._session.delete(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove recipe from custom collection: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove recipe from custom collection failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_collection_from_json(
+                        cast(CustomCollectionJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get removed recipe:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading removed recipe failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipe from custom collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove recipe from custom collection failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove recipe from custom collection:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove recipe from custom collection failed due to request exception."
             ) from e

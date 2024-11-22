@@ -55,11 +55,19 @@ async def main():
         await cookidoo.get_active_subscription()
 
         # Custom collections
-        _added_custom_collection = await cookidoo.add_custom_collection(
+        added_custom_collection = await cookidoo.add_custom_collection(
             "TEST_COLLECTION"
         )
         _custom_collections = await cookidoo.get_custom_collections()
-        await cookidoo.remove_custom_collection(_added_custom_collection["id"])
+        await cookidoo.add_recipes_to_custom_collection(
+            added_custom_collection["id"], ["r907015"]
+        )
+        _custom_collections = await cookidoo.get_custom_collections()
+        await cookidoo.remove_recipe_from_custom_collection(
+            added_custom_collection["id"], "r907015"
+        )
+        _custom_collections = await cookidoo.get_custom_collections()
+        await cookidoo.remove_custom_collection(added_custom_collection["id"])
         return
 
         # Managed collections

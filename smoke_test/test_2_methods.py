@@ -163,6 +163,20 @@ class TestMethods:
         assert count_collections == 1
         assert count_pages == 1
 
+        custom_collection_with_recipe = await cookidoo.add_recipes_to_custom_collection(
+            added_custom_collection["id"], ["r907015"]
+        )
+        assert (
+            custom_collection_with_recipe["chapters"][0]["recipes"][0]["id"]
+            == "r907015"
+        )
+        custom_collection_without_recipe = (
+            await cookidoo.remove_recipe_from_custom_collection(
+                added_custom_collection["id"], "r907015"
+            )
+        )
+        assert len(custom_collection_without_recipe["chapters"][0]["recipes"]) == 0
+
         await cookidoo.remove_custom_collection(added_custom_collection["id"])
 
         custom_collections = await cookidoo.get_custom_collections()
