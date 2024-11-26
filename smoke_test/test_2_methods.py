@@ -128,3 +128,57 @@ class TestMethods:
         additional_items = await cookidoo.get_additional_items()
         assert isinstance(additional_items, list)
         assert len(additional_items) == 0
+
+    async def test_cookidoo_managed_collections(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo managed collections."""
+        added_managed_collection = await cookidoo.add_managed_collection("col500401")
+        assert added_managed_collection["id"] == "col500401"
+
+        managed_collections = await cookidoo.get_managed_collections()
+        assert isinstance(managed_collections, list)
+        assert len(managed_collections) == 1
+
+        count_collections, count_pages = await cookidoo.count_managed_collections()
+        assert count_collections == 1
+        assert count_pages == 1
+
+        await cookidoo.remove_managed_collection("col500401")
+
+        managed_collections = await cookidoo.get_managed_collections()
+        assert isinstance(managed_collections, list)
+        assert len(managed_collections) == 0
+
+    async def test_cookidoo_custom_collections(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo custom collections."""
+        added_custom_collection = await cookidoo.add_custom_collection(
+            "TEST_COLLECTION"
+        )
+        assert added_custom_collection["name"] == "TEST_COLLECTION"
+
+        custom_collections = await cookidoo.get_custom_collections()
+        assert isinstance(custom_collections, list)
+        assert len(custom_collections) == 1
+
+        count_collections, count_pages = await cookidoo.count_custom_collections()
+        assert count_collections == 1
+        assert count_pages == 1
+
+        custom_collection_with_recipe = await cookidoo.add_recipes_to_custom_collection(
+            added_custom_collection["id"], ["r907015"]
+        )
+        assert (
+            custom_collection_with_recipe["chapters"][0]["recipes"][0]["id"]
+            == "r907015"
+        )
+        custom_collection_without_recipe = (
+            await cookidoo.remove_recipe_from_custom_collection(
+                added_custom_collection["id"], "r907015"
+            )
+        )
+        assert len(custom_collection_without_recipe["chapters"][0]["recipes"]) == 0
+
+        await cookidoo.remove_custom_collection(added_custom_collection["id"])
+
+        custom_collections = await cookidoo.get_custom_collections()
+        assert isinstance(custom_collections, list)
+        assert len(custom_collections) == 0

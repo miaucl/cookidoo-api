@@ -1,0 +1,32 @@
+GET https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list HTTP/2.0
+accept: application/vnd.vorwerk.organize.custom-list.mobile+json
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImEyYjY5NWE4LWEyZGMtM2YyOC1iODM2LTQ4YzhkYWVhMzBlZCIsInR5cCI6IkpXVCJ9.eyJhdWQiOltdLCJhdXRoX3RpbWUiOjEuNzMwNjQwMzg4ZSswOSwiYXV0aG9yaXRpZXMiOlsiUk9MRV9WT1JXRVJLQ1VTVE9NRVJHUk9VUCJdLCJjbGllbnRfaWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiY2xpZW50YXBwcm92ZWQiOmZhbHNlLCJleHAiOjE3MzA5NjE0ODYsImV4dCI6eyJhdXRoX3RpbWUiOjEuNzMwNjQwMzg4ZSswOSwiYXV0aG9yaXRpZXMiOlsiUk9MRV9WT1JXRVJLQ1VTVE9NRVJHUk9VUCJdLCJjbGllbnRhcHByb3ZlZCI6ZmFsc2UsInVzZXJfbmFtZSI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaUBnbWFpbC5jb20ifSwiZ3JhbnRfdHlwZSI6InJlZnJlc2hfdG9rZW4iLCJpYXQiOjE3MzA5MTgyODYsImlzcyI6Imh0dHBzOi8vZXUubG9naW4udm9yd2Vyay5jb20vIiwianRpIjoiNzEyYzM5ZGYtMzQ3ZS00ZDllLWJhNDYtMjk0N2NjOGRhN2QwIiwibmJmIjoxNzMwOTE4Mjg2LCJzY29wZSI6WyJtYXJjb3NzYXBpIiwib3BlbmlkIiwicHJvZmlsZSIsImVtYWlsIiwiT25saW5lIiwib2ZmbGluZV9hY2Nlc3MiXSwic2NwIjpbIm1hcmNvc3NhcGkiLCJvcGVuaWQiLCJwcm9maWxlIiwiZW1haWwiLCJPbmxpbmUiLCJvZmZsaW5lX2FjY2VzcyJdLCJzdWIiOiI0YTc0YzEwMi0zZWU2LTRiY2QtOTIyNy0yYzQwMzkwMGI4ZGUiLCJ1c2VyX25hbWUiOiJjeXJpbGwucmFjY2F1ZCtjb29raWRvb19hcGlAZ21haWwuY29tIn0.gb71KUGJK6QwS7FuuKezde9MWp-Nfc4iBg_DhVDdO-tnNdKZuE_ncPkoR8R1wO0SXnWtU3rYinah2mqOYGmUPNssqt3_aRq6inGVMpRnHH-RSSVal7RcDwwbOOyVyWY3j4G-ZqkM3JFRTEERvNsx03Ck7czRXBI-2RyiYvr557_SarQ_uI6x30PbS_4B6qfqPz36nnvdR2MnwKMHV0RpjarZ8tzTO8HsrPNAsyzp1XywTeC2KmSZgMHVqqpbCH-vPMtj7g1-WA76mNNdENlZoEmstd4BrWK_MBjBHwcOtT6HKKbkM_N95qIBRXB1GiF_vLTn7h5KjwFtqBboafnCzg
+accept-encoding: gzip
+if-none-match: W/"07883f35dc581d1b5fd207fedb85cf12f"
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/vnd.vorwerk.organize.custom-list.mobile+json
+date: Wed, 06 Nov 2024 22:38:32 GMT
+x-content-type-options: nosniff
+vary: Accept-Encoding
+x-xss-protection: 0
+set-cookie: current-locale=de_CH; Path=/organize; Secure; HttpOnly; SameSite=Lax
+set-cookie: v-authenticated=b172d34352762cb4bb14b8b1cccaaebedb0874495126c871852e94affbebc083; path=/; secure; expires=Fri, 06 Dec 2024 22:38:32 GMT
+set-cookie: v-token=eyJhbGciOiJSUzI1NiIsImtpZCI6ImEyYjY5NWE4LWEyZGMtM2YyOC1iODM2LTQ4YzhkYWVhMzBlZCIsInR5cCI6IkpXVCJ9.eyJhdWQiOltdLCJhdXRoX3RpbWUiOjEuNzMwNjQwMzg4ZSswOSwiYXV0aG9yaXRpZXMiOlsiUk9MRV9WT1JXRVJLQ1VTVE9NRVJHUk9VUCJdLCJjbGllbnRfaWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiY2xpZW50YXBwcm92ZWQiOmZhbHNlLCJleHAiOjE3MzA5NjE0ODYsImV4dCI6eyJhdXRoX3RpbWUiOjEuNzMwNjQwMzg4ZSswOSwiYXV0aG9yaXRpZXMiOlsiUk9MRV9WT1JXRVJLQ1VTVE9NRVJHUk9VUCJdLCJjbGllbnRhcHByb3ZlZCI6ZmFsc2UsInVzZXJfbmFtZSI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaUBnbWFpbC5jb20ifSwiZ3JhbnRfdHlwZSI6InJlZnJlc2hfdG9rZW4iLCJpYXQiOjE3MzA5MTgyODYsImlzcyI6Imh0dHBzOi8vZXUubG9naW4udm9yd2Vyay5jb20vIiwianRpIjoiNzEyYzM5ZGYtMzQ3ZS00ZDllLWJhNDYtMjk0N2NjOGRhN2QwIiwibmJmIjoxNzMwOTE4Mjg2LCJzY29wZSI6WyJtYXJjb3NzYXBpIiwib3BlbmlkIiwicHJvZmlsZSIsImVtYWlsIiwiT25saW5lIiwib2ZmbGluZV9hY2Nlc3MiXSwic2NwIjpbIm1hcmNvc3NhcGkiLCJvcGVuaWQiLCJwcm9maWxlIiwiZW1haWwiLCJPbmxpbmUiLCJvZmZsaW5lX2FjY2VzcyJdLCJzdWIiOiI0YTc0YzEwMi0zZWU2LTRiY2QtOTIyNy0yYzQwMzkwMGI4ZGUiLCJ1c2VyX25hbWUiOiJjeXJpbGwucmFjY2F1ZCtjb29raWRvb19hcGlAZ21haWwuY29tIn0.gb71KUGJK6QwS7FuuKezde9MWp-Nfc4iBg_DhVDdO-tnNdKZuE_ncPkoR8R1wO0SXnWtU3rYinah2mqOYGmUPNssqt3_aRq6inGVMpRnHH-RSSVal7RcDwwbOOyVyWY3j4G-ZqkM3JFRTEERvNsx03Ck7czRXBI-2RyiYvr557_SarQ_uI6x30PbS_4B6qfqPz36nnvdR2MnwKMHV0RpjarZ8tzTO8HsrPNAsyzp1XywTeC2KmSZgMHVqqpbCH-vPMtj7g1-WA76mNNdENlZoEmstd4BrWK_MBjBHwcOtT6HKKbkM_N95qIBRXB1GiF_vLTn7h5KjwFtqBboafnCzg; path=/; secure; expires=Fri, 06 Dec 2024 22:38:32 GMT; httponly
+x-request-id: 873104f0cd84669ca16ef489c99d5ae5;auth-proxy-organize-authproxy:9ef1a115-5fd1-442c-9f03-4491c3af5f5c;auth-proxy-organize-authproxy:016d219d-1081-40d2-8719-40d82c9ca362;organize-ssi-nginx:c6d9dce04b2961bcb7e6bb5f6dd25380;organize:4d52ab6b-4549-4448-ab69-2a7aebac135e
+strict-transport-security: max-age=31536000
+x-frame-options: DENY
+etag: W/"013137b8c173fe4d3901fb2e1f64c3b28"
+x-cache: Miss from cloudfront
+via: 1.1 0796439594da8d89bc262ec25ca7f192.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: mSiHvRtAsTjGynJ3dqUDzVkwUvmhge1VjeIq7PVRaVyatDH6GQfq5g==
+content-length: 489
+
+{"customlists":[{"id":"01JC1SRPRSW0SHE0AK8GCASABX","title":"Testliste1","version":4,"created":"2024-11-06T22:33:18.873+00:00","modified":"2024-11-06T22:36:25.914+00:00","chapters":[{"title":"","recipes":[]}],"assets":{"images":{"square":"","portrait":"","landscape":""}},"sharedListId":null,"shared":false,"listType":"CUSTOMLIST","author":"4a74c102-3ee6-4bcd-9227-2c403900b8de"}],"page":{"page":0,"totalPages":1,"totalElements":1},"links":{"self":"/organize/de-CH/api/custom-list?page=0"}}

@@ -6,20 +6,27 @@ import logging
 import os
 from typing import cast
 
-from cookidoo_api.types import (
+from cookidoo_api.raw_types import (
     AdditionalItemJSON,
+    CustomCollectionJSON,
+    IngredientJSON,
+    ItemJSON,
+    ManagedCollectionJSON,
+    RecipeDetailsJSON,
+    RecipeJSON,
+)
+from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooCategory,
+    CookidooChapter,
+    CookidooChapterRecipe,
     CookidooCollection,
     CookidooIngredient,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
-    CookidooRecipe,
-    CookidooRecipeDetails,
-    IngredientJSON,
-    ItemJSON,
-    RecipeDetailsJSON,
-    RecipeJSON,
+    CookidooRecipeCollection,
+    CookidooShoppingRecipe,
+    CookidooShoppingRecipeDetails,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,11 +34,36 @@ _LOGGER = logging.getLogger(__name__)
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
 
 
+def cookidoo_collection_from_json(
+    collection: CustomCollectionJSON | ManagedCollectionJSON,
+) -> CookidooCollection:
+    """Convert a collection received from the API to a cookidoo collection."""
+    return CookidooCollection(
+        id=collection["id"],
+        name=collection["title"],
+        description=cast(str, collection.get("description", None)),
+        chapters=[
+            CookidooChapter(
+                name=chapter["title"],
+                recipes=[
+                    CookidooChapterRecipe(
+                        id=recipe["id"],
+                        name=recipe["title"],
+                        total_time=int(float(recipe["totalTime"])),
+                    )
+                    for recipe in chapter["recipes"]
+                ],
+            )
+            for chapter in collection["chapters"]
+        ],
+    )
+
+
 def cookidoo_recipe_from_json(
     recipe: RecipeJSON,
-) -> CookidooRecipe:
-    """Convert a recipe received from the API to a cookidoo recipe."""
-    return CookidooRecipe(
+) -> CookidooShoppingRecipe:
+    """Convert a shopping recipe received from the API to a cookidoo shopping recipe."""
+    return CookidooShoppingRecipe(
         id=recipe["id"],
         name=recipe["title"],
         ingredients=[
@@ -43,9 +75,9 @@ def cookidoo_recipe_from_json(
 
 def cookidoo_recipe_details_from_json(
     recipe: RecipeDetailsJSON,
-) -> CookidooRecipeDetails:
+) -> CookidooShoppingRecipeDetails:
     """Convert an recipe details received from the API to a cookidoo recipe details."""
-    return CookidooRecipeDetails(
+    return CookidooShoppingRecipeDetails(
         id=recipe["id"],
         name=recipe["title"],
         ingredients=[
@@ -65,7 +97,7 @@ def cookidoo_recipe_details_from_json(
             for category in recipe["categories"]
         ],
         collections=[
-            CookidooCollection(
+            CookidooRecipeCollection(
                 id=collection["id"],
                 name=collection["title"],
                 total_recipes=collection["recipesCount"]["value"],

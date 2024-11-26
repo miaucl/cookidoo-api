@@ -47,6 +47,19 @@ MOBILE_NOTIFICATIONS_PATH: Final = (
 )
 SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 
+CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
+ADD_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list"
+REMOVE_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list/{id}"
+ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH: Final = (
+    "organize/{language}/api/custom-list/{id}"
+)
+REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH: Final = (
+    "organize/{language}/api/custom-list/{id}/recipes/{recipe}"
+)
+MANAGED_COLLECTIONS_PATH: Final = "organize/{language}/api/managed-list"
+ADD_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list"
+REMOVE_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list/{id}"
+
 DEFAULT_SITE = "eu"
 
 DEFAULT_COOKIDOO_CONFIG = CookidooConfig(

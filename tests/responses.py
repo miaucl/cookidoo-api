@@ -1068,3 +1068,406 @@ COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS = {
         }
     ]
 }
+
+COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS = {
+    "managedlists": [
+        {
+            "id": "col500561",
+            "created": "2024-11-06T22:28:13.202+00:00",
+            "modified": "2024-11-06T22:28:13.202+00:00",
+            "title": "Schneeweiss und Zuckersüss",
+            "description": "Schneeweisse Delikatessen wie Pralinen und cremige Desserts sind ein wahres Fest für den Gaumen. In dieser Kollektion entdeckst du einige zuckersüsse Ideen, die mühelos mit deinem Thermomix® zubereitet werden können.",
+            "chapters": [
+                {
+                    "title": "Schneeweiss und Zuckersüss",
+                    "recipes": [
+                        {
+                            "id": "r907016",
+                            "title": "Mini-Pavlova mit Orangen",
+                            "type": "VORWERK",
+                            "totalTime": "6600.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                                }
+                            },
+                        },
+                        {
+                            "id": "r907015",
+                            "title": "Kokos Pralinen",
+                            "type": "VORWERK",
+                            "totalTime": "32400.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                }
+                            },
+                        },
+                        {
+                            "id": "r907014",
+                            "title": "Quarkcreme mit weisser Schoggi",
+                            "type": "VORWERK",
+                            "totalTime": "4200.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                                }
+                            },
+                        },
+                        {
+                            "id": "r907013",
+                            "title": "Pannacotta mit Ananaskompott",
+                            "type": "VORWERK",
+                            "totalTime": "16800.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                                }
+                            },
+                        },
+                        {
+                            "id": "r437886",
+                            "title": "Zimtsterne",
+                            "type": "VORWERK",
+                            "totalTime": "5400.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                                }
+                            },
+                        },
+                        {
+                            "id": "r907056",
+                            "title": "Weisse Schoggimilch",
+                            "type": "VORWERK",
+                            "totalTime": "480.0",
+                            "locale": "",
+                            "assets": {
+                                "images": {
+                                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                                    "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                                    "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                                }
+                            },
+                        },
+                    ],
+                }
+            ],
+            "version": 0,
+            "author": "Vorwerk",
+            "assets": {
+                "images": {
+                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/collection/ras/Assets/38cf56dff995c01c9a4ce2ce3b9f0bf8/Derivates/d8d563384bbd2652791aedfcb3200dde0e6221cb",
+                    "portrait": "",
+                    "landscape": "",
+                }
+            },
+            "listType": "MANAGEDLIST",
+        }
+    ],
+    "page": {"page": 0, "totalPages": 1, "totalElements": 1},
+    "links": {"self": "/organize/de-CH/api/managed-list?page=0"},
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION = {
+    "message": "Kollektion wurde in Meine Rezepte gespeichert!",
+    "content": {
+        "id": "col500561",
+        "userId": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        "collectionId": "col500561",
+        "created": "2024-11-06T22:28:13.202+00:00",
+        "modified": "2024-11-06T22:28:13.202+00:00",
+        "title": "Schneeweiss und Zuckersüss",
+        "asciiTitle": "Schneeweiss und Zuckersuss",
+        "description": "Schneeweisse Delikatessen wie Pralinen und cremige Desserts sind ein wahres Fest für den Gaumen. In dieser Kollektion entdeckst du einige zuckersüsse Ideen, die mühelos mit deinem Thermomix® zubereitet werden können.",
+        "chapters": [
+            {
+                "title": "Schneeweiss und Zuckersüss",
+                "recipeIds": [
+                    "r907016",
+                    "r907015",
+                    "r907014",
+                    "r907013",
+                    "r437886",
+                    "r907056",
+                ],
+                "recipes": [
+                    {
+                        "id": "r907016",
+                        "title": "Mini-Pavlova mit Orangen",
+                        "type": "VORWERK",
+                        "asciiTitle": "Mini-Pavlova mit Orangen",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "1200.0",
+                        "totalTime": "6600.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006.jpg 276w",
+                    },
+                    {
+                        "id": "r907015",
+                        "title": "Kokos Pralinen",
+                        "type": "VORWERK",
+                        "asciiTitle": "Kokos Pralinen",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "2700.0",
+                        "totalTime": "32400.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e.jpg 276w",
+                    },
+                    {
+                        "id": "r907014",
+                        "title": "Quarkcreme mit weisser Schoggi",
+                        "type": "VORWERK",
+                        "asciiTitle": "Quarkcreme mit weisser Schoggi",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "600.0",
+                        "totalTime": "4200.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/3d143628d95418757a3880f1b0770391/Derivates/0edd5171214ff97caa2aaa0389c1f78321637485.jpg 276w",
+                    },
+                    {
+                        "id": "r907013",
+                        "title": "Pannacotta mit Ananaskompott",
+                        "type": "VORWERK",
+                        "asciiTitle": "Pannacotta mit Ananaskompott",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "2400.0",
+                        "totalTime": "16800.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/8C8D3D2B-32A5-4092-A578-E798CD2FB3D2/Derivates/5cd65bed-d9d9-4c82-b124-95f9204436fb.jpg 276w",
+                    },
+                    {
+                        "id": "r437886",
+                        "title": "Zimtsterne",
+                        "type": "VORWERK",
+                        "asciiTitle": "Zimtsterne",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "2700.0",
+                        "totalTime": "5400.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/C37A9482-EDC2-4A45-AE91-E60B4173B89D/Derivates/b33e52f8c97dfb54e77a07953855f516309fca5d.jpg 276w",
+                    },
+                    {
+                        "id": "r907056",
+                        "title": "Weisse Schoggimilch",
+                        "type": "VORWERK",
+                        "asciiTitle": "Weisse Schoggimilch",
+                        "favoriteCount": None,
+                        "portion": None,
+                        "prepTime": "480.0",
+                        "totalTime": "480.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7",
+                            }
+                        },
+                        "squareRetinaImage": "https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg",
+                        "squareImageSrcSet": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg 1x, https://assets.tmecosys.com/image/upload/t_web72x72@2x/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg 2x",
+                        "responsiveImageSizes": "(min-width: 1333px) 276px, (min-width: 1024px) 286px, (min-width: 768px) 220px, 140px",
+                        "landscapeImage": "https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg",
+                        "squareImage": "https://assets.tmecosys.com/image/upload/t_web72x72/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg",
+                        "responsiveImageSrcset": "https://assets.tmecosys.com/image/upload/t_web276x230@2x/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg 552w, https://assets.tmecosys.com/image/upload/t_web378x315/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg 378w, https://assets.tmecosys.com/image/upload/t_web276x230/img/recipe/ras/Assets/4e81853553180b72aa33b758dbbfc778/Derivates/7cf0a02bced35066fc6031d3eefca7c9c6a79ad7.jpg 276w",
+                    },
+                ],
+            }
+        ],
+        "recipeCount": 6,
+        "version": 0,
+        "author": "Vorwerk",
+        "assets": {
+            "images": {
+                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/collection/ras/Assets/38cf56dff995c01c9a4ce2ce3b9f0bf8/Derivates/d8d563384bbd2652791aedfcb3200dde0e6221cb",
+                "portrait": "",
+                "landscape": "",
+            }
+        },
+        "listType": "MANAGEDLIST",
+        "uid": "col500561",
+        "listTypeName": "MANAGEDLIST",
+    },
+    "code": None,
+}
+
+COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS = {
+    "customlists": [
+        {
+            "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+            "title": "Testliste1",
+            "version": 4,
+            "created": "2024-11-06T22:33:18.873+00:00",
+            "modified": "2024-11-06T22:36:25.914+00:00",
+            "chapters": [{"title": "", "recipes": []}],
+            "assets": {"images": {"square": "", "portrait": "", "landscape": ""}},
+            "sharedListId": None,
+            "shared": False,
+            "listType": "CUSTOMLIST",
+            "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        }
+    ],
+    "page": {"page": 0, "totalPages": 1, "totalElements": 1},
+    "links": {"self": "/organize/de-CH/api/custom-list?page=0"},
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION = {
+    "message": "Rezeptliste wurde erfolgreich erstellt!",
+    "content": {
+        "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+        "title": "Testliste",
+        "version": 1,
+        "created": "2024-11-06T22:33:18.873+00:00",
+        "modified": "2024-11-06T22:33:18.873+00:00",
+        "chapters": [{"title": "", "recipes": []}],
+        "assets": {"images": {"square": "", "portrait": "", "landscape": ""}},
+        "sharedListId": None,
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        "listType": "CUSTOMLIST",
+        "shared": False,
+    },
+    "code": None,
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION = {
+    "message": "Rezeptliste wurde erfolgreich aktualisiert!",
+    "content": {
+        "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+        "title": "Testliste1",
+        "version": 3,
+        "created": "2024-11-06T22:33:18.873+00:00",
+        "modified": "2024-11-06T22:35:24.467+00:00",
+        "chapters": [
+            {
+                "title": "",
+                "recipes": [
+                    {
+                        "id": "r907015",
+                        "title": "Kokos Pralinen",
+                        "type": "VORWERK",
+                        "totalTime": "32400.0",
+                        "locale": "",
+                        "assets": {
+                            "images": {
+                                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                            }
+                        },
+                    }
+                ],
+            }
+        ],
+        "assets": {
+            "images": {
+                "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+                "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/94e7404b092f239d09803fdbd4ddbac1/Derivates/ccee0755073a78a95b79d96ba26fd5e3e89c137e",
+            }
+        },
+        "sharedListId": None,
+        "shared": False,
+        "listType": "CUSTOMLIST",
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+    },
+    "code": None,
+}
+
+
+COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION = {
+    "message": "Rezept wurde aus dieser Rezeptliste entfernt!",
+    "content": {
+        "id": "01JC1SRPRSW0SHE0AK8GCASABX",
+        "title": "Testliste1",
+        "version": 4,
+        "created": "2024-11-06T22:33:18.873+00:00",
+        "modified": "2024-11-06T22:36:25.914+00:00",
+        "chapters": [{"title": "", "recipes": []}],
+        "assets": {"images": {"square": "", "portrait": "", "landscape": ""}},
+        "sharedListId": None,
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        "listType": "CUSTOMLIST",
+        "shared": False,
+    },
+    "code": None,
+}
