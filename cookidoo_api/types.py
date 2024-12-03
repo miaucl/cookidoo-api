@@ -1,17 +1,19 @@
 """Cookidoo API types."""
 
-from typing import TypedDict
+from dataclasses import dataclass, field
 
 
-class CookidooLocalizationConfig(TypedDict):
+@dataclass
+class CookidooLocalizationConfig:
     """A localization config class."""
 
-    country_code: str
-    language: str
-    url: str
+    country_code: str = "ch"
+    language: str = "de-CH"
+    url: str = "https://cookidoo.ch/foundation/de-CH"
 
 
-class CookidooConfig(TypedDict):
+@dataclass
+class CookidooConfig:
     """Cookidoo config type.
 
     Attributes
@@ -25,12 +27,15 @@ class CookidooConfig(TypedDict):
 
     """
 
-    localization: CookidooLocalizationConfig
-    email: str
-    password: str
+    localization: CookidooLocalizationConfig = field(
+        default_factory=lambda: CookidooLocalizationConfig()
+    )
+    email: str = "your@email"
+    password: str = "1234password!"
 
 
-class CookidooAuthResponse(TypedDict):
+@dataclass
+class CookidooAuthResponse:
     """An auth response class."""
 
     username: str
@@ -40,7 +45,8 @@ class CookidooAuthResponse(TypedDict):
     expires_in: int
 
 
-class CookidooUserInfo(TypedDict):
+@dataclass
+class CookidooUserInfo:
     """A user info class."""
 
     username: str
@@ -48,20 +54,22 @@ class CookidooUserInfo(TypedDict):
     picture: str | None
 
 
-class CookidooSubscription(TypedDict):
+@dataclass
+class CookidooSubscription:
     """A subscription class."""
 
     active: bool
     expires: str
-    startDate: str
+    start_date: str
     status: str
-    subscriptionLevel: str
-    subscriptionSource: str
+    subscription_level: str
+    subscription_source: str
     type: str
-    extendedType: str
+    extended_type: str
 
 
-class CookidooIngredient(TypedDict):
+@dataclass
+class CookidooIngredient:
     """Cookidoo ingredient type.
 
     Attributes
@@ -80,7 +88,8 @@ class CookidooIngredient(TypedDict):
     description: str
 
 
-class CookidooItem(TypedDict):
+@dataclass
+class CookidooItem:
     """Cookidoo item type.
 
     Attributes
@@ -97,6 +106,7 @@ class CookidooItem(TypedDict):
     is_owned: bool
 
 
+@dataclass
 class CookidooIngredientItem(CookidooItem):
     """Cookidoo ingredient item type.
 
@@ -110,13 +120,15 @@ class CookidooIngredientItem(CookidooItem):
     description: str
 
 
+@dataclass
 class CookidooAdditionalItem(CookidooItem):
     """Cookidoo additional item type."""
 
     pass
 
 
-class CookidooShoppingRecipe(TypedDict):
+@dataclass
+class CookidooShoppingRecipe:
     """Cookidoo shopping recipe type.
 
     Attributes
@@ -135,7 +147,8 @@ class CookidooShoppingRecipe(TypedDict):
     ingredients: list[CookidooIngredient]
 
 
-class CookidooCategory(TypedDict):
+@dataclass
+class CookidooCategory:
     """Cookidoo category type.
 
     Attributes
@@ -154,7 +167,8 @@ class CookidooCategory(TypedDict):
     notes: str
 
 
-class CookidooRecipeCollection(TypedDict):
+@dataclass
+class CookidooRecipeCollection:
     """Cookidoo recipe collection type.
 
     Attributes
@@ -173,6 +187,7 @@ class CookidooRecipeCollection(TypedDict):
     total_recipes: int
 
 
+@dataclass
 class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     """Cookidoo recipe details type.
 
@@ -207,7 +222,8 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     total_time: int
 
 
-class CookidooChapterRecipe(TypedDict):
+@dataclass
+class CookidooChapterRecipe:
     """Cookidoo chapter recipe type.
 
     Attributes
@@ -226,7 +242,8 @@ class CookidooChapterRecipe(TypedDict):
     total_time: int
 
 
-class CookidooChapter(TypedDict):
+@dataclass
+class CookidooChapter:
     """Cookidoo chapter type.
 
     Attributes
@@ -242,7 +259,8 @@ class CookidooChapter(TypedDict):
     recipes: list[CookidooChapterRecipe]
 
 
-class CookidooCollection(TypedDict):
+@dataclass
+class CookidooCollection:
     """Cookidoo collection type.
 
     Attributes

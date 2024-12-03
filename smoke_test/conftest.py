@@ -3,15 +3,13 @@
 from collections.abc import AsyncGenerator
 import json
 import os
-from typing import cast
 
 from aiohttp import ClientSession
 from dotenv import load_dotenv
 import pytest
 
-from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
-from cookidoo_api.types import CookidooAuthResponse
+from cookidoo_api.types import CookidooAuthResponse, CookidooConfig
 
 load_dotenv()
 
@@ -19,14 +17,14 @@ load_dotenv()
 def save_token(token: CookidooAuthResponse) -> None:
     """Save the token locally."""
     with open(".token", "w", encoding="utf-8") as file:
-        file.write(json.dumps(token))
+        file.write(json.dumps(token.__dict__))
 
 
 def load_token() -> CookidooAuthResponse:
     """Load the token locally."""
     # Open and read the file
     with open(".token", encoding="utf-8") as file:
-        return cast(CookidooAuthResponse, json.loads(file.read() or "{}"))
+        return CookidooAuthResponse(**json.loads(file.read() or "{}"))
 
 
 @pytest.fixture(name="auth_data")
@@ -49,11 +47,7 @@ async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
 
     cookidoo = Cookidoo(
         session,
-        {
-            **DEFAULT_COOKIDOO_CONFIG,
-            "email": os.environ["EMAIL"],
-            "password": os.environ["PASSWORD"],
-        },
+        cfg=CookidooConfig(email=os.environ["EMAIL"], password=os.environ["PASSWORD"]),
     )
     return cookidoo
 
@@ -66,11 +60,7 @@ async def cookidoo_authenticated_api_client(
 
     cookidoo = Cookidoo(
         session,
-        {
-            **DEFAULT_COOKIDOO_CONFIG,
-            "email": os.environ["EMAIL"],
-            "password": os.environ["PASSWORD"],
-        },
+        cfg=CookidooConfig(email=os.environ["EMAIL"], password=os.environ["PASSWORD"]),
     )
 
     # Restore auth data from saved token

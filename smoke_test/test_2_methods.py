@@ -1,6 +1,7 @@
 """Smoke test for cookidoo-api."""
 
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
 
 
 class TestMethods:
@@ -13,7 +14,7 @@ class TestMethods:
     async def test_cookidoo_get_user_info(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo get user info."""
         user_info = await cookidoo.get_user_info()
-        assert "API" in user_info["username"]
+        assert "API" in user_info.username
 
     async def test_cookidoo_get_active_subscription(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo get active subscription."""
@@ -24,8 +25,8 @@ class TestMethods:
         """Test cookidoo recipe details."""
         recipe_details = await cookidoo.get_recipe_details("r59322")
         assert isinstance(recipe_details, object)
-        assert recipe_details["id"] == "r59322"
-        assert recipe_details["name"] == "Vollwert-Brötchen/Baguettes"
+        assert recipe_details.id == "r59322"
+        assert recipe_details.name == "Vollwert-Brötchen/Baguettes"
 
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo
@@ -37,23 +38,22 @@ class TestMethods:
         assert isinstance(added_ingredients, list)
         assert len(added_ingredients) == 14
         assert "Zucker" in (
-            added_ingredient["name"] for added_ingredient in added_ingredients
+            added_ingredient.name for added_ingredient in added_ingredients
         )
         edited_ingredients = await cookidoo.edit_ingredient_items_ownership(
             [
-                {
-                    **ingredient,
-                    "is_owned": not ingredient["is_owned"],
-                }
+                CookidooIngredientItem(
+                    **{**ingredient.__dict__, "is_owned": not ingredient.is_owned},
+                )
                 for ingredient in filter(
-                    lambda ingredient: ingredient["name"] == "Hefe",
+                    lambda ingredient: ingredient.name == "Hefe",
                     added_ingredients,
                 )
             ]
         )
         assert isinstance(edited_ingredients, list)
         assert len(edited_ingredients) == 1
-        assert edited_ingredients[0]["is_owned"]
+        assert edited_ingredients[0].is_owned
 
         ingredients = await cookidoo.get_ingredient_items()
         assert isinstance(ingredients, list)
@@ -76,43 +76,47 @@ class TestMethods:
         assert isinstance(added_additional_items, list)
         assert len(added_additional_items) == 2
         assert "Fleisch" in (
-            added_ingredient["name"] for added_ingredient in added_additional_items
+            added_ingredient.name for added_ingredient in added_additional_items
         )
         assert "Fisch" in (
-            added_ingredient["name"] for added_ingredient in added_additional_items
+            added_ingredient.name for added_ingredient in added_additional_items
         )
 
         edited_additional_items = await cookidoo.edit_additional_items_ownership(
             [
-                {
-                    **additional_item,
-                    "is_owned": not additional_item["is_owned"],
-                }
+                CookidooAdditionalItem(
+                    **{
+                        **additional_item.__dict__,
+                        "is_owned": not additional_item.is_owned,
+                    },
+                )
                 for additional_item in filter(
-                    lambda additional_item: additional_item["name"] == "Fisch",
+                    lambda additional_item: additional_item.name == "Fisch",
                     added_additional_items,
                 )
             ]
         )
         assert isinstance(edited_additional_items, list)
         assert len(edited_additional_items) == 1
-        assert edited_additional_items[0]["is_owned"]
+        assert edited_additional_items[0].is_owned
 
         edited_additional_items = await cookidoo.edit_additional_items(
             [
-                {
-                    **additional_item,
-                    "name": "Vogel",
-                }
+                CookidooAdditionalItem(
+                    **{
+                        **additional_item.__dict__,
+                        "name": "Vogel",
+                    },
+                )
                 for additional_item in filter(
-                    lambda additional_item: additional_item["name"] == "Fisch",
+                    lambda additional_item: additional_item.name == "Fisch",
                     edited_additional_items,
                 )
             ]
         )
         assert isinstance(edited_additional_items, list)
         assert len(edited_additional_items) == 1
-        assert edited_additional_items[0]["name"] == "Vogel"
+        assert edited_additional_items[0].name == "Vogel"
 
         additional_items = await cookidoo.get_additional_items()
         assert isinstance(additional_items, list)
@@ -120,7 +124,7 @@ class TestMethods:
 
         await cookidoo.remove_additional_items(
             [
-                added_additional_item["id"]
+                added_additional_item.id
                 for added_additional_item in added_additional_items
             ]
         )
@@ -132,7 +136,7 @@ class TestMethods:
     async def test_cookidoo_managed_collections(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo managed collections."""
         added_managed_collection = await cookidoo.add_managed_collection("col500401")
-        assert added_managed_collection["id"] == "col500401"
+        assert added_managed_collection.id == "col500401"
 
         managed_collections = await cookidoo.get_managed_collections()
         assert isinstance(managed_collections, list)
@@ -153,7 +157,7 @@ class TestMethods:
         added_custom_collection = await cookidoo.add_custom_collection(
             "TEST_COLLECTION"
         )
-        assert added_custom_collection["name"] == "TEST_COLLECTION"
+        assert added_custom_collection.name == "TEST_COLLECTION"
 
         custom_collections = await cookidoo.get_custom_collections()
         assert isinstance(custom_collections, list)
@@ -164,20 +168,17 @@ class TestMethods:
         assert count_pages == 1
 
         custom_collection_with_recipe = await cookidoo.add_recipes_to_custom_collection(
-            added_custom_collection["id"], ["r907015"]
+            added_custom_collection.id, ["r907015"]
         )
-        assert (
-            custom_collection_with_recipe["chapters"][0]["recipes"][0]["id"]
-            == "r907015"
-        )
+        assert custom_collection_with_recipe.chapters[0].recipes[0].id == "r907015"
         custom_collection_without_recipe = (
             await cookidoo.remove_recipe_from_custom_collection(
-                added_custom_collection["id"], "r907015"
+                added_custom_collection.id, "r907015"
             )
         )
-        assert len(custom_collection_without_recipe["chapters"][0]["recipes"]) == 0
+        assert len(custom_collection_without_recipe.chapters[0].recipes) == 0
 
-        await cookidoo.remove_custom_collection(added_custom_collection["id"])
+        await cookidoo.remove_custom_collection(added_custom_collection.id)
 
         custom_collections = await cookidoo.get_custom_collections()
         assert isinstance(custom_collections, list)
