@@ -25,8 +25,8 @@ def load_token() -> CookidooAuthResponse:
     # Open and read the file
     with open(".token", encoding="utf-8") as file:
         token = file.read()
-        if not token:
-            raise ValueError("Token not found")
+        if token:
+            raise ValueError(f"Token is undefined: {token}")
         return CookidooAuthResponse(**json.loads(token))
 
 
