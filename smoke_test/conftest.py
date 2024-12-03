@@ -24,7 +24,12 @@ def load_token() -> CookidooAuthResponse:
     """Load the token locally."""
     # Open and read the file
     with open(".token", encoding="utf-8") as file:
-        return CookidooAuthResponse(**json.loads(file.read() or "{}"))
+        return CookidooAuthResponse(
+            **json.loads(
+                file.read()
+                or '{"username": "fake_username", "access_token": "fake_access_token", "refresh_token": "fake_refresh_token", "token_type": "bearer", "expires_in": 43199}'
+            )
+        )
 
 
 @pytest.fixture(name="auth_data")
