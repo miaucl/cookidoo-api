@@ -1,8 +1,7 @@
 """Cookidoo API package."""
 
-__version__ = "0.7.0"
+__version__ = "0.9.0"
 
-from .const import DEFAULT_COOKIDOO_CONFIG
 from .cookidoo import Cookidoo
 from .exceptions import (
     CookidooAuthException,
@@ -61,5 +60,4 @@ __all__ = [
     "CookidooRequestException",
     "CookidooResponseException",
     "CookidooUnavailableException",
-    "DEFAULT_COOKIDOO_CONFIG",
 ]

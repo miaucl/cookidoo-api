@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 0.9.0
+
+- Migrate from TypedDict to dataclass
+
+## 0.8.0
+
+- add collections for managed and custom lists
+- add and remove recipes to custom lists
+- add calendar/my week with planned recipes
+
 ## 0.7.0
 
 - add a method to get the recipe details

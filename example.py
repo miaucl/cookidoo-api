@@ -9,12 +9,13 @@ import sys
 import aiohttp
 from dotenv import load_dotenv
 
-from cookidoo_api import DEFAULT_COOKIDOO_CONFIG, Cookidoo
+from cookidoo_api import Cookidoo
 from cookidoo_api.helpers import (
     get_country_options,
     get_language_options,
     get_localization_options,
 )
+from cookidoo_api.types import CookidooConfig
 
 load_dotenv()
 
@@ -40,11 +41,9 @@ async def main():
         # Create Cookidoo instance with email and password
         cookidoo = Cookidoo(
             session,
-            {
-                **DEFAULT_COOKIDOO_CONFIG,
-                "email": os.environ["EMAIL"],
-                "password": os.environ["PASSWORD"],
-            },
+            cfg=CookidooConfig(
+                email=os.environ["EMAIL"], password=os.environ["PASSWORD"]
+            ),
         )
         # Login
         await cookidoo.login()
@@ -60,14 +59,14 @@ async def main():
         )
         _custom_collections = await cookidoo.get_custom_collections()
         await cookidoo.add_recipes_to_custom_collection(
-            added_custom_collection["id"], ["r907015"]
+            added_custom_collection.id, ["r907015"]
         )
         _custom_collections = await cookidoo.get_custom_collections()
         await cookidoo.remove_recipe_from_custom_collection(
-            added_custom_collection["id"], "r907015"
+            added_custom_collection.id, "r907015"
         )
         _custom_collections = await cookidoo.get_custom_collections()
-        await cookidoo.remove_custom_collection(added_custom_collection["id"])
+        await cookidoo.remove_custom_collection(added_custom_collection.id)
         return
 
         # Managed collections

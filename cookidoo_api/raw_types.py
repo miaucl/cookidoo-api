@@ -3,6 +3,37 @@
 from typing import Literal, TypedDict
 
 
+class AuthResponseJSON(TypedDict):
+    """An auth response class."""
+
+    user_name: str
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+
+class UserInfoJSON(TypedDict):
+    """The json for a user info in the API."""
+
+    username: str
+    description: str | None
+    picture: str | None
+
+
+class SubscriptionJSON(TypedDict):
+    """The json for a subscription in the API."""
+
+    active: bool
+    expires: str
+    startDate: str
+    status: str
+    subscriptionLevel: str
+    subscriptionSource: str
+    type: str
+    extendedType: str
+
+
 class QuantityJSON(TypedDict):
     """The json for an quantity in the API."""
 

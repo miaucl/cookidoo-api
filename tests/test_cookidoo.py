@@ -7,7 +7,6 @@ from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
 
-from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -16,6 +15,7 @@ from cookidoo_api.exceptions import (
     CookidooParseException,
     CookidooRequestException,
 )
+from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
@@ -130,10 +130,13 @@ class TestLogin:
 
         assert cookidoo.auth_data is None
         data = await cookidoo.login()
-        for key, value in data.items():
-            assert value == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE[key]
+        assert data.access_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["access_token"]
+        assert (
+            data.refresh_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["refresh_token"]
+        )
+        assert data.expires_in == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["expires_in"]
         assert cookidoo.expires_in > 0
-        assert cookidoo.localization == DEFAULT_COOKIDOO_CONFIG["localization"]
+        assert cookidoo.localization is not None
 
         mocked.post(
             "https://eu.login.vorwerk.com/oauth2/token",
@@ -142,8 +145,11 @@ class TestLogin:
         )
 
         data = await cookidoo.refresh_token()
-        for key, value in data.items():
-            assert value == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE[key]
+        assert data.access_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["access_token"]
+        assert (
+            data.refresh_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["refresh_token"]
+        )
+        assert data.expires_in == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["expires_in"]
         assert cookidoo.expires_in > 0
 
 
@@ -163,14 +169,14 @@ class TestGetUserInfo:
 
         data = await cookidoo.get_user_info()
         assert (
-            data["username"] == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["username"]  # type: ignore[index]
+            data.username == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["username"]  # type: ignore[index]
         )
         assert (
-            data["description"]
+            data.description
             == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["description"]  # type: ignore[index]
         )
         assert (
-            data["picture"] == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["picture"]  # type: ignore[index]
+            data.picture == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["picture"]  # type: ignore[index]
         )
 
     @pytest.mark.parametrize(
@@ -245,8 +251,8 @@ class TestGetActiveSubscription:
 
         data = await cookidoo.get_active_subscription()
         assert data
-        assert data["active"]
-        assert data["status"] == "RUNNING"
+        assert data.active
+        assert data.status == "RUNNING"
 
     async def test_get_inactive_subscription(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -335,16 +341,16 @@ class TestGetRecipeDetails:
         data = await cookidoo.get_recipe_details("r907015")
         assert data
         assert isinstance(data, object)
-        assert data["id"] == "r907015"
-        assert data["name"] == "Kokos Pralinen"
-        assert isinstance(data["categories"], list)
-        assert isinstance(data["collections"], list)
-        assert isinstance(data["ingredients"], list)
-        assert isinstance(data["notes"], list)
-        assert isinstance(data["utensils"], list)
-        assert isinstance(data["active_time"], int)
-        assert isinstance(data["total_time"], int)
-        assert isinstance(data["serving_size"], str)
+        assert data.id == "r907015"
+        assert data.name == "Kokos Pralinen"
+        assert isinstance(data.categories, list)
+        assert isinstance(data.collections, list)
+        assert isinstance(data.ingredients, list)
+        assert isinstance(data.notes, list)
+        assert isinstance(data.utensils, list)
+        assert isinstance(data.active_time, int)
+        assert isinstance(data.total_time, int)
+        assert isinstance(data.serving_size, str)
 
     @pytest.mark.parametrize(
         "exception",
@@ -715,18 +721,18 @@ class TestEditIngredientsOwnership:
 
         data = await cookidoo.edit_ingredient_items_ownership(
             [
-                {
-                    "id": "01JBQG02JQD3XPFMM5CXE51K25",
-                    "name": "Hefe",
-                    "is_owned": True,
-                    "description": "1 Würfel",
-                }
+                CookidooIngredientItem(
+                    id="01JBQG02JQD3XPFMM5CXE51K25",
+                    name="Hefe",
+                    is_owned=True,
+                    description="1 Würfel",
+                )
             ]
         )
         assert data
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["is_owned"]
+        assert data[0].is_owned
 
     @pytest.mark.parametrize(
         "exception",
@@ -748,12 +754,12 @@ class TestEditIngredientsOwnership:
         with pytest.raises(CookidooRequestException):
             await cookidoo.edit_ingredient_items_ownership(
                 [
-                    {
-                        "id": "01JBQG02JQD3XPFMM5CXE51K25",
-                        "name": "Hefe",
-                        "is_owned": True,
-                        "description": "1 Würfel",
-                    }
+                    CookidooIngredientItem(
+                        id="01JBQG02JQD3XPFMM5CXE51K25",
+                        name="Hefe",
+                        is_owned=True,
+                        description="1 Würfel",
+                    )
                 ]
             )
 
@@ -767,12 +773,12 @@ class TestEditIngredientsOwnership:
         with pytest.raises(CookidooAuthException):
             await cookidoo.edit_ingredient_items_ownership(
                 [
-                    {
-                        "id": "01JBQG02JQD3XPFMM5CXE51K25",
-                        "name": "Hefe",
-                        "is_owned": True,
-                        "description": "1 Würfel",
-                    }
+                    CookidooIngredientItem(
+                        id="01JBQG02JQD3XPFMM5CXE51K25",
+                        name="Hefe",
+                        is_owned=True,
+                        description="1 Würfel",
+                    )
                 ]
             )
 
@@ -801,12 +807,12 @@ class TestEditIngredientsOwnership:
         with pytest.raises(exception):
             await cookidoo.edit_ingredient_items_ownership(
                 [
-                    {
-                        "id": "01JBQG02JQD3XPFMM5CXE51K25",
-                        "name": "Hefe",
-                        "is_owned": True,
-                        "description": "1 Würfel",
-                    }
+                    CookidooIngredientItem(
+                        id="01JBQG02JQD3XPFMM5CXE51K25",
+                        name="Hefe",
+                        is_owned=True,
+                        description="1 Würfel",
+                    )
                 ]
             )
 
@@ -1057,17 +1063,17 @@ class TestEditAdditionalItemsOwnership:
 
         data = await cookidoo.edit_additional_items_ownership(
             [
-                {
-                    "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
-                    "name": "Fisch",
-                    "is_owned": True,
-                }
+                CookidooAdditionalItem(
+                    id="01JBQGMGMY4KD9ZGTKAS6GQME0",
+                    name="Fisch",
+                    is_owned=True,
+                )
             ]
         )
         assert data
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["is_owned"]
+        assert data[0].is_owned
 
     @pytest.mark.parametrize(
         "exception",
@@ -1089,11 +1095,11 @@ class TestEditAdditionalItemsOwnership:
         with pytest.raises(CookidooRequestException):
             await cookidoo.edit_additional_items_ownership(
                 [
-                    {
-                        "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
-                        "name": "Fisch",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGMGMY4KD9ZGTKAS6GQME0",
+                        name="Fisch",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1107,11 +1113,11 @@ class TestEditAdditionalItemsOwnership:
         with pytest.raises(CookidooAuthException):
             await cookidoo.edit_additional_items_ownership(
                 [
-                    {
-                        "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
-                        "name": "Fisch",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGMGMY4KD9ZGTKAS6GQME0",
+                        name="Fisch",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1140,11 +1146,11 @@ class TestEditAdditionalItemsOwnership:
         with pytest.raises(exception):
             await cookidoo.edit_additional_items_ownership(
                 [
-                    {
-                        "id": "01JBQGMGMY4KD9ZGTKAS6GQME0",
-                        "name": "Fisch",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGMGMY4KD9ZGTKAS6GQME0",
+                        name="Fisch",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1165,17 +1171,17 @@ class TestEditAdditionalItems:
 
         data = await cookidoo.edit_additional_items(
             [
-                {
-                    "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
-                    "name": "Vogel",
-                    "is_owned": True,
-                }
+                CookidooAdditionalItem(
+                    id="01JBQGT72WP8Z31VCPQPT5VC6F",
+                    name="Vogel",
+                    is_owned=True,
+                )
             ]
         )
         assert data
         assert isinstance(data, list)
         assert len(data) == 1
-        assert data[0]["name"] == "Vogel"
+        assert data[0].name == "Vogel"
 
     @pytest.mark.parametrize(
         "exception",
@@ -1197,11 +1203,11 @@ class TestEditAdditionalItems:
         with pytest.raises(CookidooRequestException):
             await cookidoo.edit_additional_items(
                 [
-                    {
-                        "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
-                        "name": "Vogel",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGT72WP8Z31VCPQPT5VC6F",
+                        name="Vogel",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1215,11 +1221,11 @@ class TestEditAdditionalItems:
         with pytest.raises(CookidooAuthException):
             await cookidoo.edit_additional_items(
                 [
-                    {
-                        "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
-                        "name": "Vogel",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGT72WP8Z31VCPQPT5VC6F",
+                        name="Vogel",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1248,11 +1254,11 @@ class TestEditAdditionalItems:
         with pytest.raises(exception):
             await cookidoo.edit_additional_items(
                 [
-                    {
-                        "id": "01JBQGT72WP8Z31VCPQPT5VC6F",
-                        "name": "Vogel",
-                        "is_owned": True,
-                    }
+                    CookidooAdditionalItem(
+                        id="01JBQGT72WP8Z31VCPQPT5VC6F",
+                        name="Vogel",
+                        is_owned=True,
+                    )
                 ]
             )
 
@@ -1494,7 +1500,7 @@ class TestAddManagedCollection:
 
         data = await cookidoo.add_managed_collection("col500561")
         assert data
-        assert data["id"] == "col500561"
+        assert data.id == "col500561"
 
     @pytest.mark.parametrize(
         "exception",
@@ -1789,8 +1795,8 @@ class TestAddCustomCollection:
 
         data = await cookidoo.add_custom_collection("Testliste")
         assert data
-        assert data["id"] == "01JC1SRPRSW0SHE0AK8GCASABX"
-        assert data["name"] == "Testliste"
+        assert data.id == "01JC1SRPRSW0SHE0AK8GCASABX"
+        assert data.name == "Testliste"
 
     @pytest.mark.parametrize(
         "exception",
@@ -1938,8 +1944,8 @@ class TestAddRecipesToCustomCollection:
             "01JC1SRPRSW0SHE0AK8GCASABX", ["r907015"]
         )
         assert data
-        assert data["id"] == "01JC1SRPRSW0SHE0AK8GCASABX"
-        assert data["chapters"][0]["recipes"][0]["id"] == "r907015"
+        assert data.id == "01JC1SRPRSW0SHE0AK8GCASABX"
+        assert data.chapters[0].recipes[0].id == "r907015"
 
     @pytest.mark.parametrize(
         "exception",
@@ -2021,8 +2027,8 @@ class TestRemoveRecipeFromCustomCollection:
             "01JC1SRPRSW0SHE0AK8GCASABX", "r907015"
         )
         assert data
-        assert data["id"] == "01JC1SRPRSW0SHE0AK8GCASABX"
-        assert len(data["chapters"][0]["recipes"]) == 0
+        assert data.id == "01JC1SRPRSW0SHE0AK8GCASABX"
+        assert len(data.chapters[0].recipes) == 0
 
     @pytest.mark.parametrize(
         "exception",

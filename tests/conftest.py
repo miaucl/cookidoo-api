@@ -7,7 +7,6 @@ from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
 
-from cookidoo_api.const import DEFAULT_COOKIDOO_CONFIG
 from cookidoo_api.cookidoo import Cookidoo
 
 load_dotenv()
@@ -25,7 +24,7 @@ async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
 @pytest.fixture(name="cookidoo")
 async def bring_api_client(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
-    bring = Cookidoo(session, DEFAULT_COOKIDOO_CONFIG)
+    bring = Cookidoo(session)
     return bring
 
 

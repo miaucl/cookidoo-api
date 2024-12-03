@@ -2,8 +2,6 @@
 
 from typing import Final
 
-from cookidoo_api.types import CookidooConfig, CookidooLocalizationConfig
-
 COOKIDOO_CLIENT_ID: Final = "kupferwerk-client-nwot"
 COOKIDOO_CLIENT_SECRET: Final = "Ls50ON1woySqs1dCdJge"
 COOKIDOO_AUTHORIZATION_HEADER: Final = (
@@ -61,17 +59,3 @@ ADD_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list"
 REMOVE_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list/{id}"
 
 DEFAULT_SITE = "eu"
-
-DEFAULT_COOKIDOO_CONFIG = CookidooConfig(
-    {
-        "localization": CookidooLocalizationConfig(
-            {
-                "country_code": "ch",
-                "language": "de-CH",
-                "url": "https://cookidoo.ch/foundation/de-CH",
-            }
-        ),
-        "email": "your@email",
-        "password": "1234password!",
-    }
-)
