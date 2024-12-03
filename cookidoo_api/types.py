@@ -38,7 +38,7 @@ class CookidooConfig:
 class CookidooAuthResponse:
     """An auth response class."""
 
-    username: str
+    username: str | None
     access_token: str
     refresh_token: str
     token_type: str
