@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.10.0
+
+- Use async lib aiofiles to read files from file system
+
 ## 0.9.1
 
 - Remove unnecessary python-dotenv from prod requirements
