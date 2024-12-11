@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.9.1
+
+- Remove unnecessary python-dotenv from prod requirements
+
 ## 0.9.0
 
 - Migrate from TypedDict to dataclass
