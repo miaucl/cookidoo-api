@@ -1,10 +1,11 @@
 """Cookidoo API helpers."""
 
-import asyncio
 import json
 import logging
 import os
 from typing import cast
+
+import aiofiles
 
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
@@ -207,12 +208,12 @@ def cookidoo_additional_item_from_json(
     )
 
 
-def __get_localization_options(
+async def __get_localization_options(
     country: str | None = None,
     language: str | None = None,
 ) -> list[CookidooLocalizationConfig]:
-    with open(localization_file_path, encoding="utf-8") as file:
-        options_ = cast(list[dict[str, str]], json.loads(file.read()))
+    async with aiofiles.open(localization_file_path, encoding="utf-8") as file:
+        options_ = cast(list[dict[str, str]], json.loads(await file.read()))
         options = (CookidooLocalizationConfig(**x) for x in options_)
         filtered_options = filter(
             lambda option: (not country or option.country_code == country)
@@ -227,9 +228,7 @@ async def get_localization_options(
     language: str | None = None,
 ) -> list[CookidooLocalizationConfig]:
     """Get a list of possible localization options."""
-    return await asyncio.get_running_loop().run_in_executor(
-        None, __get_localization_options, country, language
-    )
+    return await __get_localization_options(country, language)
 
 
 async def get_country_options() -> list[str]:
