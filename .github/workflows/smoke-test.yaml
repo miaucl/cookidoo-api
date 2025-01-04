@@ -21,9 +21,9 @@ jobs:
     strategy:
       matrix:
         country: 
-          - CH
-          - DE
-          - PL
+          - ch
+          - de
+          - pl
     steps:
       - name: Get User Permission
         id: checkAccess
