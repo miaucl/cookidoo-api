@@ -15,7 +15,7 @@ from cookidoo_api.helpers import (
     get_language_options,
     get_localization_options,
 )
-from cookidoo_api.types import CookidooConfig, CookidooLocalizationConfig
+from cookidoo_api.types import CookidooConfig
 
 load_dotenv()
 
@@ -44,9 +44,9 @@ async def main():
             cfg=CookidooConfig(
                 email=os.environ["EMAIL"],
                 password=os.environ["PASSWORD"],
-                localization=CookidooLocalizationConfig(
-                    country_code="ch", language="de-CH"
-                ),
+                localization=(
+                    await get_localization_options(country="ma", language="en")
+                )[0],
             ),
         )
         # Login

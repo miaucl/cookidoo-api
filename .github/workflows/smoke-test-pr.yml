@@ -22,6 +22,7 @@ jobs:
           - ch
           - de
           - pl
+          - ma
     steps:
       - name: Get User Permission
         id: checkAccess
@@ -66,6 +67,7 @@ jobs:
           EMAIL_CH: ${{ vars.EMAIL_CH }}
           EMAIL_DE: ${{ vars.EMAIL_DE }}
           EMAIL_PL: ${{ vars.EMAIL_PL }}
+          EMAIL_MA: ${{ vars.EMAIL_MA }}
           PASSWORD: ${{ secrets.PASSWORD }}
       # !!!!!!!!!!!!!!!!!!!!
       # From here on, we run new code which does not have access to the password, only the token
@@ -82,5 +84,6 @@ jobs:
           EMAIL_CH: ${{ vars.EMAIL_CH }}
           EMAIL_DE: ${{ vars.EMAIL_DE }}
           EMAIL_PL: ${{ vars.EMAIL_PL }}
+          EMAIL_MA: ${{ vars.EMAIL_MA }}
           PASSWORD: <redacted>
           

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.11.2
+
+- Fix exotic countries which do share a common domain
+
 ## 0.11.1
 
 - Extend smoke tests to multiple accounts with different countries

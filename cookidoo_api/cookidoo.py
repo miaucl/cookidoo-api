@@ -28,6 +28,7 @@ from cookidoo_api.const import (
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
     INGREDIENT_ITEMS_PATH,
+    INTERNATIONAL_COUNTRY_CODE,
     MANAGED_COLLECTIONS_PATH,
     RECIPE_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
@@ -142,6 +143,8 @@ class Cookidoo:
     @property
     def api_endpoint(self) -> URL:
         """Get the api endpoint."""
+        if "international" in self._cfg.localization.url:
+            return URL(API_ENDPOINT.format(country_code=INTERNATIONAL_COUNTRY_CODE))
         return URL(API_ENDPOINT.format(**self._cfg.localization.__dict__))
 
     async def refresh_token(self) -> CookidooAuthResponse:
