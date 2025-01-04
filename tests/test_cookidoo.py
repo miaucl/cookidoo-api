@@ -49,7 +49,7 @@ class TestLogin:
     ) -> None:
         """Test refresh before login."""
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=400,
         )
         expected = "No auth data available, please log in first"
@@ -59,7 +59,7 @@ class TestLogin:
     async def test_mail_invalid(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test login with invalid e-mail."""
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=400,
         )
         expected = "Access token request failed due to bad request, please check your email or refresh token."
@@ -69,7 +69,7 @@ class TestLogin:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test login with unauthorized user."""
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -93,7 +93,7 @@ class TestLogin:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=status,
             body="not json",
             content_type="application/json",
@@ -113,7 +113,10 @@ class TestLogin:
         self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
     ) -> None:
         """Test exceptions."""
-        mocked.post("https://eu.login.vorwerk.com/oauth2/token", exception=exception)
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
+            exception=exception,
+        )
         with pytest.raises(CookidooRequestException):
             await cookidoo.login()
 
@@ -123,7 +126,7 @@ class TestLogin:
         """Test login and refresh with valid user."""
 
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=HTTPStatus.OK,
             payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
         )
@@ -139,7 +142,7 @@ class TestLogin:
         assert cookidoo.localization is not None
 
         mocked.post(
-            "https://eu.login.vorwerk.com/oauth2/token",
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
             status=HTTPStatus.OK,
             payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
         )

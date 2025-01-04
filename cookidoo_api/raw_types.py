@@ -6,7 +6,7 @@ from typing import Literal, TypedDict
 class AuthResponseJSON(TypedDict):
     """An auth response class."""
 
-    user_name: str
+    sub: str
     access_token: str
     refresh_token: str
     token_type: str

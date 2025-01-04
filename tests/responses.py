@@ -13,7 +13,7 @@ COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE: Final = {
     "refresh_token": "eyJhbGciOiJSUzI1Ni<redacted>",
     "scope": "marcossapi openid profile email Online offline_access",
     "token_type": "bearer",
-    "user_name": "your@email",
+    "sub": "sub_uuid",
 }
 
 COOKIDOO_TEST_RESPONSE_USER_INFO: Final = {

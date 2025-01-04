@@ -23,7 +23,6 @@ from cookidoo_api.const import (
     COOKIDOO_CLIENT_ID,
     CUSTOM_COLLECTIONS_PATH,
     DEFAULT_API_HEADERS,
-    DEFAULT_SITE,
     DEFAULT_TOKEN_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
@@ -38,7 +37,7 @@ from cookidoo_api.const import (
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
-    TOKEN_ENDPOINT,
+    TOKEN_PATH,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -228,7 +227,9 @@ class Cookidoo:
         """
 
         try:
-            url = TOKEN_ENDPOINT.format(site=DEFAULT_SITE)
+            url = self.api_endpoint / TOKEN_PATH.format(
+                **self._cfg.localization.__dict__
+            )
             async with self._session.post(
                 url, data=form_data, headers=self._token_headers
             ) as r:

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.11.0
+
+- Align token endpoint with new way of auth for cookidoo app
+
 ## 0.10.0
 
 - Use async lib aiofiles to read files from file system

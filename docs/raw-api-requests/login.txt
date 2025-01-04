@@ -1,4 +1,4 @@
-POST https://eu.login.vorwerk.com/oauth2/token HTTP/2.0
+POST https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token HTTP/2.0
 authorization: Basic a3VwZmVyd2Vyay1jbGllbnQtbndvdDpMczUwT04xd295U3FzMWRDZEpnZQ==
 cookie: vrkPreAccessGranted=true
 accept-language: en;q = 1, de-AT;q = 0.9
@@ -11,16 +11,23 @@ accept-encoding: gzip
 username=<email_redacted>%40gmail.com&password=<password_redacted>&grant_type=password
 
 HTTP/2.0 200 
-content-type: application/json;charset=UTF-8
-date: Sun, 03 Nov 2024 13:26:28 GMT
-set-cookie: oauth2_authentication_session=MTczMDY0MDM4OHxEdi1CQkFFQ180SUFBUkFCRUFBQUhmLUNBQUVHYzNSeWFXNW5EQVVBQTNOcFpBWnpkSEpwYm1jTUFnQUF8S1hHUg6eze5vY1KjTwqv2abUaNJQjQy-z_6GwJDl-z8=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; Max-Age=0; HttpOnly; Secure; SameSite=None
+content-type: application/json
+content-length: 3138
+date: Sat, 04 Jan 2025 11:31:23 GMT
+set-cookie: __cf_bm=BC9dKTwZV693guzfxXOunvhgsdpKpOydts___3rwQBE-1735990283-1.0.1.1-l8HIPMW_RrNcUT1cNQnvpv08kudOpXqMLfWa_B4Qcj80uxPtRvoyW7TfUl8bjmPkD6DzFDziHXACm137_n.owQ; path=/; expires=Sat, 04-Jan-25 12:01:23 GMT; domain=.ciam.prod.cookidoo.vorwerk-digital.com; HttpOnly; Secure; SameSite=None
 strict-transport-security: max-age=31536000
-cache-control: no-store
-pragma: no-cache
+vary: Accept-Encoding
+x-content-type-options: nosniff
+x-powered-by: cidaas
+x-ref-number: a47bd5cb-4473-45da-8442-1a3cdf136873
+x-xss-protection: 1; mode=block
+cf-cache-status: DYNAMIC
+cf-ray: 8fcae6e8589bd247-FRA
+correlation-id: 5a1a1307feec7b28ada36459f51713cf
+traceparent: 00-7d79395ceeaf44f23f4f8b9d785fa8de-d320805fd2780a03-01
 x-cache: Miss from cloudfront
-via: 1.1 a5b35da3a37f3b4542ea89737243a522.cloudfront.net (CloudFront)
+via: 1.1 6efc112ba7faf702bfdea07c3f51a870.cloudfront.net (CloudFront)
 x-amz-cf-pop: ZRH55-P2
-x-amz-cf-id: ytjjjMDmsz6HdL_6iwLgNSLr1GUdzTbqERTnNw7TR3ahTmuJlT8NQg==
-content-length: 4232
+x-amz-cf-id: zcn9rZjMrb8aVSV862y0Zzqrh9c6XFhh9YJIIkQmL4CSN-dsf1rFNg==
 
-{"access_token":"eyJhbGci<redacted>","expires_in":43199,"id_token":"eyJhbGciOiJSUzI1NiIsIm<redacted>","iss":"https://eu.login.vorwerk.com/","jti":"4b027df7-8578-4cda-831f-d1fcb3ec77ad","refresh_token":"eyJhbGciOiJSUzI1NiI<redacted>","scope":"marcossapi openid profile email Online offline_access","token_type":"bearer","user_name":"<email_redacted>@gmail.com"}
+{"access_token":"eyJhbGci<redacted>","expires_in":43199,"id_token":"eyJhbGciOiJSUzI1NiIsIm<redacted>","iss":"https://eu.login.vorwerk.com/","jti":"4b027df7-8578-4cda-831f-d1fcb3ec77ad","refresh_token":"eyJhbGciOiJSUzI1NiI<redacted>","scope":"marcossapi openid profile email Online offline_access","token_type":"bearer","sub":"sub_uuid""}
