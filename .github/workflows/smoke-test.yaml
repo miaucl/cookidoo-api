@@ -24,6 +24,7 @@ jobs:
           - ch
           - de
           - pl
+          - ma
     steps:
       - name: Get User Permission
         id: checkAccess
@@ -68,4 +69,5 @@ jobs:
           EMAIL_CH: ${{ vars.EMAIL_CH }}
           EMAIL_DE: ${{ vars.EMAIL_DE }}
           EMAIL_PL: ${{ vars.EMAIL_PL }}
+          EMAIL_MA: ${{ vars.EMAIL_MA }}
           PASSWORD: ${{ secrets.PASSWORD }}

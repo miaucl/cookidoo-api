@@ -30,4 +30,4 @@ via: 1.1 6efc112ba7faf702bfdea07c3f51a870.cloudfront.net (CloudFront)
 x-amz-cf-pop: ZRH55-P2
 x-amz-cf-id: zcn9rZjMrb8aVSV862y0Zzqrh9c6XFhh9YJIIkQmL4CSN-dsf1rFNg==
 
-{"access_token":"eyJhbGci<redacted>","expires_in":43199,"id_token":"eyJhbGciOiJSUzI1NiIsIm<redacted>","iss":"https://eu.login.vorwerk.com/","jti":"4b027df7-8578-4cda-831f-d1fcb3ec77ad","refresh_token":"eyJhbGciOiJSUzI1NiI<redacted>","scope":"marcossapi openid profile email Online offline_access","token_type":"bearer","sub":"sub_uuid""}
+{"access_token":"eyJhbGci<redacted>","expires_in":43199,"id_token":"eyJhbGciOiJSUzI1NiIsIm<redacted>","iss":"https://eu.login.vorwerk.com/","jti":"4b027df7-8578-4cda-831f-d1fcb3ec77ad","refresh_token":"eyJhbGciOiJSUzI1NiI<redacted>","scope":"marcossapi openid profile email Online offline_access","token_type":"bearer","sub":"sub_uuid"}
