@@ -16,6 +16,12 @@ jobs:
   smoke_test_pr:
     runs-on: ubuntu-latest
     if: ${{ github.event.label.name == 'run smoke test' }}
+    strategy:
+      matrix:
+        country: 
+          - ch
+          - de
+          - pl
     steps:
       - name: Get User Permission
         id: checkAccess
@@ -56,7 +62,10 @@ jobs:
       - name: Prepare cookies with pytest
         run: pytest smoke_test/test_1_setup_token.py -v -x
         env:
-          EMAIL: ${{ vars.EMAIL }}
+          COUNTRY: ${{ matrix.country }}
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          EMAIL_DE: ${{ vars.EMAIL_DE }}
+          EMAIL_PL: ${{ vars.EMAIL_PL }}
           PASSWORD: ${{ secrets.PASSWORD }}
       # !!!!!!!!!!!!!!!!!!!!
       # From here on, we run new code which does not have access to the password, only the token
@@ -69,6 +78,9 @@ jobs:
       - name: Test with pytest
         run: pytest smoke_test/test_2_methods.py -v -x
         env:
-          EMAIL: ${{ vars.EMAIL }}
+          COUNTRY: ${{ matrix.country }}
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          EMAIL_DE: ${{ vars.EMAIL_DE }}
+          EMAIL_PL: ${{ vars.EMAIL_PL }}
           PASSWORD: <redacted>
           

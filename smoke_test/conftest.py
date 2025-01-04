@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.helpers import get_localization_options
 from cookidoo_api.types import CookidooAuthResponse, CookidooConfig
 
 load_dotenv()
@@ -46,9 +47,16 @@ async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
 async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
 
+    country = os.environ["COUNTRY"]
+    localizations = await get_localization_options(country=country)
+
     cookidoo = Cookidoo(
         session,
-        cfg=CookidooConfig(email=os.environ["EMAIL"], password=os.environ["PASSWORD"]),
+        cfg=CookidooConfig(
+            email=os.environ[f"EMAIL_{country.upper()}"],
+            password=os.environ["PASSWORD"],
+            localization=localizations[0],
+        ),
     )
     return cookidoo
 
@@ -59,9 +67,23 @@ async def cookidoo_authenticated_api_client(
 ) -> Cookidoo:
     """Create authenticated Cookidoo instance."""
 
+    country = os.environ["COUNTRY"]
+    localizations = await get_localization_options(country=country)
+
+    print(
+        CookidooConfig(
+            email=os.environ[f"EMAIL_{country.upper()}"],
+            password=os.environ["PASSWORD"],
+            localization=localizations[0],
+        )
+    )
     cookidoo = Cookidoo(
         session,
-        cfg=CookidooConfig(email=os.environ["EMAIL"], password=os.environ["PASSWORD"]),
+        cfg=CookidooConfig(
+            email=os.environ[f"EMAIL_{country.upper()}"],
+            password=os.environ["PASSWORD"],
+            localization=localizations[0],
+        ),
     )
 
     # Restore auth data from saved token

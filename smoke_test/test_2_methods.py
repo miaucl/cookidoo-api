@@ -19,7 +19,11 @@ class TestMethods:
     async def test_cookidoo_get_active_subscription(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo get active subscription."""
         sub = await cookidoo.get_active_subscription()
-        assert sub is None  # Test account uses the free plan
+        if sub is not None:  # Test account uses the free plan or a trial
+            assert sub.status == "ACTIVE"
+            assert sub.type == "TRIAL"
+        else:
+            assert sub is None
 
     async def test_cookidoo_recipe_details(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo recipe details."""
