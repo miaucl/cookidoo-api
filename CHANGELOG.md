@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.11.1
+
+- Extend smoke tests to multiple accounts with different countries
+
 ## 0.11.0
 
 - Align token endpoint with new way of auth for cookidoo app
