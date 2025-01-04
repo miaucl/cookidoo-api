@@ -20,9 +20,8 @@ DEFAULT_API_HEADERS: Final = {
 AUTHORIZATION_HEADER: Final = "{type} {access_token}"
 COOKIE_HEADER: Final = "v-token={access_token}"
 
-TOKEN_ENDPOINT: Final = "https://{site}.login.vorwerk.com/oauth2/token"
-
 API_ENDPOINT: Final = "https://{country_code}.tmmobile.vorwerk-digital.com"
+TOKEN_PATH: Final = "ciam/auth/token"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
 INGREDIENT_ITEMS_PATH: Final = "shopping/{language}"
