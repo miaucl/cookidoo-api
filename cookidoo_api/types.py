@@ -42,7 +42,7 @@ class CookidooAuthResponse:
     refresh_token: str
     token_type: str
     expires_in: int
-    username: str | None = None
+    sub: str
 
 
 @dataclass

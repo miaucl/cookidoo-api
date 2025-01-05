@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.12.0
+
+- Use sub from jwt as username no longer available at login stage
+
 ## 0.11.2
 
 - Fix exotic countries which do share a common domain
