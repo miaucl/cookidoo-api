@@ -46,7 +46,7 @@ def cookidoo_auth_data_from_json(
 ) -> CookidooAuthResponse:
     """Convert a auth data received from the API to a cookidoo auth data."""
     return CookidooAuthResponse(
-        username=auth_data["sub"],
+        sub=auth_data["sub"],
         access_token=auth_data["access_token"],
         refresh_token=auth_data["refresh_token"],
         token_type=auth_data["token_type"],
