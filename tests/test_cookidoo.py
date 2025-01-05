@@ -2,7 +2,7 @@
 
 from http import HTTPStatus
 
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientSession
 from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
@@ -15,7 +15,12 @@ from cookidoo_api.exceptions import (
     CookidooParseException,
     CookidooRequestException,
 )
-from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
+from cookidoo_api.helpers import get_localization_options
+from cookidoo_api.types import (
+    CookidooAdditionalItem,
+    CookidooConfig,
+    CookidooIngredientItem,
+)
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
@@ -39,6 +44,41 @@ from tests.responses import (
 )
 
 load_dotenv()
+
+
+class TestGetterSetter:
+    """Tests for getter and setter."""
+
+    @pytest.mark.parametrize(
+        ("country", "language", "prefix"),
+        [
+            ("ch", "de-CH", "ch"),
+            ("de", "de-DE", "de"),
+            ("ma", "en", "xp"),
+        ],
+    )
+    async def test_api_endpoint(
+        self,
+        mocked: aioresponses,
+        session: ClientSession,
+        country: str,
+        language: str,
+        prefix: str,
+    ) -> None:
+        """Test api endpoint for different localizations."""
+        cookidoo = Cookidoo(
+            session,
+            cfg=CookidooConfig(
+                localization=(
+                    await get_localization_options(country=country, language=language)
+                )[0],
+            ),
+        )
+
+        assert (
+            str(cookidoo.api_endpoint)
+            == f"https://{prefix}.tmmobile.vorwerk-digital.com"
+        )
 
 
 class TestLogin:
