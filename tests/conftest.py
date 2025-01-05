@@ -24,8 +24,8 @@ async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
 @pytest.fixture(name="cookidoo")
 async def bring_api_client(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
-    bring = Cookidoo(session)
-    return bring
+    cookidoo = Cookidoo(session)
+    return cookidoo
 
 
 @pytest.fixture(name="mocked")
