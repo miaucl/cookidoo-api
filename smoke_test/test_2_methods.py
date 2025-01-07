@@ -1,5 +1,7 @@
 """Smoke test for cookidoo-api."""
 
+import pytest
+
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
 
@@ -25,12 +27,24 @@ class TestMethods:
         else:
             assert sub is None
 
-    async def test_cookidoo_recipe_details(self, cookidoo: Cookidoo) -> None:
+    @pytest.mark.parametrize(
+        (
+            "recipe_id",
+            "name",
+        ),
+        [
+            ("r59322", "Vollwert-Brötchen/Baguettes"),
+            ("r628448", "Salmorejo de sandía con cubo de Rubik"),
+        ],
+    )
+    async def test_cookidoo_recipe_details(
+        self, cookidoo: Cookidoo, recipe_id: str, name: str
+    ) -> None:
         """Test cookidoo recipe details."""
-        recipe_details = await cookidoo.get_recipe_details("r59322")
+        recipe_details = await cookidoo.get_recipe_details(recipe_id)
         assert isinstance(recipe_details, object)
-        assert recipe_details.id == "r59322"
-        assert recipe_details.name == "Vollwert-Brötchen/Baguettes"
+        assert recipe_details.id == recipe_id
+        assert recipe_details.name == name
 
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo

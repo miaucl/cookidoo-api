@@ -34,10 +34,17 @@ class SubscriptionJSON(TypedDict):
     extendedType: str
 
 
-class QuantityJSON(TypedDict):
-    """The json for an quantity in the API."""
+# class QuantityJSON(TypedDict):
+#     """The json for an quantity in the API."""
 
-    value: int
+#     value: int | None
+#     from: int | None
+#     to: int | None
+
+#  Need to use alternative syntax as "from" is a protected keyword
+QuantityJSON = TypedDict(
+    "QuantityJSON", {"value": int | None, "from": int | None, "to": int | None}
+)
 
 
 class AdditionalItemJSON(TypedDict):
@@ -195,3 +202,6 @@ class ManagedCollectionJSON(TypedDict):
     chapters: list[ChapterJSON]
     listType: Literal["MANAGEDLIST"]
     author: Literal["Vorwerk"]
+
+
+__all__ = ["QuantityJSON"]
