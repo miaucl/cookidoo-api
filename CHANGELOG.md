@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.12.2
+
+- Fix .co.uk countries which do share a common domain
+
 ## 0.12.1
 
 - Add support for recipes which feature ranges for quantity in addition to fixed values
