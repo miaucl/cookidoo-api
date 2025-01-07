@@ -14,6 +14,7 @@ from cookidoo_api.raw_types import (
     IngredientJSON,
     ItemJSON,
     ManagedCollectionJSON,
+    QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
     SubscriptionJSON,
@@ -120,6 +121,20 @@ def cookidoo_recipe_from_json(
     )
 
 
+def cookidoo_quantity_from_json(
+    quantity: QuantityJSON,
+) -> str:
+    """Convert an quantity received from the API to a str."""
+    if "value" in quantity and quantity["value"]:
+        return str(quantity["value"])
+    elif (
+        "from" in quantity and "to" in quantity and quantity["from"] and quantity["to"]
+    ):
+        return f"{quantity['from']} - {quantity['to']}"
+    else:
+        return ""
+
+
 def cookidoo_recipe_details_from_json(
     recipe: RecipeDetailsJSON,
 ) -> CookidooShoppingRecipeDetails:
@@ -156,12 +171,12 @@ def cookidoo_recipe_details_from_json(
         active_time=next(
             time_["quantity"]["value"]
             for time_ in recipe["times"]
-            if time_["type"] == "activeTime"
+            if time_["type"] == "activeTime" and time_["quantity"]["value"]
         ),
         total_time=next(
             time_["quantity"]["value"]
             for time_ in recipe["times"]
-            if time_["type"] == "totalTime"
+            if time_["type"] == "totalTime" and time_["quantity"]["value"]
         ),
     )
 
@@ -173,9 +188,9 @@ def cookidoo_ingredient_from_json(
     return CookidooIngredient(
         id=ingredient["localId"] if "localId" in ingredient else ingredient["id"],  # type: ignore[typeddict-item]
         name=ingredient["ingredientNotation"],
-        description=f"{ingredient['quantity']['value']} {ingredient['unitNotation']}"
+        description=f"{cookidoo_quantity_from_json(ingredient['quantity'])} {ingredient['unitNotation']}"
         if ingredient["unitNotation"] and ingredient["quantity"]
-        else str(ingredient["quantity"]["value"])
+        else cookidoo_quantity_from_json(ingredient["quantity"])
         if ingredient["quantity"]
         else "",
     )
@@ -189,9 +204,9 @@ def cookidoo_ingredient_item_from_json(
         id=item["id"],
         name=item["ingredientNotation"],
         is_owned=item["isOwned"],
-        description=f"{item['quantity']['value']} {item['unitNotation']}"
+        description=f"{cookidoo_quantity_from_json(item['quantity'])} {item['unitNotation']}"
         if item["unitNotation"] and item["quantity"]
-        else str(item["quantity"]["value"])
+        else str(cookidoo_quantity_from_json(item["quantity"]))
         if item["quantity"]
         else "",
     )

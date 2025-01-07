@@ -228,7 +228,7 @@ COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
                 {
                     "localId": "com.vorwerk.ingredients.Ingredient-rpf-322",
                     "optional": False,
-                    "quantity": {"value": 260},
+                    "quantity": {"wrong_value": 260},
                     "unit_ref": "11-unit-rdpf3",
                     "preparation": "",
                     "unitNotation": "g",
@@ -248,7 +248,7 @@ COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
                 {
                     "localId": "com.vorwerk.ingredients.Ingredient-rpf-17",
                     "optional": False,
-                    "quantity": {"value": 40},
+                    "quantity": {"from": 40, "to": 60},
                     "unit_ref": "11-unit-rdpf3",
                     "preparation": ", in Stücken",
                     "unitNotation": "g",

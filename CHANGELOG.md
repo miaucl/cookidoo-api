@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.12.1
+
+- Add support for recipes which feature ranges for quantity in addition to fixed values
+
 ## 0.12.0
 
 - Use sub from jwt as username no longer available at login stage

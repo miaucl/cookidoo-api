@@ -15,7 +15,11 @@ from cookidoo_api.helpers import (
     get_language_options,
     get_localization_options,
 )
-from cookidoo_api.types import CookidooConfig
+from cookidoo_api.types import (
+    CookidooAdditionalItem,
+    CookidooConfig,
+    CookidooIngredientItem,
+)
 
 load_dotenv()
 
@@ -71,7 +75,6 @@ async def main():
         )
         _custom_collections = await cookidoo.get_custom_collections()
         await cookidoo.remove_custom_collection(added_custom_collection.id)
-        return
 
         # Managed collections
         _added_managed_collection = await cookidoo.add_managed_collection("col500401")
@@ -90,12 +93,11 @@ async def main():
         )
         _edited_ingredients = await cookidoo.edit_ingredient_items_ownership(
             [
-                {
-                    **ingredient,
-                    "is_owned": not ingredient["is_owned"],
-                }
+                CookidooIngredientItem(
+                    **{**ingredient.__dict__, "is_owned": not ingredient.is_owned},
+                )
                 for ingredient in filter(
-                    lambda ingredient: ingredient["name"] == "Hefe",
+                    lambda ingredient: ingredient.name == "Hefe",
                     added_ingredients,
                 )
             ]
@@ -110,24 +112,28 @@ async def main():
         )
         edited_additional_items = await cookidoo.edit_additional_items_ownership(
             [
-                {
-                    **additional_item,
-                    "is_owned": not additional_item["is_owned"],
-                }
+                CookidooAdditionalItem(
+                    **{
+                        **additional_item.__dict__,
+                        "is_owned": not additional_item.is_owned,
+                    },
+                )
                 for additional_item in filter(
-                    lambda additional_item: additional_item["name"] == "Fisch",
+                    lambda additional_item: additional_item.name == "Fisch",
                     added_additional_items,
                 )
             ]
         )
         await cookidoo.edit_additional_items(
             [
-                {
-                    **additional_item,
-                    "name": "Vogel",
-                }
+                CookidooAdditionalItem(
+                    **{
+                        **additional_item.__dict__,
+                        "is_owned": "Vogel",
+                    },
+                )
                 for additional_item in filter(
-                    lambda additional_item: additional_item["name"] == "Fisch",
+                    lambda additional_item: additional_item.name == "Fisch",
                     edited_additional_items,
                 )
             ]
@@ -135,7 +141,7 @@ async def main():
         _additional_items = await cookidoo.get_additional_items()
         await cookidoo.remove_additional_items(
             [
-                added_additional_item["id"]
+                added_additional_item.id
                 for added_additional_item in added_additional_items
             ]
         )
