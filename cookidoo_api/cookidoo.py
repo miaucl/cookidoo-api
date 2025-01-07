@@ -19,6 +19,7 @@ from cookidoo_api.const import (
     ADDITIONAL_ITEMS_PATH,
     API_ENDPOINT,
     AUTHORIZATION_HEADER,
+    CO_UK_COUNTRY_CODE,
     COMMUNITY_PROFILE_PATH,
     COOKIDOO_CLIENT_ID,
     CUSTOM_COLLECTIONS_PATH,
@@ -145,6 +146,8 @@ class Cookidoo:
         """Get the api endpoint."""
         if "international" in self._cfg.localization.url:
             return URL(API_ENDPOINT.format(country_code=INTERNATIONAL_COUNTRY_CODE))
+        if "co.uk" in self._cfg.localization.url:
+            return URL(API_ENDPOINT.format(country_code=CO_UK_COUNTRY_CODE))
         return URL(API_ENDPOINT.format(**self._cfg.localization.__dict__))
 
     async def refresh_token(self) -> CookidooAuthResponse:

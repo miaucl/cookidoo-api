@@ -21,6 +21,7 @@ AUTHORIZATION_HEADER: Final = "{type} {access_token}"
 COOKIE_HEADER: Final = "v-token={access_token}"
 
 INTERNATIONAL_COUNTRY_CODE: Final = "xp"
+CO_UK_COUNTRY_CODE: Final = "gb"
 
 API_ENDPOINT: Final = "https://{country_code}.tmmobile.vorwerk-digital.com"
 TOKEN_PATH: Final = "ciam/auth/token"

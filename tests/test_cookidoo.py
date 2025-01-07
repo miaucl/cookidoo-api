@@ -55,6 +55,8 @@ class TestGetterSetter:
             ("ch", "de-CH", "ch"),
             ("de", "de-DE", "de"),
             ("ma", "en", "xp"),
+            ("ie", "en-GB", "gb"),
+            ("gb", "en-GB", "gb"),
         ],
     )
     async def test_api_endpoint(

@@ -49,7 +49,7 @@ async def main():
                 email=os.environ["EMAIL"],
                 password=os.environ["PASSWORD"],
                 localization=(
-                    await get_localization_options(country="ma", language="en")
+                    await get_localization_options(country="ie", language="en-GB")
                 )[0],
             ),
         )
