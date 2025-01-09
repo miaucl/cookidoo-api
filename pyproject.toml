@@ -14,7 +14,7 @@ authors = [
 ]
 dependencies = [
   "aiohttp",
-  "python-dotenv",
+  "aiofiles",
 ]
 requires-python = ">=3.12"
 
