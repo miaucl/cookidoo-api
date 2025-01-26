@@ -73,7 +73,7 @@ jobs:
 
       - name: Check if version type matches branch type
         run: |
-          branch=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)")
+          branch=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)" | grep -v '^HEAD$')
           echo "Branch: $branch"
           version=${GITHUB_REF#refs/tags/}
           echo "Version from tag: $version"
