@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## DEPRECATED
+
+ This changelog is no longer maintained and will not be updated in future releases. Please refer to the [release notes](https://github.com/miaucl/cookidoo-api/releases/latest) on GitHub for the latest changes.
+
 ## 0.12.2
 
 - Fix .co.uk countries which do share a common domain

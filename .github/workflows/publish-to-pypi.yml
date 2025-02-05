@@ -58,19 +58,6 @@ jobs:
             echo "Success: Tag version $TAG_VERSION found in package."
           fi
 
-      - name: Check changelog entry
-        run: |
-          if [[ github.ref =~ 'refs/tags/[0-9]+\\.[0-9]+\\.[0-9]+$' ]]; then
-            if ! grep -q "## $TAG_VERSION" CHANGELOG.md; then
-              echo "No changelog entry found for version $TAG_VERSION."
-              exit 1
-            else
-              echo "Changelog entry found for version $TAG_VERSION."
-            fi
-          else
-            echo "Pre-release tag, skipping changelog check"
-          fi
-
       - name: Check if version type matches branch type
         run: |
           branch=$(git branch -r --contains ${{ github.ref }} --format "%(refname:lstrip=3)" | grep -v '^HEAD$')
