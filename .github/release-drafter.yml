@@ -1,0 +1,86 @@
+name-template: '$RESOLVED_VERSION'
+tag-template: '$RESOLVED_VERSION'
+
+
+categories:
+  - title: '💥 Breaking changes'
+    labels:
+      - ':boom: breaking change'
+  - title: '🚀 New Features'
+    labels:
+      - ':rocket: feature'
+  - title: '👻 Bug Fixes'
+    labels:
+      - ':ghost: bug'
+  - title: '🗄️ Deprecations'
+    labels:
+      - ':file_cabinet: deprecation'
+  - title: '📃 Documentation'
+    labels:
+      - ':book: documentation'
+  - title: '🧰 Maintenance'
+    labels:
+      - ':building_construction: build'
+      - ':construction_worker_woman: ci'
+      - ':clapper: github_actions'
+  - title: '🔬 Other updates'
+    labels:
+      - ':nail_care: style'
+      - ':test_tube: testing'
+      - ':racing_car: performance'
+      - ':sparkles: code quality'
+  - title: '🧩 Dependency Updates'
+    labels:
+      - ':recycle: dependencies'
+
+
+autolabeler:
+  - label: ':rocket: feature'
+    title:
+      - '/adds/i'
+      - '/add method/i'
+  - label: ':ghost: bug'
+    title:
+      - '/fix/i'
+  - label: ':sparkles: code quality'
+    title:
+      - '/Refactor/i'
+  - label: ':test_tube: testing'
+    files:
+      - 'test_*'
+      - 'conftest.py'
+  - label: ':book: documentation'
+    title:
+      - '/docs:/i'
+    files:
+      - '*.md'
+      - 'mkdocs.yml'
+  - label: ':construction_worker_woman: ci'
+    files:
+      - '.github/*'
+  - label: ':recycle: dependencies'
+    title:
+      - '/bump/i'
+  - label: ':file_cabinet: deprecation'
+    title:
+      - '/Deprecate/i'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+
+
+version-resolver:
+  major:
+    labels:
+      - 'breaking'
+  minor:
+    labels:
+      - 'feature'
+  default: patch
+
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  Contributors: $CONTRIBUTORS
