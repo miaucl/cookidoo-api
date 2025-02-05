@@ -32,7 +32,8 @@ categories:
   - title: '🧩 Dependency Updates'
     labels:
       - ':recycle: dependencies'
-
+exclude-labels:
+  - ':arrow_up: bump'
 
 autolabeler:
   - label: ':rocket: feature'
