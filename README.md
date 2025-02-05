@@ -6,6 +6,7 @@ An unofficial python package to access Cookidoo.
 
 [![Unit tests](https://github.com/miaucl/cookidoo-api/actions/workflows/unit-tests.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/unit-tests.yaml)
 [![Smoke test](https://github.com/miaucl/cookidoo-api/actions/workflows/smoke-test.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/smoke-test.yaml)
+[![codecov](https://codecov.io/gh/miaucl/cookidoo-api/graph/badge.svg?token=743ZRO8FRT)](https://codecov.io/gh/miaucl/cookidoo-api)
 [![Ruff](https://github.com/miaucl/cookidoo-api/actions/workflows/ruff.yml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/ruff.yml)
 [![Mypy](https://github.com/miaucl/cookidoo-api/actions/workflows/mypy.yaml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/mypy.yaml)
 [![Markdownlint](https://github.com/miaucl/cookidoo-api/actions/workflows/markdownlint.yml/badge.svg)](https://github.com/miaucl/cookidoo-api/actions/workflows/markdownlint.yml)
