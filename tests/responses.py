@@ -1471,3 +1471,116 @@ COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION = {
     },
     "code": None,
 }
+
+COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK = {
+    "myDays": [
+        {
+            "id": "2025-03-04",
+            "title": "2025-03-04",
+            "dayKey": "2025-03-04",
+            "created": "2025-03-04T18:56:05.424+00:00",
+            "modified": "2025-03-04T18:56:05.424+00:00",
+            "recipes": [
+                {
+                    "id": "r214846",
+                    "title": "Waffles",
+                    "totalTime": "1500.0",
+                    "locale": "gb",
+                    "assets": {
+                        "images": {
+                            "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                            "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                            "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                        }
+                    },
+                }
+            ],
+            "customerRecipeIds": [],
+            "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        },
+        {
+            "id": "2025-03-05",
+            "title": "2025-03-05",
+            "dayKey": "2025-03-05",
+            "created": "2025-03-04T19:00:02.773+00:00",
+            "modified": "2025-03-04T19:00:02.773+00:00",
+            "recipes": [
+                {
+                    "id": "r338888",
+                    "title": "Moroccan Mint Tea",
+                    "totalTime": "1500.0",
+                    "locale": "gb",
+                    "assets": {
+                        "images": {
+                            "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5",
+                            "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5",
+                            "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5",
+                        }
+                    },
+                }
+            ],
+            "customerRecipeIds": [],
+            "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+        },
+    ]
+}
+
+
+COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR = {
+    "message": "Recipe Waffles planned for 4 Mar 2025!",
+    "content": {
+        "id": "2025-03-04",
+        "title": "2025-03-04",
+        "dayKey": "2025-03-04",
+        "created": "2025-03-04T18:56:05.424+00:00",
+        "modified": "2025-03-04T18:56:05.424+00:00",
+        "recipes": [
+            {
+                "id": "r214846",
+                "title": "Waffles",
+                "totalTime": "1500.0",
+                "locale": "gb",
+                "assets": {
+                    "images": {
+                        "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                        "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                        "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                    }
+                },
+            }
+        ],
+        "customerRecipeIds": [],
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+    },
+    "code": None,
+}
+
+
+COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR = {
+    "message": "Recipe Waffles was removed!",
+    "content": {
+        "id": "2025-03-04",
+        "title": "2025-03-04",
+        "dayKey": "2025-03-04",
+        "created": "2025-03-04T18:56:05.424+00:00",
+        "modified": "2025-03-04T18:56:05.424+00:00",
+        "recipes": [
+            {
+                "id": "r214846",
+                "title": "Waffles",
+                "totalTime": "1500.0",
+                "locale": "gb",
+                "assets": {
+                    "images": {
+                        "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                        "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                        "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3",
+                    }
+                },
+            }
+        ],
+        "customerRecipeIds": [],
+        "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+    },
+    "code": None,
+}

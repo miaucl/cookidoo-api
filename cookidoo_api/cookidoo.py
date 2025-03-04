@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+from datetime import date
 from http import HTTPStatus
 from json import JSONDecodeError
 import logging
@@ -15,6 +16,7 @@ from cookidoo_api.const import (
     ADD_CUSTOM_COLLECTION_PATH,
     ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     ADD_MANAGED_COLLECTION_PATH,
+    ADD_RECIPES_TO_CALENDER_PATH,
     ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
     API_ENDPOINT,
@@ -32,10 +34,12 @@ from cookidoo_api.const import (
     INTERNATIONAL_COUNTRY_CODE,
     MANAGED_COLLECTIONS_PATH,
     RECIPE_PATH,
+    RECIPES_IN_CALENDAR_WEEK_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
     REMOVE_CUSTOM_COLLECTION_PATH,
     REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     REMOVE_MANAGED_COLLECTION_PATH,
+    REMOVE_RECIPE_FROM_CALENDER_PATH,
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
@@ -50,6 +54,7 @@ from cookidoo_api.exceptions import (
 from cookidoo_api.helpers import (
     cookidoo_additional_item_from_json,
     cookidoo_auth_data_from_json,
+    cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
@@ -59,6 +64,7 @@ from cookidoo_api.helpers import (
 )
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
+    CalendarDayJSON,
     CustomCollectionJSON,
     ItemJSON,
     ManagedCollectionJSON,
@@ -68,6 +74,7 @@ from cookidoo_api.raw_types import (
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooAuthResponse,
+    CookidooCalendarDay,
     CookidooCollection,
     CookidooConfig,
     CookidooIngredientItem,
@@ -2282,4 +2289,269 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Remove recipe from custom collection failed due to request exception."
+            ) from e
+
+    async def get_recipes_in_calendar_week(
+        self, day: date
+    ) -> list[CookidooCalendarDay]:
+        """Get recipes in a calendar week.
+
+        Parameters
+        ----------
+        day
+            The date specifying the calendar week
+
+        Returns
+        -------
+        list[CookidooCalendarDay]
+            The list of the calendar days with recipes
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / RECIPES_IN_CALENDAR_WEEK_PATH.format(
+                **self._cfg.localization.__dict__, day=day.isoformat()
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get recipes in calendar week: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading recipes in calendar week failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return [
+                        cookidoo_calendar_day_from_json(cast(CalendarDayJSON, day))
+                        for day in (await r.json())["myDays"]
+                    ]
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get recipes in calendar day%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading recipes in calendar day during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipes in calendar day:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipes in calendar day due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get recipes in calendar day%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading recipes in calendar day due to request exception."
+            ) from e
+
+    async def add_recipes_to_calendar(
+        self,
+        day: date,
+        recipe_ids: list[str],
+    ) -> CookidooCalendarDay:
+        """Add recipes to a calendar.
+
+        Parameters
+        ----------
+        day
+            The date to add the recipes to in the calendar
+        recipe_ids
+            The recipe ids to add to a custom collection
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIds": recipe_ids, "dayKey": day.isoformat()}
+        try:
+            url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+                **self._cfg.localization.__dict__
+            )
+            async with self._session.put(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add recipes to calendar: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add recipes to calendar failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_calendar_day_from_json(
+                        cast(CalendarDayJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added recipes:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added recipes failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipes to calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add recipes to calendar failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipes to calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add recipes to calendar failed due to request exception."
+            ) from e
+
+    async def remove_recipe_from_calendar(
+        self,
+        day: date,
+        recipe_id: str,
+    ) -> CookidooCalendarDay:
+        """Remove recipe from calendar.
+
+        Parameters
+        ----------
+        day
+            The date to remove the recipe from in the calendar
+        recipe_id
+            The recipe id to remove from the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+                **self._cfg.localization.__dict__,
+                day=day.isoformat(),
+                recipe=recipe_id,
+            )
+            async with self._session.delete(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove recipe from calendar: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove recipe from calendar failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_calendar_day_from_json(
+                        cast(CalendarDayJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get removed recipe:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading removed recipe failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add recipe from calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove recipe from calendar failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove recipe from calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove recipe from calendar failed due to request exception."
             ) from e

@@ -148,11 +148,11 @@ jobs:
           ./dist/*.whl
     - name: Release
       uses: softprops/action-gh-release@v2
+      if: ${{ steps.check_prerelease.outputs.prerelease }}
       with:
-        draft: true
         tag_name: ${{ github.ref }}
-        # name: ${{ steps.version.outputs.version }}
-        # generate_release_notes: true
+        name: ${{ steps.version.outputs.version }}
+        generate_release_notes: true
         prerelease: ${{ steps.check_prerelease.outputs.prerelease }}  # Mark as prerelease if necessary
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   

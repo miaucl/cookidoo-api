@@ -204,4 +204,21 @@ class ManagedCollectionJSON(TypedDict):
     author: Literal["Vorwerk"]
 
 
+class CalenderDayRecipeJSON(TypedDict):
+    """The json for a calender day recipe in the API."""
+
+    id: str
+    title: str
+    totalTime: int
+
+
+class CalendarDayJSON(TypedDict):
+    """The json for a calendar day in the API."""
+
+    id: str
+    title: str
+    dayKey: str
+    recipes: list[CalenderDayRecipeJSON]
+
+
 __all__ = ["QuantityJSON"]

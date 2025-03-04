@@ -1,6 +1,6 @@
 """Cookidoo API package."""
 
-__version__ = "0.12.3"
+__version__ = "0.13.0"
 
 from .cookidoo import Cookidoo
 from .exceptions import (

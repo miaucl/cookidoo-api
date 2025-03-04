@@ -1,5 +1,7 @@
 """Smoke test for cookidoo-api."""
 
+from datetime import datetime
+
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
@@ -201,3 +203,29 @@ class TestMethods:
         custom_collections = await cookidoo.get_custom_collections()
         assert isinstance(custom_collections, list)
         assert len(custom_collections) == 0
+
+    async def test_cookidoo_calendar(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo calendar."""
+        added_day_recipes = await cookidoo.add_recipes_to_calendar(
+            datetime.now().date(), ["r907015", "r59322"]
+        )
+        assert len(added_day_recipes.recipes) == 2
+        assert [recipe.id for recipe in added_day_recipes.recipes] == [
+            "r907015",
+            "r59322",
+        ]
+
+        day_recipes = await cookidoo.get_recipes_in_calendar_week(datetime.now().date())
+        assert isinstance(day_recipes, list)
+        assert len(day_recipes) == 1
+        assert [recipe.id for recipe in day_recipes[0].recipes] == [
+            "r907015",
+            "r59322",
+        ]
+
+        await cookidoo.remove_recipe_from_calendar(datetime.now().date(), "r907015")
+        await cookidoo.remove_recipe_from_calendar(datetime.now().date(), "r59322")
+
+        day_recipes = await cookidoo.get_recipes_in_calendar_week(datetime.now().date())
+        assert isinstance(day_recipes, list)
+        assert len(day_recipes) == 0
