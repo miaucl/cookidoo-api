@@ -10,6 +10,7 @@ import aiofiles
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     AuthResponseJSON,
+    CalendarDayJSON,
     CustomCollectionJSON,
     IngredientJSON,
     ItemJSON,
@@ -23,6 +24,8 @@ from cookidoo_api.raw_types import (
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooAuthResponse,
+    CookidooCalendarDay,
+    CookidooCalendarDayRecipe,
     CookidooCategory,
     CookidooChapter,
     CookidooChapterRecipe,
@@ -220,6 +223,22 @@ def cookidoo_additional_item_from_json(
         id=item["id"],
         name=item["name"],
         is_owned=item["isOwned"],
+    )
+
+
+def cookidoo_calendar_day_from_json(
+    calendar_day: CalendarDayJSON,
+) -> CookidooCalendarDay:
+    """Convert a calendar day received from the API to a cookidoo item."""
+    return CookidooCalendarDay(
+        id=calendar_day["id"],
+        title=calendar_day["title"],
+        recipes=[
+            CookidooCalendarDayRecipe(
+                id=recipe["id"], name=recipe["title"], total_time=recipe["totalTime"]
+            )
+            for recipe in calendar_day["recipes"]
+        ],
     )
 
 

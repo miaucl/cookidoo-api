@@ -59,5 +59,10 @@ REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH: Final = (
 MANAGED_COLLECTIONS_PATH: Final = "organize/{language}/api/managed-list"
 ADD_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list"
 REMOVE_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list/{id}"
+RECIPES_IN_CALENDAR_WEEK_PATH: Final = "planning/{language}/api/my-week/{day}"
+ADD_RECIPES_TO_CALENDER_PATH: Final = "planning/{language}/api/my-day"
+REMOVE_RECIPE_FROM_CALENDER_PATH: Final = (
+    "planning/{language}/api/my-day/{day}/recipes/{recipe}"
+)
 
 DEFAULT_SITE = "eu"

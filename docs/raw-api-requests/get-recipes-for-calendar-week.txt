@@ -1,0 +1,32 @@
+GET https://gb.tmmobile.vorwerk-digital.com/planning/en-GB/api/my-week/2025-03-03 HTTP/2.0
+accept: application/vnd.vorwerk.planning.my-day.mobile+json
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzQxMTE0MzY4LCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaUBnbWFpbC5jb20iLCJleHAiOjE3NDExNTc1NjgsImlhdCI6MTc0MTExNDM2OCwiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiJiYjZlMTU1Mi00ODM1LTQxM2UtYTc0Yi01N2EwMDUzNjQ1NjgiLCJqdGkiOiIwNWQzMWM5ZC1kMjAxLTQ2NzgtOGVjYy00NmE5MjlhM2E2YmYiLCJyb2xlcyI6WyJST0xFX1ZPUldFUktDVVNUT01FUiIsIlVTRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjA4NmQzOGQ3LTFhN2ItNGY2ZS05ZmNlLWMzOTQxYzRmODYwNSIsInN1YiI6IjRhNzRjMTAyLTNlZTYtNGJjZC05MjI3LTJjNDAzOTAwYjhkZSIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.XnAEoF3CznAmVFHiH7rWu89zatKoL50jp09faO1JORdMwmreX0BvMAgyHQPIgZkK8zSqyHCHitMUjG4VpSrVfvJ1zcUkpxryeThJku1Fu69GLVpIDpCeCqsXEh8kKbe47w9lBkehwzkU7campXGZA1xin92OsQ-M45pwkowYGq0ufq0WvOimBXvkCZZdWc4ssWAmSlxTByqIjSq-J6ta2piOOhXjX_X_J5Z_y31-2pP8isDllNTzdHOzlng4yKd2bELKImr8TrZ9coAkpSfMweq1AoLx9k0V0iD0Jv0d2Fx0LiLUWURhLJqSHsXSCPWGe73Z9rUfZxqEpkkrLBQTxQ
+accept-encoding: gzip
+if-none-match: W/"0304a93acd8aa67a2907f7a9da8d2a081"
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/vnd.vorwerk.planning.my-day.mobile+json
+date: Tue, 04 Mar 2025 19:03:44 GMT
+etag: W/"0b71bf06b853ea978f0c2e694c512bd60"
+vary: Accept-Encoding
+x-request-id: d5da0e257db33760ba3cb183ade6af24;auth-proxy-planning-authproxy:46d220eb-7e9a-461e-b872-74ebda9799dd;auth-proxy-planning-authproxy:9ace2009-46b7-40bd-8eba-821a275a4632;planning-ssi-nginx:1f62e6fbd24f2d430e5afebb9a9e7ba0;planning:e9ed9fd9-4acc-4569-b0f6-ae804be36d87
+x-content-type-options: nosniff
+x-frame-options: DENY
+strict-transport-security: max-age=31536000
+x-xss-protection: 0
+set-cookie: current-locale=en_GB; Path=/planning; Secure; HttpOnly; SameSite=Lax
+set-cookie: v-authenticated=971cb8b4515cd3a725aa7d58adf32c4d6285eb9766c280ede4134128ca74c3df; path=/; secure; expires=Thu, 03 Apr 2025 19:03:44 GMT
+set-cookie: v-token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzQxMTE0MzY4LCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaUBnbWFpbC5jb20iLCJleHAiOjE3NDExNTc1NjgsImlhdCI6MTc0MTExNDM2OCwiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiJiYjZlMTU1Mi00ODM1LTQxM2UtYTc0Yi01N2EwMDUzNjQ1NjgiLCJqdGkiOiIwNWQzMWM5ZC1kMjAxLTQ2NzgtOGVjYy00NmE5MjlhM2E2YmYiLCJyb2xlcyI6WyJST0xFX1ZPUldFUktDVVNUT01FUiIsIlVTRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjA4NmQzOGQ3LTFhN2ItNGY2ZS05ZmNlLWMzOTQxYzRmODYwNSIsInN1YiI6IjRhNzRjMTAyLTNlZTYtNGJjZC05MjI3LTJjNDAzOTAwYjhkZSIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.XnAEoF3CznAmVFHiH7rWu89zatKoL50jp09faO1JORdMwmreX0BvMAgyHQPIgZkK8zSqyHCHitMUjG4VpSrVfvJ1zcUkpxryeThJku1Fu69GLVpIDpCeCqsXEh8kKbe47w9lBkehwzkU7campXGZA1xin92OsQ-M45pwkowYGq0ufq0WvOimBXvkCZZdWc4ssWAmSlxTByqIjSq-J6ta2piOOhXjX_X_J5Z_y31-2pP8isDllNTzdHOzlng4yKd2bELKImr8TrZ9coAkpSfMweq1AoLx9k0V0iD0Jv0d2Fx0LiLUWURhLJqSHsXSCPWGe73Z9rUfZxqEpkkrLBQTxQ; path=/; secure; expires=Thu, 03 Apr 2025 19:03:44 GMT; httponly
+x-cache: Miss from cloudfront
+via: 1.1 4b04b092439272f69394f0b36f3b262a.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: xETZq9j2L3l-3wPZW4jMJRTyQSI6BQ1ViWJpB7E00LIaDJ2Oo52_SA==
+content-length: 1728
+
+{"myDays":[{"id":"2025-03-04","title":"2025-03-04","dayKey":"2025-03-04","created":"2025-03-04T18:56:05.424+00:00","modified":"2025-03-04T18:56:05.424+00:00","recipes":[{"id":"r214846","title":"Waffles","totalTime":"1500.0","locale":"gb","assets":{"images":{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/c6ea15c4-52ab-4119-b886-a7fb1d052f45/Derivates/b18fcddc-3b31-4ae9-9cd1-5a81751d91b3"}}}],"customerRecipeIds":[],"author":"4a74c102-3ee6-4bcd-9227-2c403900b8de"},{"id":"2025-03-05","title":"2025-03-05","dayKey":"2025-03-05","created":"2025-03-04T19:00:02.773+00:00","modified":"2025-03-04T19:00:02.773+00:00","recipes":[{"id":"r338888","title":"Moroccan Mint Tea","totalTime":"1500.0","locale":"gb","assets":{"images":{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/47d318332476db821ab3d1c5414f772e/Derivates/8d7d71b9c549cb55b11cc965a6b47be108ab44e5"}}}],"customerRecipeIds":[],"author":"4a74c102-3ee6-4bcd-9227-2c403900b8de"}]}

@@ -280,3 +280,43 @@ class CookidooCollection:
     name: str
     description: str | None
     chapters: list[CookidooChapter]
+
+
+@dataclass
+class CookidooCalendarDayRecipe:
+    """Cookidoo calendar day recipe type.
+
+    Attributes
+    ----------
+    id
+        The id of the recipe
+    name
+        The label of the recipe
+    total_time
+        The time for the recipe
+
+    """
+
+    id: str
+    name: str
+    total_time: int
+
+
+@dataclass
+class CookidooCalendarDay:
+    """Cookidoo calendar day type.
+
+    Attributes
+    ----------
+    id
+        The id of the calendar day
+    title
+        The title of the calendar day
+    recipes
+        The recipes in the calendar day
+
+    """
+
+    id: str
+    title: str
+    recipes: list[CookidooCalendarDayRecipe]

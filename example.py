@@ -2,6 +2,7 @@
 """Example script for cookidoo-api."""
 
 import asyncio
+from datetime import datetime
 import logging
 import os
 import sys
@@ -80,6 +81,23 @@ async def main():
         _added_managed_collection = await cookidoo.add_managed_collection("col500401")
         _managed_collections = await cookidoo.get_managed_collections()
         await cookidoo.remove_managed_collection("col500401")
+
+        # Calendar
+        _added_recipes_to_calendar = await cookidoo.add_recipes_to_calendar(
+            datetime.now().date(), ["r907015", "r59322"]
+        )
+        _recipes_in_calendar = await cookidoo.get_recipes_in_calendar_week(
+            datetime.now().date()
+        )
+        _removed_recipes_from_calendar = await cookidoo.remove_recipe_from_calendar(
+            datetime.now().date(), "r907015"
+        )
+        _removed_recipes_from_calendar = await cookidoo.remove_recipe_from_calendar(
+            datetime.now().date(), "r59322"
+        )
+        _recipes_in_calendar = await cookidoo.get_recipes_in_calendar_week(
+            datetime.now().date()
+        )
 
         # Recipe details
         _recipe_details = await cookidoo.get_recipe_details("r59322")
