@@ -84,3 +84,12 @@
   from_name: wontfix
   description: This will not be worked on
   color: ffffff
+- name: ':arrow_up: bump'
+  description: Bumps the version for a release
+  color: 3C5D34
+- name: ':sparkles: enhancement'
+  color: CBF8DA
+  description: Minor feature improvement
+- name: 'skip-changelog'
+  color: D3D3D3
+  description: Omits this PR in the changelog

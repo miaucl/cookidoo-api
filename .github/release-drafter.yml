@@ -29,11 +29,13 @@ categories:
       - ':test_tube: testing'
       - ':racing_car: performance'
       - ':sparkles: code quality'
+      - ':sparkles: enhancement'
   - title: '🧩 Dependency Updates'
     labels:
       - ':recycle: dependencies'
 exclude-labels:
   - ':arrow_up: bump'
+  - 'skip-changelog'
 
 autolabeler:
   - label: ':rocket: feature'
@@ -60,8 +62,8 @@ autolabeler:
     files:
       - '.github/*'
   - label: ':recycle: dependencies'
-    title:
-      - '/bump/i'
+    files:
+       - 'requirements*.txt'
   - label: ':file_cabinet: deprecation'
     title:
       - '/Deprecate/i'

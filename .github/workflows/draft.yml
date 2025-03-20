@@ -5,12 +5,21 @@ on:
     branches:
       - main
       - master
+  # pull_request event is required only for autolabeler
+  pull_request:
+    types: [opened, reopened, synchronize]
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
 
 jobs:
   update-draft:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: write
     steps:
       # Drafts your next Release notes as Pull Requests are merged into "main"
       - uses: release-drafter/release-drafter@v6
