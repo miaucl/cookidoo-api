@@ -148,11 +148,12 @@ jobs:
           ./dist/*.whl
     - name: Release
       uses: softprops/action-gh-release@v2
-      if: ${{ steps.check_prerelease.outputs.prerelease }}
+      if: ${{ steps.check_prerelease.outputs.prerelease == 'true' }}
       with:
         tag_name: ${{ github.ref }}
         name: ${{ steps.version.outputs.version }}
         generate_release_notes: true
+        draft: true
         prerelease: ${{ steps.check_prerelease.outputs.prerelease }}  # Mark as prerelease if necessary
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
@@ -164,5 +165,5 @@ jobs:
       # sigstore-produced signatures and certificates.
       run: >-
         gh release upload
-        '${{ github.ref_name }}' dist/**
+        '${{ steps.version.outputs.version }}' dist/**
         --repo '${{ github.repository }}'
