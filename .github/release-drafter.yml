@@ -60,8 +60,8 @@ autolabeler:
     files:
       - '.github/*'
   - label: ':recycle: dependencies'
-    title:
-      - '/bump/i'
+    files:
+       - 'requirements*.txt'
   - label: ':file_cabinet: deprecation'
     title:
       - '/Deprecate/i'
