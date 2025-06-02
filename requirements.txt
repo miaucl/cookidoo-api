@@ -1,2 +1,2 @@
-aiohttp~=3.11
+aiohttp~=3.12
 aiofiles~=24.1.0
