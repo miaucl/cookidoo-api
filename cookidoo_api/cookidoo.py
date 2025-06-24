@@ -25,6 +25,7 @@ from cookidoo_api.const import (
     COMMUNITY_PROFILE_PATH,
     COOKIDOO_CLIENT_ID,
     CUSTOM_COLLECTIONS_PATH,
+    CUSTOM_COLLECTIONS_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
     DEFAULT_TOKEN_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
@@ -33,6 +34,7 @@ from cookidoo_api.const import (
     INGREDIENT_ITEMS_PATH,
     INTERNATIONAL_COUNTRY_CODE,
     MANAGED_COLLECTIONS_PATH,
+    MANAGED_COLLECTIONS_PATH_ACCEPT,
     RECIPE_PATH,
     RECIPES_IN_CALENDAR_WEEK_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
@@ -1497,7 +1499,13 @@ class Cookidoo:
             url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
                 **self._cfg.localization.__dict__
             )
-            async with self._session.get(url, headers=self._api_headers) as r:
+            async with self._session.get(
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
+                },
+            ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
                 )
@@ -1583,7 +1591,12 @@ class Cookidoo:
                 **self._cfg.localization.__dict__
             )
             async with self._session.get(
-                url, headers=self._api_headers, params={"page": page}
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
+                },
+                params={"page": page},
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -1672,7 +1685,12 @@ class Cookidoo:
                 **self._cfg.localization.__dict__
             )
             async with self._session.post(
-                url, headers=self._api_headers, json=json_data
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
+                },
+                json=json_data,
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -1752,7 +1770,13 @@ class Cookidoo:
             url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
                 **self._cfg.localization.__dict__, id=managed_collection_id
             )
-            async with self._session.delete(url, headers=self._api_headers) as r:
+            async with self._session.delete(
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
+                },
+            ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
                 )
@@ -1816,7 +1840,13 @@ class Cookidoo:
             url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
                 **self._cfg.localization.__dict__
             )
-            async with self._session.get(url, headers=self._api_headers) as r:
+            async with self._session.get(
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
+                },
+            ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
                 )
@@ -1902,7 +1932,12 @@ class Cookidoo:
                 **self._cfg.localization.__dict__
             )
             async with self._session.get(
-                url, headers=self._api_headers, params={"page": page}
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
+                },
+                params={"page": page},
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -1991,7 +2026,12 @@ class Cookidoo:
                 **self._cfg.localization.__dict__
             )
             async with self._session.post(
-                url, headers=self._api_headers, json=json_data
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
+                },
+                json=json_data,
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -2071,7 +2111,13 @@ class Cookidoo:
             url = self.api_endpoint / REMOVE_CUSTOM_COLLECTION_PATH.format(
                 **self._cfg.localization.__dict__, id=custom_collection_id
             )
-            async with self._session.delete(url, headers=self._api_headers) as r:
+            async with self._session.delete(
+                url,
+                headers={
+                    **self._api_headers,
+                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
+                },
+            ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
                 )
