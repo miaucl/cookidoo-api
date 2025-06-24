@@ -48,6 +48,9 @@ MOBILE_NOTIFICATIONS_PATH: Final = (
 SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
+CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
+    "application/vnd.vorwerk.organize.custom-list.mobile+json"
+)
 ADD_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list"
 REMOVE_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list/{id}"
 ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH: Final = (
@@ -57,6 +60,9 @@ REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH: Final = (
     "organize/{language}/api/custom-list/{id}/recipes/{recipe}"
 )
 MANAGED_COLLECTIONS_PATH: Final = "organize/{language}/api/managed-list"
+MANAGED_COLLECTIONS_PATH_ACCEPT: Final = (
+    "application/vnd.vorwerk.organize.managed-list.mobile+json"
+)
 ADD_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list"
 REMOVE_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list/{id}"
 RECIPES_IN_CALENDAR_WEEK_PATH: Final = "planning/{language}/api/my-week/{day}"
