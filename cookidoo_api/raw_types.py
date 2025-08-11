@@ -167,6 +167,33 @@ class RecipeDetailsJSON(TypedDict):
     times: list[RecipeDetailsTimeJSON]
 
 
+class CustomRecipeYieldJSON(TypedDict):
+    """The json for a custom recipe yield in the API."""
+
+    value: int
+    unitText: str
+
+
+class CustomRecipeContentJSON(TypedDict):
+    """The json for a custom recipe content in the API."""
+
+    name: str
+    totalTime: str
+    prepTime: str
+    tool: list[str]
+    recipeYield: CustomRecipeYieldJSON
+    recipeIngredient: list[str]
+    recipeInstructions: list[str]
+
+
+class CustomRecipeJSON(TypedDict):
+    """The json for a custom recipe in the API."""
+
+    recipeId: str
+    title: str
+    recipeContent: CustomRecipeContentJSON
+
+
 class ChapterRecipeJSON(TypedDict):
     """The json for a chapter recipe in the API."""
 
@@ -219,6 +246,7 @@ class CalendarDayJSON(TypedDict):
     title: str
     dayKey: str
     recipes: list[CalenderDayRecipeJSON]
+    customerRecipes: list[CalenderDayRecipeJSON]
 
 
 __all__ = ["QuantityJSON"]

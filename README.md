@@ -102,8 +102,26 @@ Following VSCode integrations may be helpful:
 
 The raw requests intercepted between the Cookidoo Android App and the backend can be found here `./docs/raw-api-requests`. They have been used to reconstruct the API which is implemented in this library.
 
+## Testing
+
+There is a set of tests based on the current behaviour of the API.
+
+### Unit tests
+
+The unit tests base on the recorded payloads captured between the server and the android app. They are a snapshot and might change.
+
+### Smoke tests
+
+The smoke tests implements a series of request querying the server. It tries to cover as much functionality as possible while not impacting the server too much (we want to stay nice and not get noticed ^^). Therefore, it still might be the case that something breaks without noticing. Further, as it is a github action, only **non-premium** are tested, as it is currently not deemed worth keeping premium subscription for this sole purpose (might change my mind with a few donations^^). Should something break for premium features, a temporary account with trial period is created easily.
+
 ### Releasing
 
 A _final version_ can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
 
 release a prerelease version, it must be done from a feature branch (**not** `master`). Prerelease versions are explicitly marked as such on the GitHub release page.
+
+## Roadmap
+
+- [x] Add custom recipes to calendar and shopping list
+- [ ] Edit custom recipes
+- [ ] Create blank custom recipes (not copy existing)

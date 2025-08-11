@@ -1,0 +1,24 @@
+POST https://ch.tmmobile.vorwerk-digital.com/shopping/en/recipes/add HTTP/2.0
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njc4NTcsImlhdCI6MTc1NDkyNDY1NywiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiJmN2RmZTE1MC0xYTcyLTQzNzEtYjIxZC0zMjVkNGU4M2Y4OTgiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.ypU-1afVZ5MtlfUV_xnRP1ERIqW_siS5yiL63irF0lEBFkjQ5RcJ1N1HMfWLkrZpsSGud9qe0xNAqGCdBVYSPjBG6WFGEdciyVKy72pY0xGnDXXf9GKfWaIa8y8N0phn1zQVq5d2mgE-n83sY8y36h9uIxE0dyfpE788CJQCpwQGSmQiSIyVVgEOQ00Us5NZz9VRLuEdayhYaSqIGR9ad2IDg7qaUK5WY7hrtF9iwJG7nWseUHuIizoLn7IworhxNUiln0lEJER46q2iG7ROu6SjZUuUUXCKACpknQAfk6NJGO39s61V1F7QQERWQCvepxUpxgwFUR9gn0iWZY49bw
+content-type: application/json; charset=UTF-8
+content-length: 71
+accept-encoding: gzip
+
+{"recipeIDs":[{"id":"01K2CTJ9Y1BABRG5MXK44CFZS4","source":"CUSTOMER"}]}
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Mon, 11 Aug 2025 15:11:38 GMT
+strict-transport-security: max-age=31536000
+cache-control: no-cache, no-store, must-revalidate
+vary: origin,accept-encoding
+x-cache: Miss from cloudfront
+via: 1.1 7b1453554724e38e8ddaa890cda58f10.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: agtoX8cdf2dLHR9R48tuOgBLs8EGY-4_oIaSJiJnuiSiidktT7yScw==
+content-length: 2268
+
+{"data":[{"id":"01K2CTJ9Y1BABRG5MXK44CFZS4","title":"Vongole alla marinara","status":"ACTIVE","ulid":"01K2CTZSSKFKJWPM71017SJYMC","descriptiveAssets":[{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6"}],"isCustomerRecipe":true,"recipeIngredientGroups":[{"id":"01K2CTZSSCR2DTKBKJ4ATG9XGG","ingredientNotation":"130 g di cipolla","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC52YNH2A5Z900VHCM","ingredientNotation":"1 ¼ - 2 ¼ spicchi di aglio","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSCV9A1HG9VBZEHJMM6","ingredientNotation":"65 g di olio extravergine di oliva","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC707ACTRF4CHX3WA7","ingredientNotation":"1500 g di vongole fresche, pulite","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC7RVAX5PMDRMB7XT0","ingredientNotation":"1 pizzico di pepe macinato","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC72ZA53Z0PYT21XYN","ingredientNotation":"65 g di vino bianco","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC6WRA31EN9656EW7D","ingredientNotation":"190 g di brodo di pesce","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC5J3Z0CAVY20Z08SZ","ingredientNotation":"2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSCWQ0RVV3SNXSCJK0T","ingredientNotation":"1 ¼ cucchiaino di pangrattato","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false},{"id":"01K2CTZSSC7CYHWPZH00HS238C","ingredientNotation":"⅔ cucchiaino di sale","shoppingCategory_ref":"ShoppingCategory-rpf-10","isCustomerRecipeIngredient":true,"isOwned":false}]}]}

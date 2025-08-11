@@ -1,0 +1,22 @@
+POST https://ch.tmmobile.vorwerk-digital.com/shopping/en/recipes/remove HTTP/2.0
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njc4NTcsImlhdCI6MTc1NDkyNDY1NywiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiJmN2RmZTE1MC0xYTcyLTQzNzEtYjIxZC0zMjVkNGU4M2Y4OTgiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.ypU-1afVZ5MtlfUV_xnRP1ERIqW_siS5yiL63irF0lEBFkjQ5RcJ1N1HMfWLkrZpsSGud9qe0xNAqGCdBVYSPjBG6WFGEdciyVKy72pY0xGnDXXf9GKfWaIa8y8N0phn1zQVq5d2mgE-n83sY8y36h9uIxE0dyfpE788CJQCpwQGSmQiSIyVVgEOQ00Us5NZz9VRLuEdayhYaSqIGR9ad2IDg7qaUK5WY7hrtF9iwJG7nWseUHuIizoLn7IworhxNUiln0lEJER46q2iG7ROu6SjZUuUUXCKACpknQAfk6NJGO39s61V1F7QQERWQCvepxUpxgwFUR9gn0iWZY49bw
+content-type: application/json; charset=UTF-8
+content-length: 44
+accept-encoding: gzip
+
+{"recipeIDs":["01K2CTZSSKFKJWPM71017SJYMC"]}
+
+HTTP/2.0 204 
+date: Mon, 11 Aug 2025 15:14:08 GMT
+strict-transport-security: max-age=31536000
+cache-control: no-cache, no-store, must-revalidate
+vary: origin
+x-cache: Miss from cloudfront
+via: 1.1 7b1453554724e38e8ddaa890cda58f10.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: 4sUgxj6wJzMLYZ1sS6-iRI5ShypFUlwjrvV7v5ocVgnwcl3mxIxVvg==
+content-length: 0
+

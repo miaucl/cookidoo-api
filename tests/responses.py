@@ -273,6 +273,76 @@ COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
     ],
 }
 
+COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE = {
+    "recipeId": "01K2CVHD1DXG1PVETNVV3JPKWW",
+    "authorId": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
+    "modifiedAt": "2025-08-11T17:03:20.415Z",
+    "createdAt": "2025-08-11T15:21:15.566Z",
+    "status": "ACTIVE",
+    "workStatus": "PUBLIC",
+    "recipeContent": {
+        "name": "Vongole alla marinara",
+        "image": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6",
+        "isBasedOn": "https://cookidoo.ch/recipes/recipe/en/r166987",
+        "totalTime": "PT30M",
+        "prepTime": "PT10M",
+        "tool": ["TM7", "TM6", "TM5"],
+        "recipeYield": {"value": 6, "unitText": "portion"},
+        "recipeIngredient": [
+            "130 g di cipolla",
+            "1 ¼ - 2 ¼ spicchi di aglio",
+            "65 g di olio extravergine di oliva",
+            "1500 g di vongole fresche, pulite",
+            "1 pizzico di pepe macinato",
+            "65 g di vino bianco",
+            "190 g di brodo di pesce",
+            "2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline",
+            "1 ¼ cucchiaino di pangrattato",
+            "⅔ cucchiaino di sale",
+        ],
+        "recipeInstructions": [
+            "Mettere nel boccale le cipolle, gli spicchi di aglio e l’olio extravergine di oliva, tritare: 4 sec./vel. 5. Insaporire: 10 min./120°C/vel. 1. Nel frattempo, mettere le vongole nel Varoma e risciacquarle in acqua calda. Tenere da parte.",
+            "Aggiungere nel boccale il pepe, il vino bianco e il brodo. Posizionare il Varoma e cuocere a vapore: 14 min./Varoma/vel. 2.",
+            "Togliere il Varoma. Aggiungere i prezzemolo, il pangrattato e il sale, mescolare: 15 sec./vel. 2. Trasferire le vongole in un piatto da portata, versare sopra la salsa e spolverizzare con il prezzemolo. Servire subito.",
+        ],
+    },
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPE = {
+    "recipeId": "01K2CTJ9Y1BABRG5MXK44CFZS4",
+    "authorId": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
+    "modifiedAt": "2025-08-11T15:04:16.577Z",
+    "createdAt": "2025-08-11T15:04:16.577Z",
+    "status": "ACTIVE",
+    "workStatus": "PRIVATE",
+    "recipeContent": {
+        "name": "Vongole alla marinara",
+        "image": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6",
+        "isBasedOn": "https://cookidoo.ch/recipes/recipe/en/r166987",
+        "totalTime": "PT30M",
+        "prepTime": "PT10M",
+        "tool": ["TM7", "TM6", "TM5"],
+        "recipeYield": {"value": 6, "unitText": "portion"},
+        "recipeIngredient": [
+            "130 g di cipolla",
+            "1 ¼ - 2 ¼ spicchi di aglio",
+            "65 g di olio extravergine di oliva",
+            "1500 g di vongole fresche, pulite",
+            "1 pizzico di pepe macinato",
+            "65 g di vino bianco",
+            "190 g di brodo di pesce",
+            "2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline",
+            "1 ¼ cucchiaino di pangrattato",
+            "⅔ cucchiaino di sale",
+        ],
+        "recipeInstructions": [
+            "Mettere nel boccale le cipolle, gli spicchi di aglio e l’olio extravergine di oliva, tritare: 4 sec./vel. 5. Insaporire: 10 min./120°C/vel. 1. Nel frattempo, mettere le vongole nel Varoma e risciacquarle in acqua calda. Tenere da parte.",
+            "Aggiungere nel boccale il pepe, il vino bianco e il brodo. Posizionare il Varoma e cuocere a vapore: 14 min./Varoma/vel. 2.",
+            "Togliere il Varoma. Aggiungere i prezzemolo, il pangrattato e il sale, mescolare: 15 sec./vel. 2. Trasferire le vongole in un piatto da portata, versare sopra la salsa e spolverizzare con il prezzemolo. Servire subito.",
+        ],
+    },
+}
+
 COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES = {
     "recipes": [
         {
@@ -519,7 +589,7 @@ COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES = {
 }
 
 
-COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS = {
+COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_RECIPES = {
     "recipes": [
         {
             "id": "r907016",
@@ -761,6 +831,97 @@ COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS = {
         },
     ],
     "customerRecipes": [],
+    "additionalItems": [],
+}
+
+COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_CUSTOM_RECIPES = {
+    "recipes": [],
+    "customerRecipes": [
+        {
+            "id": "01K2CVHD1DXG1PVETNVV3JPKWW",
+            "ulid": "01K2CVHK2NP5WF73D0YKTJB6M2",
+            "title": "Vongole alla marinara",
+            "status": "ACTIVE",
+            "isCustomerRecipe": True,
+            "descriptiveAssets": [
+                {
+                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6"
+                }
+            ],
+            "recipeIngredientGroups": [
+                {
+                    "id": "01K2CVHK2FPHMN9J2HYWMHTCCC",
+                    "isOwned": False,
+                    "ingredientNotation": "130 g di cipolla",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2F18DK6JH3CTG22YJP",
+                    "isOwned": False,
+                    "ingredientNotation": "1 ¼ - 2 ¼ spicchi di aglio",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2FA9D0C2952PGKZ3TM",
+                    "isOwned": False,
+                    "ingredientNotation": "65 g di olio extravergine di oliva",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2F7YW0AVG89QMWJHHH",
+                    "isOwned": False,
+                    "ingredientNotation": "1500 g di vongole fresche, pulite",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2F3M0B47FYE6FBQHTH",
+                    "isOwned": False,
+                    "ingredientNotation": "1 pizzico di pepe macinato",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2G5ESTXM37R28QZY29",
+                    "isOwned": False,
+                    "ingredientNotation": "65 g di vino bianco",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2GWSCX4RGK4RWE2K6K",
+                    "isOwned": False,
+                    "ingredientNotation": "190 g di brodo di pesce",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2GY5BM0MMX299YHMMB",
+                    "isOwned": False,
+                    "ingredientNotation": "2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2GPGEMQTQNW353KX18",
+                    "isOwned": False,
+                    "ingredientNotation": "1 ¼ cucchiaino di pangrattato",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+                {
+                    "id": "01K2CVHK2G4KMDXX8BRYCRYYG7",
+                    "isOwned": False,
+                    "ingredientNotation": "⅔ cucchiaino di sale",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                },
+            ],
+        }
+    ],
     "additionalItems": [],
 }
 
@@ -1022,6 +1183,95 @@ COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP = {
             "ingredientNotation": "Hefe",
             "shoppingCategory_ref": "ShoppingCategory-rpf-10",
             "ownedTimestamp": 1730586610,
+        }
+    ]
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_CUSTOM_RECIPES = {
+    "data": [
+        {
+            "id": "01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "title": "Vongole alla marinara",
+            "status": "ACTIVE",
+            "ulid": "01K2CTZSSKFKJWPM71017SJYMC",
+            "descriptiveAssets": [
+                {
+                    "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6"
+                }
+            ],
+            "isCustomerRecipe": True,
+            "recipeIngredientGroups": [
+                {
+                    "id": "01K2CTZSSCR2DTKBKJ4ATG9XGG",
+                    "ingredientNotation": "130 g di cipolla",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC52YNH2A5Z900VHCM",
+                    "ingredientNotation": "1 ¼ - 2 ¼ spicchi di aglio",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSCV9A1HG9VBZEHJMM6",
+                    "ingredientNotation": "65 g di olio extravergine di oliva",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC707ACTRF4CHX3WA7",
+                    "ingredientNotation": "1500 g di vongole fresche, pulite",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC7RVAX5PMDRMB7XT0",
+                    "ingredientNotation": "1 pizzico di pepe macinato",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC72ZA53Z0PYT21XYN",
+                    "ingredientNotation": "65 g di vino bianco",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC6WRA31EN9656EW7D",
+                    "ingredientNotation": "190 g di brodo di pesce",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC5J3Z0CAVY20Z08SZ",
+                    "ingredientNotation": "2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSCWQ0RVV3SNXSCJK0T",
+                    "ingredientNotation": "1 ¼ cucchiaino di pangrattato",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+                {
+                    "id": "01K2CTZSSC7CYHWPZH00HS238C",
+                    "ingredientNotation": "⅔ cucchiaino di sale",
+                    "shoppingCategory_ref": "ShoppingCategory-rpf-10",
+                    "isCustomerRecipeIngredient": True,
+                    "isOwned": False,
+                },
+            ],
         }
     ]
 }
@@ -1581,6 +1831,36 @@ COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR = {
         ],
         "customerRecipeIds": [],
         "author": "4a74c102-3ee6-4bcd-9227-2c403900b8de",
+    },
+    "code": None,
+}
+
+COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPES_TO_CALENDAR = {
+    "message": "Recipe planned for Aug 11, 2025!",
+    "content": {
+        "id": "2025-08-11",
+        "title": "11.08.2025",
+        "dayKey": "2025-08-11",
+        "created": "2025-08-11T15:08:14.768+00:00",
+        "modified": "2025-08-11T15:08:14.768+00:00",
+        "recipes": [],
+        "customerRecipeIds": ["01K2CTJ9Y1BABRG5MXK44CFZS4"],
+        "author": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
+    },
+    "code": None,
+}
+
+COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR = {
+    "message": "Recipe was removed",
+    "content": {
+        "id": "2025-08-11",
+        "title": "11.08.2025",
+        "dayKey": "2025-08-11",
+        "created": "2025-08-11T15:08:14.768+00:00",
+        "modified": "2025-08-11T15:08:14.768+00:00",
+        "recipes": [],
+        "customerRecipeIds": ["01K2CTJ9Y1BABRG5MXK44CFZS4"],
+        "author": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
     },
     "code": None,
 }

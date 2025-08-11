@@ -12,6 +12,7 @@ authors = [
 dependencies = [
   "aiohttp",
   "aiofiles",
+  "isodate",
 ]
 requires-python = ">=3.12"
 

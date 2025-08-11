@@ -1,0 +1,27 @@
+PUT https://ch.tmmobile.vorwerk-digital.com/planning/en/api/my-day HTTP/2.0
+accept: application/vnd.vorwerk.planning.my-day.mobile+json
+accept-language: en;q = 1, de-AT;q = 0.9
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njc4NTcsImlhdCI6MTc1NDkyNDY1NywiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiJmN2RmZTE1MC0xYTcyLTQzNzEtYjIxZC0zMjVkNGU4M2Y4OTgiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.ypU-1afVZ5MtlfUV_xnRP1ERIqW_siS5yiL63irF0lEBFkjQ5RcJ1N1HMfWLkrZpsSGud9qe0xNAqGCdBVYSPjBG6WFGEdciyVKy72pY0xGnDXXf9GKfWaIa8y8N0phn1zQVq5d2mgE-n83sY8y36h9uIxE0dyfpE788CJQCpwQGSmQiSIyVVgEOQ00Us5NZz9VRLuEdayhYaSqIGR9ad2IDg7qaUK5WY7hrtF9iwJG7nWseUHuIizoLn7IworhxNUiln0lEJER46q2iG7ROu6SjZUuUUXCKACpknQAfk6NJGO39s61V1F7QQERWQCvepxUpxgwFUR9gn0iWZY49bw
+content-type: application/json; charset=UTF-8
+content-length: 92
+accept-encoding: gzip
+
+{"dayKey":"2025-08-11","recipeIds":["01K2CTJ9Y1BABRG5MXK44CFZS4"],"recipeSource":"CUSTOMER"}
+
+HTTP/2.0 201 
+content-type: application/vnd.vorwerk.planning.my-day.mobile+json
+date: Mon, 11 Aug 2025 15:08:14 GMT
+strict-transport-security: max-age=31536000
+x-frame-options: DENY
+x-request-id: 90d5985c359347ac9923416c57c9e80e;planning-ssi-nginx:54da3ae90d6e720171948700e18670c3;planning:88493489-9afd-4c7e-b2be-4eeaf77f92d1
+etag: "08d42fb3838d80d98b1b17b2b36e8fd38"
+x-content-type-options: nosniff
+x-xss-protection: 0
+x-cache: Miss from cloudfront
+via: 1.1 7b1453554724e38e8ddaa890cda58f10.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: kqF3WcLQ9U0NJjK1lNTqPBpaTiPIiebIYwglU8X4pQDJN4wmqmeSCA==
+content-length: 328
+
+{"message":"Recipe planned for Aug 11, 2025!","content":{"id":"2025-08-11","title":"11.08.2025","dayKey":"2025-08-11","created":"2025-08-11T15:08:14.768+00:00","modified":"2025-08-11T15:08:14.768+00:00","recipes":[],"customerRecipeIds":["01K2CTJ9Y1BABRG5MXK44CFZS4"],"author":"2d336b56-6c23-49bb-9543-5bdf0344eedf"},"code":null}
