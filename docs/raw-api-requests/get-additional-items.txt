@@ -1,0 +1,25 @@
+GET https://ch.tmmobile.vorwerk-digital.com/shopping/en HTTP/2.0
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njg4NzUsImlhdCI6MTc1NDkyNTY3NSwiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiJjY2ZjMzM1YS0zNDU5LTRkNTgtYjlhZC02MTU0NjdlYWU5MDQiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.j5yRrhnZKIGhOHz-0h-7DABs363Vq9THj075KKEeSwU4Ic5WuZx7E0pJjA0L0WQ-wOiFEv_jQ8psxtvfOqGowhMBV337PX1FJsW0hIVPG1i8rzcA8cHPcjOAZ57ggr1virZWoCWhRsAhBsX5j9hkB4s3A3O7wVheLL4F4CLpz_cDSPYe78FsXURaacPeDVuA62efVN90TM9egx5onFdNERsTYucC4Y3XFX8J-lpO2U9kgCLSeM4nHNBSbBe-kjW4PyxDzJ2gRRA5pGk8DWZFzjN6xG9hLk7TkbIUlmf4uCd7KOHe0UP2mQ_VP8ywk7-rtopbky71-579-BCd8oGzvw
+accept-encoding: gzip
+content-length: 0
+
+
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+content-length: 128
+date: Mon, 11 Aug 2025 15:23:53 GMT
+strict-transport-security: max-age=31536000
+cache-control: no-cache, no-store, must-revalidate
+vary: origin
+accept-ranges: bytes
+x-cache: Miss from cloudfront
+via: 1.1 7b1453554724e38e8ddaa890cda58f10.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: NzkrNL5aFrR0dY0-1cNBpLhOXrI7y0s_qlKHj0ka-5k2YhsQjcXcfQ==
+
+{"recipes":[],"customerRecipes":[],"additionalItems":[{"id":"01K2CVNM3EF659MNHP56H78SBZ","name":"Custom item","isOwned":false}]}

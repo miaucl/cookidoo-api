@@ -1,0 +1,24 @@
+DELETE https://ch.tmmobile.vorwerk-digital.com/created-recipes/en/01K2CTJ9Y1BABRG5MXK44CFZS4 HTTP/2.0
+content-type: application/x-www-form-urlencoded; charset=utf-8
+accept-language: en;q = 1, de-AT;q = 0.9
+accept: application/json
+user-agent: Thermomix/5427 (iPhone; iOS11.2; Scale / 3.00)
+authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njg1MjEsImlhdCI6MTc1NDkyNTMyMSwiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiI4MDNiZGNhNS1jMmQzLTQyMjYtYjU1MC05ODdjYzk5NzNmNGUiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.JttINaKM8yl_n9TuWd1_ng9KCU89RWxmjNjTGKAxCO6qPIvGy3ua1jP95Mg2H2Otk_Bm3Peft7nxj33JBHr2l1AySPfcgLcVD164fVhnUp85y9vOeMm8E4Kt3t2uaRjIgCelPBwGuRaYYOmXN1jPXAfwTjfl5RfPMn3icdSvNiaSaaK5FsLUhuqxxPsB86qcMelkYNczqwovOFH1f5lpfJB3PJpZs5m6-x0pkxrxBimi_MyYKGMtaItGJkOB3wpsPSoTXdSHvWHmiin08B7gTpSEPluhDbGrQqztLIgCz_qBkGVNUljT9ipf9aEWi9A9fOZWxFwme49N0LPQK1oS5g
+accept-encoding: gzip
+content-length: 0
+
+
+
+HTTP/2.0 204 
+date: Mon, 11 Aug 2025 15:19:59 GMT
+strict-transport-security: max-age=31536000
+x-frame-options: SAMEORIGIN
+x-xss-protection: 1; mode=block
+x-content-type-options: nosniff
+referrer-policy: no-referrer-when-downgrade
+x-cache: Miss from cloudfront
+via: 1.1 7b1453554724e38e8ddaa890cda58f10.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: RsikpIxJ-xMUr8vU15l1vv4i8ZJUIXxbwjBQf7Yl-P7RZYH4Jko0OQ==
+content-length: 0
+

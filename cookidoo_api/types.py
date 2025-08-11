@@ -217,7 +217,7 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     categories: list[CookidooCategory]
     collections: list[CookidooRecipeCollection]
     utensils: list[str]
-    serving_size: str
+    serving_size: int
     active_time: int
     total_time: int
 
@@ -257,6 +257,41 @@ class CookidooChapter:
 
     name: str
     recipes: list[CookidooChapterRecipe]
+
+
+@dataclass
+class CookidooCustomRecipe:
+    """Cookidoo custom recipe type.
+
+    Attributes
+    ----------
+    id
+        The id of the recipe
+    name
+        The label of the recipe
+    ingredients
+        The ingredients of the recipe
+    instructions
+        The instructions of the recipe
+    tools
+        The tools needed for the recipe
+    serving_size
+        The service size of the recipe
+    active_time
+        The time needed preparing the recipe [in seconds]
+    total_time
+        The time needed until the recipe is ready [in seconds]
+
+    """
+
+    id: str
+    name: str
+    ingredients: list[str]
+    instructions: list[str]
+    tools: list[str]
+    serving_size: int
+    active_time: int
+    total_time: int
 
 
 @dataclass

@@ -26,6 +26,9 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION,
+    COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPE,
+    COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPES_TO_CALENDAR,
+    COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_CUSTOM_RECIPES,
     COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_RECIPES,
     COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
@@ -37,11 +40,14 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS,
-    COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS,
+    COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+    COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_CUSTOM_RECIPES,
+    COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_RECIPES,
     COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
+    COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
@@ -399,7 +405,7 @@ class TestGetRecipeDetails:
         assert isinstance(data.utensils, list)
         assert isinstance(data.active_time, int)
         assert isinstance(data.total_time, int)
-        assert isinstance(data.serving_size, str)
+        assert isinstance(data.serving_size, int)
 
     @pytest.mark.parametrize(
         "exception",
@@ -455,6 +461,235 @@ class TestGetRecipeDetails:
 
         with pytest.raises(exception):
             await cookidoo.get_recipe_details("r907015")
+
+
+class TestGetCustomRecipe:
+    """Tests for get_custom_recipe method."""
+
+    async def test_get_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_custom_recipe."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_custom_recipe("01K2CVHD1DXG1PVETNVV3JPKWW")
+        assert data
+        assert isinstance(data, object)
+        assert data.id == "01K2CVHD1DXG1PVETNVV3JPKWW"
+        assert data.name == "Vongole alla marinara"
+        assert isinstance(data.instructions, list)
+        assert isinstance(data.ingredients, list)
+        assert isinstance(data.tools, list)
+        assert isinstance(data.active_time, int)
+        assert isinstance(data.total_time, int)
+        assert isinstance(data.serving_size, int)
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.get_custom_recipe("01K2CVHD1DXG1PVETNVV3JPKWW")
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_custom_recipe("01K2CVHD1DXG1PVETNVV3JPKWW")
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.get_custom_recipe("01K2CVHD1DXG1PVETNVV3JPKWW")
+
+
+class TestAddCustomRecipe:
+    """Tests for add_custom_recipe method."""
+
+    async def test_add_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for add_custom_recipe."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.add_custom_recipe_from("r907015", 4)
+        assert data
+        assert data.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        assert data.name == "Vongole alla marinara"
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.add_custom_recipe_from("r907015", 4)
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.add_custom_recipe_from("r907015", 4)
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.add_custom_recipe_from("r907015", 4)
+
+
+class TestRemoveCustomRecipe:
+    """Tests for remove_custom_recipe method."""
+
+    async def test_remove_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for remove_custom_recipe."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            payload=None,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.remove_custom_recipe("01K2CTJ9Y1BABRG5MXK44CFZS4")
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.remove_custom_recipe("01K2CTJ9Y1BABRG5MXK44CFZS4")
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.remove_custom_recipe("01K2CTJ9Y1BABRG5MXK44CFZS4")
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            # (HTTPStatus.OK, CookidooParseException), # There is nothing to parse
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.remove_custom_recipe("01K2CTJ9Y1BABRG5MXK44CFZS4")
 
 
 class TestGetShoppingListRecipes:
@@ -535,14 +770,14 @@ class TestGetShoppingListRecipes:
 class TestGetIngredients:
     """Tests for get_ingredient_items method."""
 
-    async def test_get_ingredient_items(
+    async def test_get_ingredient_items_for_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """Test for get_ingredient_items."""
 
         mocked.get(
             "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
-            payload=COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS,
+            payload=COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_RECIPES,
             status=HTTPStatus.OK,
         )
 
@@ -550,6 +785,22 @@ class TestGetIngredients:
         assert data
         assert isinstance(data, list)
         assert len(data) == 14
+
+    async def test_get_ingredient_items_for_custom_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_ingredient_items."""
+
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_CUSTOM_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_ingredient_items()
+        assert data
+        assert isinstance(data, list)
+        assert len(data) == 10
 
     @pytest.mark.parametrize(
         "exception",
@@ -863,6 +1114,169 @@ class TestEditIngredientsOwnership:
                         description="1 Würfel",
                     )
                 ]
+            )
+
+
+class TestAddIngredientsForCustomRecipes:
+    """Tests for add_ingredient_items_for_custom_recipes method."""
+
+    async def test_add_ingredient_items_for_custom_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for add_ingredient_items_for_custom_recipes."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            payload=COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_CUSTOM_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.add_ingredient_items_for_custom_recipes(
+            ["01K2CTZSSKFKJWPM71017SJYMC"]
+        )
+        assert data
+        assert isinstance(data, list)
+        assert len(data) == 10
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.add_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
+            )
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.add_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
+            )
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.add_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
+            )
+
+
+class TestRemoveIngredientsForCustomRecipes:
+    """Tests for remove_ingredient_items_for_custom_recipes method."""
+
+    async def test_remove_ingredient_items_for_custom_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for remove_ingredient_items_for_custom_recipes."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            payload=None,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.remove_ingredient_items_for_custom_recipes(
+            ["01K2CTZSSKFKJWPM71017SJYMC"]
+        )
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.remove_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
+            )
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.remove_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
+            )
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            # (HTTPStatus.OK, CookidooParseException), # There is nothing to parse
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.remove_ingredient_items_for_custom_recipes(
+                ["01K2CTZSSKFKJWPM71017SJYMC"]
             )
 
 
@@ -2391,4 +2805,174 @@ class TestRemoveRecipeFromCalendar:
         with pytest.raises(exception):
             await cookidoo.remove_recipe_from_calendar(
                 datetime.fromisoformat("2025-03-04").date(), "r214846"
+            )
+
+
+class TestAddCustomRecipesToCalendar:
+    """Tests for add_custom_recipes_to_calendar method."""
+
+    async def test_add_custom_recipes_to_custom_collection(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for add_custom_recipes_to_calendar."""
+
+        mocked.put(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            payload=COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPES_TO_CALENDAR,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.add_custom_recipes_to_calendar(
+            datetime.fromisoformat("2025-08-11").date(), ["01K2CTJ9Y1BABRG5MXK44CFZS4"]
+        )
+        assert data
+        assert data.id == "2025-08-11"
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.put(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.add_custom_recipes_to_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                ["01K2CTJ9Y1BABRG5MXK44CFZS4"],
+            )
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.put(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.add_custom_recipes_to_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                ["01K2CTJ9Y1BABRG5MXK44CFZS4"],
+            )
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.put(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.add_custom_recipes_to_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                ["01K2CTJ9Y1BABRG5MXK44CFZS4"],
+            )
+
+
+class TestRemoveCustomRecipeFromCalendar:
+    """Tests for remove_custom_recipe_from_calendar method."""
+
+    async def test_remove_custom_recipe_from_calendar(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for remove_custom_recipe_from_calendar."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/r214846?recipeSource=CUSTOMER",
+            payload=COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.remove_custom_recipe_from_calendar(
+            datetime.fromisoformat("2025-08-11").date(), "r214846"
+        )
+        assert data
+        assert data.id == "2025-08-11"
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.remove_custom_recipe_from_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                "01K2CTJ9Y1BABRG5MXK44CFZS4",
+            )
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.remove_custom_recipe_from_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                "01K2CTJ9Y1BABRG5MXK44CFZS4",
+            )
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.delete(
+            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.remove_custom_recipe_from_calendar(
+                datetime.fromisoformat("2025-08-11").date(),
+                "01K2CTJ9Y1BABRG5MXK44CFZS4",
             )
