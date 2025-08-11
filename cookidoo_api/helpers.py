@@ -6,12 +6,14 @@ import os
 from typing import cast
 
 import aiofiles
+import isodate
 
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     AuthResponseJSON,
     CalendarDayJSON,
     CustomCollectionJSON,
+    CustomRecipeJSON,
     IngredientJSON,
     ItemJSON,
     ManagedCollectionJSON,
@@ -30,6 +32,7 @@ from cookidoo_api.types import (
     CookidooChapter,
     CookidooChapterRecipe,
     CookidooCollection,
+    CookidooCustomRecipe,
     CookidooIngredient,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
@@ -170,7 +173,7 @@ def cookidoo_recipe_details_from_json(
             for collection in recipe["inCollections"]
         ],
         utensils=[utensil["utensilNotation"] for utensil in recipe["recipeUtensils"]],
-        serving_size=f"{recipe["servingSize"]['quantity']['value']} {recipe["servingSize"]["unitNotation"]}",
+        serving_size=recipe["servingSize"]["quantity"]["value"] or 0,
         active_time=next(
             time_["quantity"]["value"]
             for time_ in recipe["times"]
@@ -184,6 +187,28 @@ def cookidoo_recipe_details_from_json(
     )
 
 
+def cookidoo_custom_recipe_from_json(
+    recipe: CustomRecipeJSON,
+) -> CookidooCustomRecipe:
+    """Convert a custom recipe received from the API to a cookidoo custom recipe."""
+    total_time = isodate.parse_duration(
+        recipe["recipeContent"]["totalTime"]
+    ).total_seconds()
+    active_time = isodate.parse_duration(
+        recipe["recipeContent"]["prepTime"]
+    ).total_seconds()
+    return CookidooCustomRecipe(
+        id=recipe["recipeId"],
+        name=recipe["recipeContent"]["name"],
+        ingredients=recipe["recipeContent"]["recipeIngredient"],
+        instructions=recipe["recipeContent"]["recipeInstructions"],
+        serving_size=recipe["recipeContent"]["recipeYield"]["value"],
+        total_time=int(total_time) if isinstance(total_time, float) else 0,
+        active_time=int(active_time) if isinstance(active_time, float) else 0,
+        tools=recipe["recipeContent"]["tool"],
+    )
+
+
 def cookidoo_ingredient_from_json(
     ingredient: IngredientJSON | ItemJSON,
 ) -> CookidooIngredient:
@@ -192,9 +217,12 @@ def cookidoo_ingredient_from_json(
         id=ingredient["localId"] if "localId" in ingredient else ingredient["id"],  # type: ignore[typeddict-item]
         name=ingredient["ingredientNotation"],
         description=f"{cookidoo_quantity_from_json(ingredient['quantity'])} {ingredient['unitNotation']}"
-        if ingredient["unitNotation"] and ingredient["quantity"]
+        if "unitNotation" in ingredient
+        and ingredient["unitNotation"]
+        and "quantity" in ingredient
+        and ingredient["quantity"]
         else cookidoo_quantity_from_json(ingredient["quantity"])
-        if ingredient["quantity"]
+        if "quantity" in ingredient and ingredient["quantity"]
         else "",
     )
 
@@ -208,9 +236,12 @@ def cookidoo_ingredient_item_from_json(
         name=item["ingredientNotation"],
         is_owned=item["isOwned"],
         description=f"{cookidoo_quantity_from_json(item['quantity'])} {item['unitNotation']}"
-        if item["unitNotation"] and item["quantity"]
+        if "unitNotation" in item
+        and item["unitNotation"]
+        and "quantity" in item
+        and item["quantity"]
         else str(cookidoo_quantity_from_json(item["quantity"]))
-        if item["quantity"]
+        if "quantity" in item and item["quantity"]
         else "",
     )
 

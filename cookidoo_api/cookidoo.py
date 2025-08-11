@@ -14,6 +14,7 @@ from yarl import URL
 from cookidoo_api.const import (
     ADD_ADDITIONAL_ITEMS_PATH,
     ADD_CUSTOM_COLLECTION_PATH,
+    ADD_CUSTOM_RECIPE_PATH,
     ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     ADD_MANAGED_COLLECTION_PATH,
     ADD_RECIPES_TO_CALENDER_PATH,
@@ -26,6 +27,7 @@ from cookidoo_api.const import (
     COOKIDOO_CLIENT_ID,
     CUSTOM_COLLECTIONS_PATH,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
+    CUSTOM_RECIPE_PATH,
     DEFAULT_API_HEADERS,
     DEFAULT_TOKEN_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
@@ -39,6 +41,7 @@ from cookidoo_api.const import (
     RECIPES_IN_CALENDAR_WEEK_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
     REMOVE_CUSTOM_COLLECTION_PATH,
+    REMOVE_CUSTOM_RECIPE_PATH,
     REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
     REMOVE_MANAGED_COLLECTION_PATH,
     REMOVE_RECIPE_FROM_CALENDER_PATH,
@@ -58,6 +61,7 @@ from cookidoo_api.helpers import (
     cookidoo_auth_data_from_json,
     cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
+    cookidoo_custom_recipe_from_json,
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
@@ -68,6 +72,7 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
     CustomCollectionJSON,
+    CustomRecipeJSON,
     ItemJSON,
     ManagedCollectionJSON,
     RecipeDetailsJSON,
@@ -79,6 +84,7 @@ from cookidoo_api.types import (
     CookidooCalendarDay,
     CookidooCollection,
     CookidooConfig,
+    CookidooCustomRecipe,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
     CookidooShoppingRecipe,
@@ -560,6 +566,258 @@ class Cookidoo:
                 "Loading recipe details failed due to request exception."
             ) from e
 
+    async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
+        """Get custom recipe.
+
+        Parameters
+        ----------
+        id
+            The id of the custom recipe
+
+        Returns
+        -------
+        CookidooCustomRecipe
+            The custom recipe
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        try:
+            url = self.api_endpoint / CUSTOM_RECIPE_PATH.format(
+                **self._cfg.localization.__dict__, id=id
+            )
+            async with self._session.get(url, headers=self._api_headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot get custom recipe: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Loading custom recipe failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    return cookidoo_custom_recipe_from_json(
+                        cast(CustomRecipeJSON, await r.json())
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get custom recipe:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading custom recipe failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot get custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading custom recipe failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Loading custom recipe failed due to request exception."
+            ) from e
+
+    async def add_custom_recipe_from(
+        self, recipeId: str, servingSize: int
+    ) -> CookidooCustomRecipe:
+        """Add custom recipe.
+
+        Parameters
+        ----------
+        recipeId
+            The base recipe to copy
+        servingSize
+            The serving size of the custom recipe
+
+        Returns
+        -------
+        CookidooCustomRecipe
+            The added custom recipe
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "recipeUrl": str(
+                self.api_endpoint
+                / RECIPE_PATH.format(**self._cfg.localization.__dict__, id=recipeId)
+            ),
+            "servingSize": servingSize,
+        }
+        try:
+            url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+                **self._cfg.localization.__dict__
+            )
+            async with self._session.post(
+                url,
+                headers={
+                    **self._api_headers,
+                },
+                json=json_data,
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add custom recipe: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add custom recipe failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_custom_recipe_from_json(
+                        cast(CustomRecipeJSON, await r.json())
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added custom recipe:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added custom recipe failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add custom recipe failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add custom recipe failed due to request exception."
+            ) from e
+
+    async def remove_custom_recipe(
+        self,
+        custom_recipe_id: str,
+    ) -> None:
+        """Remove custom recipe.
+
+        Parameters
+        ----------
+        custom_recipe_id
+            The custom recipe id to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / REMOVE_CUSTOM_RECIPE_PATH.format(
+                **self._cfg.localization.__dict__, id=custom_recipe_id
+            )
+            async with self._session.delete(
+                url,
+                headers={
+                    **self._api_headers,
+                },
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove custom recipe: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove custom recipe failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove custom recipe failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove custom recipe:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove custom recipe failed due to request exception."
+            ) from e
+
     async def get_shopping_list_recipes(
         self,
     ) -> list[CookidooShoppingRecipe]:
@@ -611,9 +869,10 @@ class Cookidoo:
                 r.raise_for_status()
 
                 try:
+                    _d = await r.json()
                     return [
                         cookidoo_recipe_from_json(cast(RecipeJSON, recipe))
-                        for recipe in (await r.json())["recipes"]
+                        for recipe in [*_d["recipes"], *_d["customerRecipes"]]
                     ]
 
                 except (JSONDecodeError, KeyError) as e:
@@ -692,9 +951,10 @@ class Cookidoo:
                 r.raise_for_status()
 
                 try:
+                    _d = await r.json()
                     return [
                         cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                        for recipe in (await r.json())["recipes"]
+                        for recipe in [*_d["recipes"], *_d["customerRecipes"]]
                         for ingredient in recipe["recipeIngredientGroups"]
                     ]
 
@@ -975,6 +1235,167 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Edit ingredient items ownership failed due to request exception."
+            ) from e
+
+    async def add_ingredient_items_for_custom_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> list[CookidooIngredientItem]:
+        """Add ingredient items for custom recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The recipe ids for the ingredient items to add to the shopping list
+
+        Returns
+        -------
+        list[CookidooIngredientItem]
+            The list of the added ingredient items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "recipeIDs": [
+                {"id": recipe_id, "source": "CUSTOMER"} for recipe_id in recipe_ids
+            ]
+        }
+        try:
+            url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+                **self._cfg.localization.__dict__
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add ingredient items for custom recipes: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add ingredient items for custom recipes failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return [
+                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                        for recipe in (await r.json())["data"]
+                        for ingredient in recipe["recipeIngredientGroups"]
+                    ]
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added ingredient items:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added ingredient items failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add ingredient items for custom recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add ingredient items for custom recipes failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add ingredient items for custom recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add ingredient items for custom recipes failed due to request exception."
+            ) from e
+
+    async def remove_ingredient_items_for_custom_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> None:
+        """Remove ingredient items for custom recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The custom recipe ids for the ingredient items to remove to the shopping list
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIDs": recipe_ids}
+        try:
+            url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+                **self._cfg.localization.__dict__
+            )
+            async with self._session.post(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove ingredient items for custom recipes: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove ingredient items for custom recipes failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove ingredient items for custom recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove ingredient items for custom recipes failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove ingredient items for custom recipes:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove ingredient items for custom recipes failed due to request exception."
             ) from e
 
     async def get_additional_items(
@@ -2435,7 +2856,7 @@ class Cookidoo:
         day
             The date to add the recipes to in the calendar
         recipe_ids
-            The recipe ids to add to a custom collection
+            The recipe ids to add to the calendar
 
         Returns
         -------
@@ -2587,7 +3008,7 @@ class Cookidoo:
                     ) from e
         except TimeoutError as e:
             _LOGGER.debug(
-                "Exception: Cannot execute add recipe from calendar:\n%s",
+                "Exception: Cannot execute remove recipe from calendar:\n%s",
                 traceback.format_exc(),
             )
             raise CookidooRequestException(
@@ -2600,4 +3021,189 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Remove recipe from calendar failed due to request exception."
+            ) from e
+
+    async def add_custom_recipes_to_calendar(
+        self,
+        day: date,
+        recipe_ids: list[str],
+    ) -> CookidooCalendarDay:
+        """Add custom recipes to a calendar.
+
+        Parameters
+        ----------
+        day
+            The date to add the custom recipes to in the calendar
+        recipe_ids
+            The recipe ids to add to the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "recipeIds": recipe_ids,
+            "dayKey": day.isoformat(),
+            "recipeSource": "CUSTOMER",
+        }
+        try:
+            url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+                **self._cfg.localization.__dict__
+            )
+            async with self._session.put(
+                url, headers=self._api_headers, json=json_data
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot add custom recipes to calendar: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Add custom recipes to calendar failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_calendar_day_from_json(
+                        cast(CalendarDayJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get added custom recipes:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading added custom recipes failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add custom recipes to calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add custom recipes to calendar failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute add custom recipes to calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Add custom recipes to calendar failed due to request exception."
+            ) from e
+
+    async def remove_custom_recipe_from_calendar(
+        self,
+        day: date,
+        recipe_id: str,
+    ) -> CookidooCalendarDay:
+        """Remove custom recipe from calendar.
+
+        Parameters
+        ----------
+        day
+            The date to remove the custom recipe from in the calendar
+        recipe_id
+            The custom recipe id to remove from the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        try:
+            url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+                **self._cfg.localization.__dict__,
+                day=day.isoformat(),
+                recipe=recipe_id,
+            )
+            async with self._session.delete(
+                url, headers=self._api_headers, params={"recipeSource": "CUSTOMER"}
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot remove custom recipe from calendar: %s",
+                            errmsg["error_description"],
+                        )
+                    raise CookidooAuthException(
+                        "Remove custom recipe from calendar failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+                try:
+                    return cookidoo_calendar_day_from_json(
+                        cast(CalendarDayJSON, (await r.json())["content"])
+                    )
+
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot get custom removed recipe:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading custom removed recipe failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove custom recipe from calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove custom recipe from calendar failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute remove custom recipe from calendar:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Remove custom recipe from calendar failed due to request exception."
             ) from e

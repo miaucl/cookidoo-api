@@ -12,3 +12,4 @@ pytest-cov>=5.0.0
 pytest>=8.1.1
 python-dotenv>=1.0.1
 beautifulsoup4~=4.13.4
+isodate~=0.7.2

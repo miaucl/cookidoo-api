@@ -1,0 +1,42 @@
+POST https://ch.tmmobile.vorwerk-digital.com/created-recipes/en HTTP/2.0
+content-length: 97
+sec-ch-ua-platform: "Android"
+x-requested-with: xmlhttprequest
+user-agent: nwot-mobile-android/1.7.7 (Android/12)
+accept: application/json
+sec-ch-ua: "Android WebView";v="137", "Chromium";v="137", "Not/A)Brand";v="24"
+content-type: application/json
+sec-ch-ua-mobile: ?1
+origin: https://ch.tmmobile.vorwerk-digital.com
+sec-fetch-site: same-origin
+sec-fetch-mode: cors
+sec-fetch-dest: empty
+referer: https://ch.tmmobile.vorwerk-digital.com/created-recipes/en/import/preview?cookidooRecipeId=r166987
+accept-encoding: gzip, deflate, br, zstd
+accept-language: en,en-US;q=0.9
+cookie: v-token=eyJhbGciOiJSUzI1NiIsImtpZCI6IjFhOTc2OWQxLTUxMGUtNDM0NS04YzQxLTc4MTRhYTA3NzMxMiJ9.eyJhdWQiOiJrdXBmZXJ3ZXJrLWNsaWVudC1ud290IiwiYXV0aF90aW1lIjoxNzU0OTI0NTEzLCJlbWFpbCI6ImN5cmlsbC5yYWNjYXVkK2Nvb2tpZG9vX2FwaV9pdEBnbWFpbC5jb20iLCJleHAiOjE3NTQ5Njc4NTEsImlhdCI6MTc1NDkyNDY1MSwiaXNzIjoiaHR0cHM6Ly9jaWFtLnByb2QuY29va2lkb28udm9yd2Vyay1kaWdpdGFsLmNvbSIsImlzdWIiOiI5ZmIyNmNmMi0xYTFmLTQ1NmMtODdkZS0yMzFhN2NjOTgzOTAiLCJqdGkiOiI5MGY0ZTFiNi1mMDQxLTRmMGEtYjBjMi0xYWJiOTdhM2Q5NTQiLCJyb2xlcyI6WyJVU0VSIiwiUk9MRV9WT1JXRVJLQ1VTVE9NRVIiXSwic2NvcGVzIjpbImVtYWlsIiwiZ3JvdXBzIiwib2ZmbGluZSIsIm9mZmxpbmVfYWNjZXNzIiwib3BlbmlkIiwicHJvZmlsZSIsInJvbGVzIl0sInNpZCI6IjU5N2JiY2I0LWNlOTQtNGUzMC1hZTU4LThhMmQ0ZWE1MmFhOSIsInN1YiI6IjJkMzM2YjU2LTZjMjMtNDliYi05NTQzLTViZGYwMzQ0ZWVkZiIsInVhX2hhc2giOiIxMWQwZTM0ZjZhZDgyNTgzNGE0YTFhMDVjMTQ4NzA1MCJ9.erb5jrxUX1SIKPxtDPwUTWUbzToJIz7Rsfy9s4ogo9_kBlrhJ276bUhuga5lipNgXTOvLxKww6_Eqkip84Rq6b5MLEbUaoUzZZYTjPHsVldXogIMnHSIbBq61XdiGBi9n3pXCP6sDU9a18m1eT5yVnBEl1CwM_21qMC3mH_DFhEoTxZ_6RyfyJMovyJ0wPF_plARoExLbC_fMm8hZW-U03BURY23b-7GqGBBzSsHXH-yHPfwC-xo4_vgs921e9goBnsbVv9gq-eoCKCWs8NOwM3jkbYu62KcZyNsWC0jhfstSrp13e0lumjcFkjsRl4W2l8GPaU4iONkhASyw781pQ
+cookie: v-authenticated=16be3640-ac66-4cc5-b2e7-a75d6f40fb6a
+cookie: cookidooMobileAnalyticsEnabled=false
+priority: u=1, i
+
+{"recipeUrl":"https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/en/r166987","servingSize":6}
+
+HTTP/2.0 200 
+content-type: application/json; charset=utf-8
+date: Mon, 11 Aug 2025 15:04:16 GMT
+strict-transport-security: max-age=31536000
+vary: Accept-Encoding
+x-ratelimit-limit: 10
+x-ratelimit-remaining: 9
+x-ratelimit-reset: 60
+x-frame-options: SAMEORIGIN
+x-xss-protection: 1; mode=block
+x-content-type-options: nosniff
+referrer-policy: no-referrer-when-downgrade
+x-cache: Miss from cloudfront
+via: 1.1 73fab694c671d121d79ee37697f418ec.cloudfront.net (CloudFront)
+x-amz-cf-pop: ZRH55-P2
+x-amz-cf-id: GYyhN5v0IvdP1RShmQVjGzG4KwalZlIxQtt2CvlgBK_cVXvZHLnV7w==
+content-length: 1566
+
+{"recipeId":"01K2CTJ9Y1BABRG5MXK44CFZS4","authorId":"2d336b56-6c23-49bb-9543-5bdf0344eedf","modifiedAt":"2025-08-11T15:04:16.577Z","createdAt":"2025-08-11T15:04:16.577Z","status":"ACTIVE","workStatus":"PRIVATE","recipeContent":{"name":"Vongole alla marinara","image":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6","isBasedOn":"https://cookidoo.ch/recipes/recipe/en/r166987","totalTime":"PT30M","prepTime":"PT10M","tool":["TM7","TM6","TM5"],"recipeYield":{"value":6,"unitText":"portion"},"recipeIngredient":["130 g di cipolla","1 ¼ - 2 ¼ spicchi di aglio","65 g di olio extravergine di oliva","1500 g di vongole fresche, pulite","1 pizzico di pepe macinato","65 g di vino bianco","190 g di brodo di pesce","2 ½ cucchiaini di prezzemolo fresco, tritato, sole le foglioline","1 ¼ cucchiaino di pangrattato","⅔ cucchiaino di sale"],"recipeInstructions":["Mettere nel boccale le cipolle, gli spicchi di aglio e l’olio extravergine di oliva, tritare: 4 sec./vel. 5. Insaporire: 10 min./120°C/vel. 1. Nel frattempo, mettere le vongole nel Varoma e risciacquarle in acqua calda. Tenere da parte.","Aggiungere nel boccale il pepe, il vino bianco e il brodo. Posizionare il Varoma e cuocere a vapore: 14 min./Varoma/vel. 2.","Togliere il Varoma. Aggiungere i prezzemolo, il pangrattato e il sale, mescolare: 15 sec./vel. 2. Trasferire le vongole in un piatto da portata, versare sopra la salsa e spolverizzare con il prezzemolo. Servire subito."]}}
