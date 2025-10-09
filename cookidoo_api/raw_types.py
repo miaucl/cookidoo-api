@@ -151,6 +151,29 @@ class RecipeDetailsTimeJSON(TypedDict):
     comment: str
 
 
+class RecipeDetailsNutritionJSON(TypedDict):
+    """The json for a recipe nutrition in the API."""
+
+    number: float
+    type: str
+    unittype: str
+
+
+class RecipeDetailsRecipeNutritionJSON(TypedDict):
+    """The json for a recipe nutrition item in the API."""
+
+    nutritions: list[RecipeDetailsNutritionJSON]
+    quantity: int
+    unitNotation: str
+
+
+class RecipeDetailsNutritionGroupJSON(TypedDict):
+    """The json for a recipe nutrition group in the API."""
+
+    name: str
+    recipeNutritions: list[RecipeDetailsRecipeNutritionJSON]
+
+
 class RecipeDetailsJSON(TypedDict):
     """The json for a recipe details in the API."""
 
@@ -165,6 +188,7 @@ class RecipeDetailsJSON(TypedDict):
     recipeUtensils: list[RecipeDetailsUtensilsJSON]
     servingSize: RecipeDetailsServingSizeJSON
     times: list[RecipeDetailsTimeJSON]
+    nutritionGroups: list[RecipeDetailsNutritionGroupJSON]
 
 
 class CustomRecipeYieldJSON(TypedDict):

@@ -36,7 +36,10 @@ from cookidoo_api.types import (
     CookidooIngredient,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
+    CookidooNutrition,
+    CookidooNutritionGroup,
     CookidooRecipeCollection,
+    CookidooRecipeNutrition,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
@@ -184,6 +187,27 @@ def cookidoo_recipe_details_from_json(
             for time_ in recipe["times"]
             if time_["type"] == "totalTime" and time_["quantity"]["value"]
         ),
+        nutrition_groups=[
+            CookidooNutritionGroup(
+                name=ng["name"],
+                recipe_nutritions=[
+                    CookidooRecipeNutrition(
+                        nutritions=[
+                            CookidooNutrition(
+                                number=n["number"],
+                                type=n["type"],
+                                unittype=n["unittype"],
+                            )
+                            for n in rn["nutritions"]
+                        ],
+                        quantity=rn["quantity"],
+                        unit_notation=rn["unitNotation"],
+                    )
+                    for rn in ng["recipeNutritions"]
+                ],
+            )
+            for ng in recipe.get("nutritionGroups", [])
+        ],
     )
 
 
