@@ -48,7 +48,7 @@ Issues = "https://github.com/miaucl/cookidoo-api/issues"
 
 [tool.ruff]
 
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
