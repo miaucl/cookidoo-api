@@ -188,6 +188,63 @@ class CookidooRecipeCollection:
 
 
 @dataclass
+class CookidooNutrition:
+    """Nutrition value type.
+
+    Attributes
+    ----------
+    number
+        The value of the nutrition
+    type
+        The type of nutrition (e.g., protein, fat, kcal, etc.)
+    unittype
+        The unit of the nutrition value (e.g., g, kcal, kJ)
+
+    """
+
+    number: float
+    type: str
+    unittype: str
+
+
+@dataclass
+class CookidooRecipeNutrition:
+    """Recipe nutrition type.
+
+    Attributes
+    ----------
+    nutritions
+        List of nutrition values
+    quantity
+        The quantity for which the nutrition applies
+    unit_notation
+        The unit notation (e.g., 'ración')
+
+    """
+
+    nutritions: list[CookidooNutrition]
+    quantity: int
+    unit_notation: str
+
+
+@dataclass
+class CookidooNutritionGroup:
+    """Nutrition group type.
+
+    Attributes
+    ----------
+    name
+        The name of the nutrition group
+    recipe_nutritions
+        List of recipe nutrition objects
+
+    """
+
+    name: str
+    recipe_nutritions: list[CookidooRecipeNutrition]
+
+
+@dataclass
 class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     """Cookidoo recipe details type.
 
@@ -209,6 +266,8 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
         The time needed preparing the recipe [in seconds]
     total_time
         The time needed until the recipe is ready [in seconds]
+    nutrition_groups
+        The nutrition groups of the recipe (from API, may be empty)
 
     """
 
@@ -220,6 +279,7 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     serving_size: int
     active_time: int
     total_time: int
+    nutrition_groups: list[CookidooNutritionGroup]
 
 
 @dataclass
