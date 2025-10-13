@@ -45,7 +45,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
       - name: Set up Python ${{ env.python-version }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ env.python-version }}
       - name: Check secret access
