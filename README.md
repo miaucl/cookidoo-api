@@ -118,7 +118,7 @@ The smoke tests implements a series of request querying the server. It tries to 
 
 A _final version_ can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
 
-release a prerelease version, it must be done from a feature branch (**not** `master`). Prerelease versions are explicitly marked as such on the GitHub release page.
+To release a prerelease version, it must be done from a feature branch (**not** `master`). Prerelease versions are explicitly marked as such on the GitHub release page.
 
 ## Roadmap
 
