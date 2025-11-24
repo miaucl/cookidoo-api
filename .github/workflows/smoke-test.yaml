@@ -46,7 +46,7 @@ jobs:
           echo "Job originally triggered by ${{ github.actor }}"
           exit 1
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Set up Python ${{ env.python-version }}
         uses: actions/setup-python@v6
         with:
