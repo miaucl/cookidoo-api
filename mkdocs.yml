@@ -49,7 +49,7 @@ plugins:
     - mkdocstrings:
         handlers:
             python:
-                import:
+                inventories:
                     - https://docs.python.org/3.11/objects.inv
                 options:
                     docstring_style: numpy
