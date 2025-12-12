@@ -150,7 +150,7 @@ jobs:
         inputs: >-
           ./dist/*.tar.gz
           ./dist/*.whl
-    - name: Release
+    - name: Prerelease
       uses: softprops/action-gh-release@v2
       if: ${{ steps.check_prerelease.outputs.prerelease == 'true' }}
       with:
@@ -158,7 +158,7 @@ jobs:
         name: ${{ steps.version.outputs.version }}
         generate_release_notes: true
         draft: true
-        prerelease: ${{ steps.check_prerelease.outputs.prerelease }}  # Mark as prerelease if necessary
+        prerelease: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   
     - name: Upload artifact signatures to GitHub Release
