@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from typing import cast
+from urllib.parse import urlparse
 
 import aiofiles
 import isodate
@@ -116,10 +117,50 @@ def cookidoo_collection_from_json(
     )
 
 
+def _process_image_url(url: str | None) -> tuple[str | None, str | None]:
+    """Process image URL by replacing transformation placeholders.
+
+    Returns
+    -------
+    tuple[str | None, str | None]
+        A tuple of (thumbnail_url, image_url) where:
+        - thumbnail_url uses t_web_shared_recipe_221x240 transformation
+        - image_url uses t_web_rdp_recipe_584x480_1_5x transformation
+
+    """
+    if not url:
+        return None, None
+
+    thumbnail = url.replace("{transformation}", "t_web_shared_recipe_221x240")
+    image = url.replace("{transformation}", "t_web_rdp_recipe_584x480_1_5x")
+    return thumbnail, image
+
+
 def cookidoo_recipe_from_json(
     recipe: RecipeJSON,
+    localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooShoppingRecipe:
     """Convert a shopping recipe received from the API to a cookidoo shopping recipe."""
+    thumbnail: str | None = None
+    image: str | None = None
+
+    descriptive_assets = recipe["descriptiveAssets"]
+    if descriptive_assets:
+        # Get the first available image URL from any variant
+        for asset in descriptive_assets:
+            for variant, url in asset.items():
+                if url and variant in ("square", "portrait", "landscape"):
+                    thumbnail, image = _process_image_url(str(url))
+                    break
+            if thumbnail:
+                break
+
+    url = ""
+    if localization:
+        parsed_url = urlparse(localization.url)
+        domain = parsed_url.netloc
+        url = f"https://{domain}/recipes/recipe/{localization.language}/{recipe['id']}"
+
     return CookidooShoppingRecipe(
         id=recipe["id"],
         name=recipe["title"],
@@ -127,6 +168,9 @@ def cookidoo_recipe_from_json(
             cookidoo_ingredient_from_json(ingredient)
             for ingredient in recipe["recipeIngredientGroups"]
         ],
+        thumbnail=thumbnail,
+        image=image,
+        url=url,
     )
 
 
@@ -146,8 +190,29 @@ def cookidoo_quantity_from_json(
 
 def cookidoo_recipe_details_from_json(
     recipe: RecipeDetailsJSON,
+    localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooShoppingRecipeDetails:
     """Convert an recipe details received from the API to a cookidoo recipe details."""
+    thumbnail: str | None = None
+    image: str | None = None
+
+    descriptive_assets = recipe["descriptiveAssets"]
+    if descriptive_assets:
+        # Get the first available image URL from any variant
+        for asset in descriptive_assets:
+            for variant, url in asset.items():
+                if url and variant in ("square", "portrait", "landscape"):
+                    thumbnail, image = _process_image_url(str(url))
+                    break
+            if thumbnail:
+                break
+
+    url = ""
+    if localization:
+        parsed_url = urlparse(localization.url)
+        domain = parsed_url.netloc
+        url = f"https://{domain}/recipes/recipe/{localization.language}/{recipe['id']}"
+
     return CookidooShoppingRecipeDetails(
         id=recipe["id"],
         name=recipe["title"],
@@ -208,11 +273,15 @@ def cookidoo_recipe_details_from_json(
             )
             for ng in recipe.get("nutritionGroups", [])
         ],
+        thumbnail=thumbnail,
+        image=image,
+        url=url,
     )
 
 
 def cookidoo_custom_recipe_from_json(
     recipe: CustomRecipeJSON,
+    localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCustomRecipe:
     """Convert a custom recipe received from the API to a cookidoo custom recipe."""
     total_time = isodate.parse_duration(
@@ -221,6 +290,20 @@ def cookidoo_custom_recipe_from_json(
     active_time = isodate.parse_duration(
         recipe["recipeContent"]["prepTime"]
     ).total_seconds()
+
+    thumbnail: str | None = None
+    image: str | None = None
+
+    recipe_content = recipe["recipeContent"]
+    if recipe_content.get("image"):
+        thumbnail, image = _process_image_url(recipe_content["image"])
+
+    url = ""
+    if localization:
+        parsed_url = urlparse(localization.url)
+        domain = parsed_url.netloc
+        url = f"https://{domain}/created-recipes/{localization.language}/{recipe['recipeId']}"
+
     return CookidooCustomRecipe(
         id=recipe["recipeId"],
         name=recipe["recipeContent"]["name"],
@@ -230,6 +313,9 @@ def cookidoo_custom_recipe_from_json(
         total_time=int(total_time) if isinstance(total_time, float) else 0,
         active_time=int(active_time) if isinstance(active_time, float) else 0,
         tools=recipe["recipeContent"]["tool"],
+        thumbnail=thumbnail,
+        image=image,
+        url=url,
     )
 
 
@@ -283,17 +369,45 @@ def cookidoo_additional_item_from_json(
 
 def cookidoo_calendar_day_from_json(
     calendar_day: CalendarDayJSON,
+    localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCalendarDay:
     """Convert a calendar day received from the API to a cookidoo item."""
+    recipes = []
+    for recipe in calendar_day["recipes"]:
+        thumbnail: str | None = None
+        image: str | None = None
+
+        assets = recipe["assets"]
+        if assets and assets["images"]:
+            assets_images = assets["images"]
+            if assets_images:
+                # Get the first available image URL from any variant
+                for variant, url in assets_images.items():
+                    if url and variant in ("square", "portrait", "landscape"):
+                        thumbnail, image = _process_image_url(str(url))
+                        break
+
+        url = ""
+        if localization:
+            parsed_url = urlparse(localization.url)
+            domain = parsed_url.netloc
+            url = f"https://{domain}/recipes/recipe/{localization.language}/{recipe['id']}"
+
+        recipes.append(
+            CookidooCalendarDayRecipe(
+                id=recipe["id"],
+                name=recipe["title"],
+                total_time=recipe["totalTime"],
+                thumbnail=thumbnail,
+                image=image,
+                url=url,
+            )
+        )
+
     return CookidooCalendarDay(
         id=calendar_day["id"],
         title=calendar_day["title"],
-        recipes=[
-            CookidooCalendarDayRecipe(
-                id=recipe["id"], name=recipe["title"], total_time=recipe["totalTime"]
-            )
-            for recipe in calendar_day["recipes"]
-        ],
+        recipes=recipes,
     )
 
 
