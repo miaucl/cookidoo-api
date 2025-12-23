@@ -74,12 +74,21 @@ class IngredientJSON(TypedDict):
     unitNotation: str | None
 
 
+class DescriptiveAssetJSON(TypedDict):
+    """The json for a descriptive asset in the API."""
+
+    square: str | None
+    portrait: str | None
+    landscape: str | None
+
+
 class RecipeJSON(TypedDict):
     """The json for a recipe in the API."""
 
     id: str
     title: str
     recipeIngredientGroups: list[ItemJSON]
+    descriptiveAssets: list[DescriptiveAssetJSON] | None
 
 
 class RecipeDetailsAdditionalInformationJSON(TypedDict):
@@ -189,6 +198,7 @@ class RecipeDetailsJSON(TypedDict):
     servingSize: RecipeDetailsServingSizeJSON
     times: list[RecipeDetailsTimeJSON]
     nutritionGroups: list[RecipeDetailsNutritionGroupJSON]
+    descriptiveAssets: list[DescriptiveAssetJSON] | None
 
 
 class CustomRecipeYieldJSON(TypedDict):
@@ -208,6 +218,7 @@ class CustomRecipeContentJSON(TypedDict):
     recipeYield: CustomRecipeYieldJSON
     recipeIngredient: list[str]
     recipeInstructions: list[str]
+    image: str | None
 
 
 class CustomRecipeJSON(TypedDict):
@@ -255,12 +266,19 @@ class ManagedCollectionJSON(TypedDict):
     author: Literal["Vorwerk"]
 
 
+class CalenderDayRecipeAssetsJSON(TypedDict):
+    """The json for calendar day recipe assets in the API."""
+
+    images: DescriptiveAssetJSON | None
+
+
 class CalenderDayRecipeJSON(TypedDict):
     """The json for a calender day recipe in the API."""
 
     id: str
     title: str
     totalTime: int
+    assets: CalenderDayRecipeAssetsJSON | None
 
 
 class CalendarDayJSON(TypedDict):
