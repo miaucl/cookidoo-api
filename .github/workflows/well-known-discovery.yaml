@@ -63,12 +63,7 @@ jobs:
             echo
             echo '```json'
             cat diff-summary.json
-            echo '```'
             echo
-            echo "## 🗺 API overview"
-            echo
-            echo '```mermaid'
-            cat api-graph.mmd
             echo '```'
             echo
             echo '_This PR contains automated changes made by the 🤖 well-known-discovery workflow._'

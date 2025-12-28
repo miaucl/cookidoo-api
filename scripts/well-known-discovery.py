@@ -109,21 +109,6 @@ def diff_links(old: dict, new: dict) -> dict:
     }
 
 
-def mermaid_graph(snapshot: dict) -> str:
-    """Generate mermaid graph from snapshot."""
-    root_url = next(iter(snapshot.keys()))
-    root_links = snapshot[root_url]["links"]
-
-    lines = ["graph TD"]
-    lines.append("  root[.well-known/home]")
-
-    for rel in sorted(root_links.keys()):
-        node = rel.replace(":", "_")
-        lines.append(f"  root --> {node}[{rel}]")
-
-    return "\n".join(lines)
-
-
 def main():
     """Crawl and snapshot well-known discovery."""
     snapshot = crawl(ROOT_URL)
@@ -143,8 +128,6 @@ def main():
         Path("diff-summary.json").write_text(
             json.dumps(diff, indent=2), encoding="utf-8"
         )
-
-        Path("api-graph.mmd").write_text(mermaid_graph(snapshot), encoding="utf-8")
 
     sys.exit(1 if changed else 0)
 
