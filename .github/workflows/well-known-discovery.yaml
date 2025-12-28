@@ -50,7 +50,11 @@ jobs:
           else
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
-
+      - name: Configure Git
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
       - name: Prepare PR body
         if: steps.diff.outputs.changed == 'true'
         run: |
