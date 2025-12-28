@@ -74,7 +74,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           git checkout -b well-known-discovery-update-$(date +%Y%m%d%H%M%S)
-          git add snapshots/latest.json
+          git add well-known-snapshots/latest.json
           git commit -m "🤖 update Cookidoo API discovery snapshot"
           git push origin HEAD
         env:
