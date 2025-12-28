@@ -319,7 +319,6 @@
       "fint:for-you-web": "/foundation/{lang}/for-you",
       "fint:foundation-web": "/foundation/{lang}",
       "fint:get-subscription": "/foundation/{lang}/get-subscription",
-      "fint:help": "/foundation/{lang}/help",
       "fint:imprint": "/foundation/{lang}/imprint",
       "fint:membership": "/foundation/{lang}/membership",
       "fint:mobile-for-you-page-api": "/foundation/{lang}/api/content/mobileForYouPage{?country,clusterdata*}",
