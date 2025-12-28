@@ -315,6 +315,7 @@
       "fint:explore-mobile": "/foundation/{lang}/mobile{?initialActiveTab}",
       "fint:explore-nwot": "/foundation/{lang}/device",
       "fint:explore-web": "/foundation/{lang}/explore",
+      "fint:footer": "/foundation/{lang}/partials/footer{?page}",
       "fint:for-you-web": "/foundation/{lang}/for-you",
       "fint:foundation-web": "/foundation/{lang}",
       "fint:get-subscription": "/foundation/{lang}/get-subscription",
