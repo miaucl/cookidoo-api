@@ -50,11 +50,42 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Prepare PR content
+        if: steps.diff.outputs.changed == 'true'
+        id: summary
+        run: |
+          echo "summary<<EOF" >> $GITHUB_OUTPUT
+          cat diff-summary.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          echo "mermaid<<EOF" >> $GITHUB_OUTPUT
+          cat api-graph.mmd >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Prepare PR body
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          {
+            echo "## 🔍 Change summary"
+            echo
+            echo '```json'
+            cat diff-summary.json
+            echo '```'
+            echo
+            echo "## 🗺 API overview"
+            echo
+            echo '```mermaid'
+            cat api-graph.mmd
+            echo '```'
+            echo
+            echo '_This PR contains automated changes made by the 🤖 well-known-discovery workflow._'
+          } > pr-body.md
+
       - name: Commit and push changes
         if: steps.diff.outputs.changed == 'true'
         run: |
           git checkout -b well-known-discovery-update-$(date +%Y%m%d%H%M%S)
-          git add .
+          git add snapshots/latest.json
           git commit -m "🤖 update Cookidoo API discovery snapshot"
           git push origin HEAD
         env:
@@ -64,8 +95,9 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-          gh pr create --base main --head $BRANCH_NAME --title '🤖 update Cookidoo API discovery snapshot' --body 'This PR contains automated changes made by the 🤖 well-known-discovery workflow.'
+          gh pr create --base main --head $BRANCH_NAME --title '🤖 update Cookidoo API discovery snapshot' --body-file pr-body.md
           PR_NUMBER=$(gh pr view --json number -q ".number")
+          gh pr edit $PR_NUMBER --add-label "breaking-change"
           gh pr merge $PR_NUMBER --auto --squash
         env:
             GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -86,10 +86,66 @@ def write_snapshot(data: dict):
     return True
 
 
+def extract_root_links(snapshot: dict) -> dict:
+    """Extract rel -> href mapping from root .well-known/home."""
+    root = next(iter(snapshot.values()))
+    return root.get("links", {})
+
+
+def diff_links(old: dict, new: dict) -> dict:
+    """Diff two rel -> href mappings."""
+    old_keys = set(old.keys())
+    new_keys = set(new.keys())
+
+    added = sorted(new_keys - old_keys)
+    removed = sorted(old_keys - new_keys)
+
+    changed = sorted(k for k in old_keys & new_keys if old[k] != new[k])
+
+    return {
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+    }
+
+
+def mermaid_graph(snapshot: dict) -> str:
+    """Generate mermaid graph from snapshot."""
+    root_url = next(iter(snapshot.keys()))
+    root_links = snapshot[root_url]["links"]
+
+    lines = ["graph TD"]
+    lines.append("  root[.well-known/home]")
+
+    for rel in sorted(root_links.keys()):
+        node = rel.replace(":", "_")
+        lines.append(f"  root --> {node}[{rel}]")
+
+    return "\n".join(lines)
+
+
 def main():
-    """Crawl the well-known home endpoint and write snapshot."""
+    """Crawl and snapshot well-known discovery."""
     snapshot = crawl(ROOT_URL)
+
+    latest_path = OUT_DIR / "latest.json"
+    old_snapshot = None
+    if latest_path.exists():
+        old_snapshot = json.loads(latest_path.read_text())
+
     changed = write_snapshot(snapshot)
+
+    if old_snapshot:
+        old_links = extract_root_links(old_snapshot)
+        new_links = extract_root_links(snapshot)
+        diff = diff_links(old_links, new_links)
+
+        Path("diff-summary.json").write_text(
+            json.dumps(diff, indent=2), encoding="utf-8"
+        )
+
+        Path("api-graph.mmd").write_text(mermaid_graph(snapshot), encoding="utf-8")
+
     sys.exit(1 if changed else 0)
 
 
