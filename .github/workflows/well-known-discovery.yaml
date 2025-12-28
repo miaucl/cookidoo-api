@@ -4,7 +4,6 @@ on:
   schedule:
     - cron: "0 3 * * *"   # täglich um 03:00 UTC
   workflow_dispatch:
-  pull_request:
 
 permissions:
   contents: write
