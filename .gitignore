@@ -14,3 +14,6 @@ site
 out
 scratch*
 .token
+api-graph.mmd
+diff-summary.json
+pr-body.md
