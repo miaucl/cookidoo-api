@@ -51,18 +51,6 @@ jobs:
             echo "changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Prepare PR content
-        if: steps.diff.outputs.changed == 'true'
-        id: summary
-        run: |
-          echo "summary<<EOF" >> $GITHUB_OUTPUT
-          cat diff-summary.json >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-          echo "mermaid<<EOF" >> $GITHUB_OUTPUT
-          cat api-graph.mmd >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Prepare PR body
         if: steps.diff.outputs.changed == 'true'
         run: |
@@ -92,7 +80,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: create pull request
+      - name: Create pull request
         if: steps.diff.outputs.changed == 'true'
         run: |
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
