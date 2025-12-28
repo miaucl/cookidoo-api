@@ -88,7 +88,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-          gh pr create --base main --head $BRANCH_NAME --title '🤖 update Cookidoo API discovery snapshot' --body-file pr-body.md
+          gh pr create --base master --head $BRANCH_NAME --title '🤖 update Cookidoo API discovery snapshot' --body-file pr-body.md
           PR_NUMBER=$(gh pr view --json number -q ".number")
           gh pr edit $PR_NUMBER --add-label "breaking-change"
           gh pr merge $PR_NUMBER --auto --squash
