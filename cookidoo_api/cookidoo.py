@@ -110,7 +110,7 @@ class Cookidoo:
         session: ClientSession,
         cfg: CookidooConfig = CookidooConfig(),
     ) -> None:
-        """Init function for Bring API.
+        """Init function for Cookidoo API.
 
         Parameters
         ----------
@@ -3207,3 +3207,4 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Remove custom recipe from calendar failed due to request exception."
             ) from e
+
