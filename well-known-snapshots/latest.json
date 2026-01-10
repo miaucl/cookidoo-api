@@ -11,7 +11,6 @@
       "tmde2:commerce": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/commerce/.well-known/home",
       "tmde2:community-profile": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/community/profile/.well-known/home",
       "tmde2:consent": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/consent/.well-known/home",
-      "tmde2:cookidoo-served": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/served/.well-known/home",
       "tmde2:copilot": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/copilot/.well-known/home",
       "tmde2:customer-devices": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/customer-devices/.well-known/home",
       "tmde2:customer-recipes": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/created-recipes/.well-known/home",
@@ -647,9 +646,6 @@
       "self": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/search/.well-known/home",
       "specs": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/search/.well-known/specs"
     }
-  },
-  "https://de.web.production-eu.cookidoo.vorwerk-digital.com/served/.well-known/home": {
-    "error": "404 Client Error: Not Found for url: https://de.web.production-eu.cookidoo.vorwerk-digital.com/served/.well-known/home"
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/shopping/.well-known/home": {
     "links": {
