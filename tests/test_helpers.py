@@ -17,6 +17,7 @@ from cookidoo_api.helpers import (
 from cookidoo_api.raw_types import (
     CalendarDayJSON,
     CustomRecipeJSON,
+    DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
 )
@@ -80,13 +81,47 @@ class TestRecipeImagesAndUrls:
         assert "t_web_rdp_recipe_584x480_1_5x" in result.image
         assert result.url == "https://cookidoo.ch/recipes/recipe/de-CH/r907016"
 
-    def test_cookidoo_recipe_from_json_without_images(self) -> None:
-        """Test cookidoo_recipe_from_json handles missing images."""
+    def test_cookidoo_recipe_from_json_without_images_object(self) -> None:
+        """Test cookidoo_recipe_from_json handles missing images object."""
         recipe_json = cast(
             RecipeJSON,
             COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES["recipes"][0].copy(),
         )
         recipe_json["descriptiveAssets"] = None
+        localization = CookidooLocalizationConfig(
+            country_code="ch", language="de-CH", url="https://cookidoo.ch"
+        )
+
+        result = cookidoo_recipe_from_json(recipe_json, localization)
+
+        assert result.thumbnail is None
+        assert result.image is None
+        assert result.url == "https://cookidoo.ch/recipes/recipe/de-CH/r907016"
+
+    def test_cookidoo_recipe_from_json_with_empty_images(self) -> None:
+        """Test cookidoo_recipe_from_json handles empty images list."""
+        recipe_json = cast(
+            RecipeJSON,
+            COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES["recipes"][0].copy(),
+        )
+        recipe_json["descriptiveAssets"] = []
+        localization = CookidooLocalizationConfig(
+            country_code="ch", language="de-CH", url="https://cookidoo.ch"
+        )
+
+        result = cookidoo_recipe_from_json(recipe_json, localization)
+
+        assert result.thumbnail is None
+        assert result.image is None
+        assert result.url == "https://cookidoo.ch/recipes/recipe/de-CH/r907016"
+
+    def test_cookidoo_recipe_from_json_with_no_image_variantes(self) -> None:
+        """Test cookidoo_recipe_from_json handles no image variants."""
+        recipe_json = cast(
+            RecipeJSON,
+            COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES["recipes"][0].copy(),
+        )
+        recipe_json["descriptiveAssets"] = [cast(DescriptiveAssetJSON, {})]
         localization = CookidooLocalizationConfig(
             country_code="ch", language="de-CH", url="https://cookidoo.ch"
         )

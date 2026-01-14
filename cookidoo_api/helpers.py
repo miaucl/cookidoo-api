@@ -118,27 +118,24 @@ def cookidoo_collection_from_json(
     )
 
 
-def _process_image_url(url: str | None) -> tuple[str | None, str | None]:
+def _process_image_url(url: str) -> tuple[str, str]:
     """Process image URL by replacing transformation placeholders.
 
     Returns
     -------
-    tuple[str | None, str | None]
+    tuple[str, str]
         A tuple of (thumbnail_url, image_url) where:
         - thumbnail_url uses t_web_shared_recipe_221x240 transformation
         - image_url uses t_web_rdp_recipe_584x480_1_5x transformation
 
     """
-    if not url:
-        return None, None
-
     thumbnail = url.replace("{transformation}", "t_web_shared_recipe_221x240")
     image = url.replace("{transformation}", "t_web_rdp_recipe_584x480_1_5x")
     return thumbnail, image
 
 
 def _extract_images_from_descriptive_assets(
-    descriptive_assets: list[DescriptiveAssetJSON] | None,
+    descriptive_assets: list[DescriptiveAssetJSON],
 ) -> tuple[str | None, str | None]:
     """Extract thumbnail and image URLs from descriptive assets.
 
@@ -152,15 +149,16 @@ def _extract_images_from_descriptive_assets(
     thumbnail: str | None = None
     image: str | None = None
 
-    if descriptive_assets:
-        # Get the first available image URL from any variant
-        for asset in descriptive_assets:
-            for variant, url in asset.items():
-                if url and variant in ("square", "portrait", "landscape"):
-                    thumbnail, image = _process_image_url(str(url))
-                    break
-            if thumbnail:
+    # Get the first available image URL from any variant
+    for asset in descriptive_assets:
+        _LOGGER.debug(asset)
+        for variant, url in asset.items():
+            _LOGGER.debug(variant)
+            if url and variant in ("square", "portrait", "landscape"):
+                thumbnail, image = _process_image_url(str(url))
                 break
+        if thumbnail:
+            break
 
     return thumbnail, image
 
@@ -200,9 +198,10 @@ def cookidoo_recipe_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooShoppingRecipe:
     """Convert a shopping recipe received from the API to a cookidoo shopping recipe."""
-    thumbnail, image = _extract_images_from_descriptive_assets(
-        recipe["descriptiveAssets"]
-    )
+    thumbnail, image = None, None
+    descriptive_assets = recipe.get("descriptiveAssets")
+    if descriptive_assets is not None:
+        thumbnail, image = _extract_images_from_descriptive_assets(descriptive_assets)
     url = _construct_recipe_url(localization, recipe["id"])
 
     return CookidooShoppingRecipe(
@@ -237,9 +236,10 @@ def cookidoo_recipe_details_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooShoppingRecipeDetails:
     """Convert an recipe details received from the API to a cookidoo recipe details."""
-    thumbnail, image = _extract_images_from_descriptive_assets(
-        recipe["descriptiveAssets"]
-    )
+    thumbnail, image = None, None
+    descriptive_assets = recipe.get("descriptiveAssets")
+    if descriptive_assets is not None:
+        thumbnail, image = _extract_images_from_descriptive_assets(descriptive_assets)
     url = _construct_recipe_url(localization, recipe["id"])
 
     return CookidooShoppingRecipeDetails(
@@ -324,8 +324,9 @@ def cookidoo_custom_recipe_from_json(
     image: str | None = None
 
     recipe_content = recipe["recipeContent"]
-    if recipe_content.get("image"):
-        thumbnail, image = _process_image_url(recipe_content["image"])
+    image = recipe_content.get("image", None)
+    if image:
+        thumbnail, image = _process_image_url(image)
 
     url = _construct_recipe_url(localization, recipe["recipeId"], "created-recipes")
 
@@ -400,8 +401,12 @@ def cookidoo_calendar_day_from_json(
     recipes = []
     for recipe in calendar_day["recipes"]:
         assets = recipe["assets"]
+        thumbnail, image = None, None
         descriptive_assets = [assets["images"]] if assets and assets["images"] else None
-        thumbnail, image = _extract_images_from_descriptive_assets(descriptive_assets)
+        if descriptive_assets is not None:
+            thumbnail, image = _extract_images_from_descriptive_assets(
+                descriptive_assets
+            )
 
         url = _construct_recipe_url(localization, recipe["id"])
 
