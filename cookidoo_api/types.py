@@ -139,12 +139,21 @@ class CookidooShoppingRecipe:
         The label of the recipe
     ingredients
         The ingredients of the recipe
+    thumbnail
+        The thumbnail image URL (small preview)
+    image
+        The full-size image URL
+    url
+        The URL of the recipe
 
     """
 
     id: str
     name: str
     ingredients: list[CookidooIngredient]
+    thumbnail: str | None
+    image: str | None
+    url: str
 
 
 @dataclass
@@ -341,6 +350,12 @@ class CookidooCustomRecipe:
         The time needed preparing the recipe [in seconds]
     total_time
         The time needed until the recipe is ready [in seconds]
+    thumbnail
+        The thumbnail image URL (small preview)
+    image
+        The full-size image URL
+    url
+        The URL of the recipe
 
     """
 
@@ -352,6 +367,9 @@ class CookidooCustomRecipe:
     serving_size: int
     active_time: int
     total_time: int
+    thumbnail: str | None
+    image: str | None
+    url: str
 
 
 @dataclass
@@ -389,12 +407,21 @@ class CookidooCalendarDayRecipe:
         The label of the recipe
     total_time
         The time for the recipe
+    thumbnail
+        The thumbnail image URL (small preview)
+    image
+        The full-size image URL
+    url
+        The URL of the recipe
 
     """
 
     id: str
     name: str
     total_time: int
+    thumbnail: str | None
+    image: str | None
+    url: str
 
 
 @dataclass

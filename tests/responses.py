@@ -356,6 +356,8 @@ COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES = {
             "isCustomerRecipe": False,
             "descriptiveAssets": [
                 {
+                    "something_else": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
+                    "broken": None,
                     "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
                     "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",
                     "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/1659a7ed225400e0378dfc0071fa4045/Derivates/a9a2a24272093f7aa636d4afa84d99cff10ac006",

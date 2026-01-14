@@ -538,7 +538,8 @@ class Cookidoo:
 
                 try:
                     return cookidoo_recipe_details_from_json(
-                        cast(RecipeDetailsJSON, await r.json())
+                        cast(RecipeDetailsJSON, await r.json()),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -621,7 +622,8 @@ class Cookidoo:
 
                 try:
                     return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json())
+                        cast(CustomRecipeJSON, await r.json()),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -719,7 +721,8 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json())
+                        cast(CustomRecipeJSON, await r.json()),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -871,7 +874,9 @@ class Cookidoo:
                 try:
                     _d = await r.json()
                     return [
-                        cookidoo_recipe_from_json(cast(RecipeJSON, recipe))
+                        cookidoo_recipe_from_json(
+                            cast(RecipeJSON, recipe), self._cfg.localization
+                        )
                         for recipe in [*_d["recipes"], *_d["customerRecipes"]]
                     ]
 
@@ -2815,7 +2820,9 @@ class Cookidoo:
 
                 try:
                     return [
-                        cookidoo_calendar_day_from_json(cast(CalendarDayJSON, day))
+                        cookidoo_calendar_day_from_json(
+                            cast(CalendarDayJSON, day), self._cfg.localization
+                        )
                         for day in (await r.json())["myDays"]
                     ]
 
@@ -2906,7 +2913,8 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"])
+                        cast(CalendarDayJSON, (await r.json())["content"]),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -2995,7 +3003,8 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"])
+                        cast(CalendarDayJSON, (await r.json())["content"]),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -3089,7 +3098,8 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"])
+                        cast(CalendarDayJSON, (await r.json())["content"]),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
@@ -3180,7 +3190,8 @@ class Cookidoo:
                 r.raise_for_status()
                 try:
                     return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"])
+                        cast(CalendarDayJSON, (await r.json())["content"]),
+                        self._cfg.localization,
                     )
 
                 except (JSONDecodeError, KeyError) as e:
