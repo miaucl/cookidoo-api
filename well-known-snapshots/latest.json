@@ -50,15 +50,9 @@
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/home": {
     "links": {
       "collection:collection-details": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/{lang}/p/{code}",
-      "curies": [
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url=fint{rel}",
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url={rel}"
-      ],
-      "featuretoggle": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/featuretoggle",
       "fint:collection-details": "/collection/{lang}/p/{code}",
       "info": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/info",
-      "self": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/home",
-      "specs": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/specs"
+      "self": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/collection/.well-known/home"
     }
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/commerce/.well-known/home": {
@@ -573,11 +567,6 @@
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/.well-known/home": {
     "links": {
-      "curies": [
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url=/recipes/recipe/.well-known/documentation#{rel}",
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url=fint{rel}"
-      ],
-      "featuretoggle": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/.well-known/featuretoggle",
       "fint:details": "/recipes/recipe{/lang}/{id}",
       "fint:details-devices-and-accessories-section": "/recipes/recipe/{lang}/{id}#devices-and-accessories-section",
       "fint:recipe-collections": "/recipes/recipe/{lang}/{id}/collections",
@@ -591,8 +580,7 @@
       "recipe:recipe-collections": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/{lang}/{id}/collections",
       "recipe:recipe-report-questionnaire": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/{lang}/{id}/report/questionnaire",
       "recipe:recipe-report-submit": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/{lang}/{id}/report",
-      "self": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/.well-known/home",
-      "specs": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/.well-known/specs"
+      "self": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recipes/recipe/.well-known/home"
     }
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/recommender/.well-known/home": {
