@@ -43,7 +43,7 @@ jobs:
       - name: Detect changes
         id: diff
         run: |
-          git status --porcelain
+          git status --porcelain > diff-summary.txt
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "changed=true" >> $GITHUB_OUTPUT
           else
@@ -61,7 +61,7 @@ jobs:
             echo "## 🔍 Change summary"
             echo
             echo '```json'
-            cat diff-summary.json
+            cat diff-summary.txt
             echo
             echo '```'
             echo
