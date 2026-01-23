@@ -14,5 +14,5 @@ site
 out
 scratch*
 .token
-diff-summary.json
+diff-summary.txt
 pr-body.md
