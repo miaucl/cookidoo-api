@@ -15,4 +15,5 @@ out
 scratch*
 .token
 diff-summary.txt
+diff-summary.json
 pr-body.md
