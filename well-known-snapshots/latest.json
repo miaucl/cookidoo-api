@@ -423,9 +423,6 @@
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/.well-known/home": {
     "links": {
-      "info": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/.well-known/info",
-      "mobile:notifications": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/{lang}/mobile-notifications",
-      "ownership:health-check": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/.well-known/health-check",
       "ownership:recipes": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/recipes",
       "ownership:subscriptions": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/subscriptions",
       "ownership:subscriptionsV2": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/v2/subscriptions",
