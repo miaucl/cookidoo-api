@@ -634,10 +634,6 @@
   },
   "https://de.web.production-eu.cookidoo.vorwerk-digital.com/shopping/.well-known/home": {
     "links": {
-      "curies": [
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url=/shopping/.well-known/documentation#{rel}",
-        "https://de.web.production-eu.cookidoo.vorwerk-digital.com/api/?spec-url=/shopping/.well-known/documentation#{rel}"
-      ],
       "fint:add-additional-items": "/shopping/{lang}/additional-item",
       "fint:add-additional-items-v2": "/shopping/{lang}/additional-items/add",
       "fint:add-recipes": "/shopping/{lang}/add-recipes",
