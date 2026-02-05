@@ -28,7 +28,7 @@ class CookidooConfig:
     """
 
     localization: CookidooLocalizationConfig = field(
-        default_factory=lambda: CookidooLocalizationConfig()
+        default_factory=CookidooLocalizationConfig
     )
     email: str = "your@email"
     password: str = "1234password!"

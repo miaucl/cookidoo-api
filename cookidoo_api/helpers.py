@@ -436,8 +436,10 @@ async def __get_localization_options(
         options_ = cast(list[dict[str, str]], json.loads(await file.read()))
         options = (CookidooLocalizationConfig(**x) for x in options_)
         filtered_options = filter(
-            lambda option: (not country or option.country_code == country)
-            and (not language or option.language == language),
+            lambda option: (
+                (not country or option.country_code == country)
+                and (not language or option.language == language)
+            ),
             options,
         )
         return list(cast(list[CookidooLocalizationConfig], filtered_options))

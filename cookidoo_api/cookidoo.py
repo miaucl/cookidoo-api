@@ -3218,4 +3218,3 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Remove custom recipe from calendar failed due to request exception."
             ) from e
-
