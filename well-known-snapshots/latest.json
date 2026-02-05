@@ -501,7 +501,7 @@
       "profile:legal-agreement-updates": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/consent/web/customers/{lang}/consent-update-flow",
       "profile:login": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/profile/{lang}/login{?redirectAfterLogin}",
       "profile:login-via-web": "https://cookidoo.de/profile/{lang}/login{?redirectAfterLogin}",
-      "profile:my-devices-page-mobile": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/customer-devices/{lang}/my-devices",
+      "profile:my-devices-page-mobile": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/customer-devices/{lang}/my-devices{?add}",
       "profile:notification-settings-device": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/consent/web/customers/{lang}/profile",
       "profile:notification-settings-mobile": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/consent/web/customers/{lang}/profile",
       "profile:onboarding-activation-via-web": "https://cookidoo.de/profile/{lang}/onboarding/activation",
