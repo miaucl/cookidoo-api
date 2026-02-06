@@ -1931,3 +1931,20 @@ COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR = {
     },
     "code": None,
 }
+
+COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB: Final = {
+    "recipeId": "01K2CTJ9Y1BABRG5MXK44CFZS4",
+    "authorId": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
+    "modifiedAt": "2025-08-11T15:04:16.577Z",
+    "createdAt": "2025-08-11T15:04:16.577Z",
+    "status": "ACTIVE",
+    "workStatus": "PRIVATE",
+    "recipeContent": {
+        "name": "Test Recipe",
+    },
+}
+
+COOKIDOO_TEST_RESPONSE_UPDATE_CUSTOM_RECIPE: Final = {
+    "recipeId": "01K2CTJ9Y1BABRG5MXK44CFZS4",
+    "status": "ACTIVE",
+}
