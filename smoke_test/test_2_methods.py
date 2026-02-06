@@ -68,6 +68,20 @@ class TestMethods:
             assert recipe.id
             assert recipe.name
 
+    async def test_cookidoo_create_custom_recipe(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo create custom recipe from scratch, get and remove."""
+        recipe_id = await cookidoo.create_custom_recipe(
+            name="Smoke test recipe",
+            ingredients=["100g flour", "1 egg"],
+            steps=["Mix ingredients", "Bake 20 min"],
+            servings=2,
+        )
+        assert recipe_id
+        fetched = await cookidoo.get_custom_recipe(recipe_id)
+        assert fetched.id == recipe_id
+        assert fetched.name == "Smoke test recipe"
+        await cookidoo.remove_custom_recipe(recipe_id)
+
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo
     ) -> None:
