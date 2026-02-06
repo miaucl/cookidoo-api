@@ -32,6 +32,12 @@ from .types import (
     CookidooSubscription,
     CookidooUserInfo,
     ThermomixMachineType,
+    ThermomixSpeed,
+    ThermomixDirection,
+    ThermomixTemperature,
+    ThermomixMode,
+    ThermomixBrowningPower,
+    ThermomixSteamingAccessory,
 )
 
 __all__ = [
@@ -64,4 +70,10 @@ __all__ = [
     "CookidooResponseException",
     "CookidooUnavailableException",
     "ThermomixMachineType",
+    "ThermomixSpeed",
+    "ThermomixDirection",
+    "ThermomixTemperature",
+    "ThermomixMode",
+    "ThermomixBrowningPower",
+    "ThermomixSteamingAccessory",
 ]

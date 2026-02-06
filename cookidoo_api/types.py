@@ -13,6 +13,91 @@ class ThermomixMachineType(StrEnum):
     TM31 = "TM31"
 
 
+class ThermomixSpeed(str, Enum):
+    """Recommended Thermomix speeds."""
+
+    SOFT = "soft"
+    SPEED_0_5 = "0.5"
+    SPEED_1 = "1"
+    SPEED_1_5 = "1.5"
+    SPEED_2 = "2"
+    SPEED_2_5 = "2.5"
+    SPEED_3 = "3"
+    SPEED_3_5 = "3.5"
+    SPEED_4 = "4"
+    SPEED_4_5 = "4.5"
+    SPEED_5 = "5"
+    SPEED_5_5 = "5.5"
+    SPEED_6 = "6"
+    SPEED_6_5 = "6.5"
+    SPEED_7 = "7"
+    SPEED_7_5 = "7.5"
+    SPEED_8 = "8"
+    SPEED_8_5 = "8.5"
+    SPEED_9 = "9"
+    SPEED_9_5 = "9.5"
+    SPEED_10 = "10"
+
+
+class ThermomixDirection(str, Enum):
+    """Thermomix rotation directions."""
+
+    CW = "CW"
+    CCW = "CCW"
+
+
+class ThermomixTemperature(str, Enum):
+    """Recommended Thermomix temperatures (Celsius)."""
+
+    VAROMA = "varoma"
+    TEMP_37 = "37"
+    TEMP_40 = "40"
+    TEMP_45 = "45"
+    TEMP_50 = "50"
+    TEMP_55 = "55"
+    TEMP_60 = "60"
+    TEMP_65 = "65"
+    TEMP_70 = "70"
+    TEMP_75 = "75"
+    TEMP_80 = "80"
+    TEMP_85 = "85"
+    TEMP_90 = "90"
+    TEMP_95 = "95"
+    TEMP_98 = "98"
+    TEMP_100 = "100"
+    TEMP_105 = "105"
+    TEMP_110 = "110"
+    TEMP_115 = "115"
+    TEMP_120 = "120"
+
+
+class ThermomixMode(str, Enum):
+    """Thermomix guided cooking modes."""
+
+    DOUGH = "dough"
+    BROWNING = "browning"
+    TURBO = "turbo"
+    STEAMING = "steaming"
+    BLEND = "blend"
+    WARM_UP = "warm_up"
+    RICE_COOKER = "rice_cooker"
+
+
+class ThermomixBrowningPower(str, Enum):
+    """Browning mode power levels."""
+
+    GENTLE = "Gentle"
+    INTENSE = "Intense"
+
+
+class ThermomixSteamingAccessory(str, Enum):
+    """Accessories for steaming mode."""
+
+    VAROMA = "Varoma"
+    SIMMERING_BASKET = "SimmeringBasket"
+    VAROMA_AND_SIMMERING_BASKET = "VaromaAndSimmeringBasket"
+
+
 @dataclass
 class CookidooLocalizationConfig:
     """A localization config class."""
