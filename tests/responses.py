@@ -86,6 +86,11 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
     }
 ]
 
+COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES: Final = {
+    "recipes": [],
+    "total": 0,
+}
+
 COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
     "id": "r907015",
     "tags": [
