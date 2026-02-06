@@ -13,7 +13,7 @@ class ThermomixMachineType(StrEnum):
     TM31 = "TM31"
 
 
-class ThermomixSpeed(str, Enum):
+class ThermomixSpeed(StrEnum):
     """Recommended Thermomix speeds."""
 
     SOFT = "soft"
@@ -39,14 +39,14 @@ class ThermomixSpeed(str, Enum):
     SPEED_10 = "10"
 
 
-class ThermomixDirection(str, Enum):
+class ThermomixDirection(StrEnum):
     """Thermomix rotation directions."""
 
     CW = "CW"
     CCW = "CCW"
 
 
-class ThermomixTemperature(str, Enum):
+class ThermomixTemperature(StrEnum):
     """Recommended Thermomix temperatures (Celsius)."""
 
     VAROMA = "varoma"
@@ -71,7 +71,7 @@ class ThermomixTemperature(str, Enum):
     TEMP_120 = "120"
 
 
-class ThermomixMode(str, Enum):
+class ThermomixMode(StrEnum):
     """Thermomix guided cooking modes."""
 
     DOUGH = "dough"
@@ -83,14 +83,14 @@ class ThermomixMode(str, Enum):
     RICE_COOKER = "rice_cooker"
 
 
-class ThermomixBrowningPower(str, Enum):
+class ThermomixBrowningPower(StrEnum):
     """Browning mode power levels."""
 
     GENTLE = "Gentle"
     INTENSE = "Intense"
 
 
-class ThermomixSteamingAccessory(str, Enum):
+class ThermomixSteamingAccessory(StrEnum):
     """Accessories for steaming mode."""
 
     VAROMA = "Varoma"

@@ -18,6 +18,7 @@ CUSTOM_RECIPES_PATH_ACCEPT: Final = (
 )
 CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 ADD_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}"
+UPDATE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 REMOVE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
 INGREDIENT_ITEMS_PATH: Final = "shopping/{language}"

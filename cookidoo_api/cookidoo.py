@@ -53,6 +53,7 @@ from cookidoo_api.const import (
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
+    UPDATE_CUSTOM_RECIPE_PATH,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -103,6 +104,12 @@ from cookidoo_api.types import (
     CookidooSubscription,
     CookidooUserInfo,
     ThermomixMachineType,
+    ThermomixBrowningPower,
+    ThermomixDirection,
+    ThermomixMode,
+    ThermomixSpeed,
+    ThermomixSteamingAccessory,
+    ThermomixTemperature,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -2079,3 +2086,221 @@ class Cookidoo:
                 self._cfg.localization,
             ),
         )
+    # ------------------------------------------------------------------
+    # Recipe-step processing helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _process_recipe_steps(
+        steps: list[dict | str],
+        ingredients: list[str],
+    ) -> list[dict]:
+        """Convert raw step data into the instruction format expected by the API.
+
+        Parameters
+        ----------
+        steps
+            Each element is either a plain string (simple step) or a dict
+            with keys ``text`` and optionally ``annotations``.
+            Annotations are dicts where ``type`` can be ``"INGREDIENT"``,
+            ``"TTS"`` or ``"MODE"``. Depending on the type, ``data``
+            can contain ``speed`` (:class:`ThermomixSpeed`),
+            ``temperature`` (:class:`ThermomixTemperature`),
+            ``direction`` (:class:`ThermomixDirection`),
+            ``power`` (:class:`ThermomixBrowningPower`), etc.
+        ingredients
+            The full ingredient list, used to validate INGREDIENT annotations.
+
+        Returns
+        -------
+        list[dict]
+            Processed instructions ready for the API payload.
+
+        Raises
+        ------
+        ValueError
+            If an annotation slot is not found in the step text or an
+            ingredient annotation references an ingredient not in the list.
+
+        """
+        processed: list[dict] = []
+        for step_index, step in enumerate(steps):
+            if isinstance(step, str):
+                processed.append({"type": "STEP", "text": step})
+                continue
+
+            # dict-based step with optional annotations
+            step_text: str = step.get("text", "")
+            raw_annotations = step.get("annotations", [])
+            annotations: list[dict] = []
+
+            for ann in raw_annotations:
+                ann_type = ann.get("type", "")
+                slot = ann.get("slot", "")
+                ann_data = dict(ann.get("data", {}))
+
+                # Validate ingredient annotations
+                if ann_type == "INGREDIENT":
+                    desc = ann_data.get("description", "")
+                    if desc and desc not in ingredients:
+                        raise ValueError(
+                            f"Step {step_index + 1}: Ingredient "
+                            f"'{desc}' used in annotation but not "
+                            f"found in the recipe's ingredient list: "
+                            f"{ingredients}"
+                        )
+
+                # Calculate offset / length from slot
+                try:
+                    offset = step_text.index(slot)
+                    length = len(slot)
+                except ValueError:
+                    raise ValueError(
+                        f"Step {step_index + 1}: Annotation slot "
+                        f"'{slot}' not found in step text: "
+                        f"'{step_text}'"
+                    )
+
+                # Fix Varoma temperature: remove unit when value is "varoma"
+                temp = ann_data.get("temperature")
+                if isinstance(temp, dict) and temp.get("value", "").lower() == "varoma":
+                    temp.pop("unit", None)
+
+                ann_dict: dict = {
+                    "type": ann_type,
+                    "data": ann_data,
+                    "position": {"offset": offset, "length": length},
+                }
+                if ann.get("name"):
+                    ann_dict["name"] = ann["name"]
+                annotations.append(ann_dict)
+
+            step_dict: dict = {"type": "STEP", "text": step_text}
+            if annotations:
+                step_dict["annotations"] = annotations
+            processed.append(step_dict)
+
+        return processed
+
+    async def create_custom_recipe(
+        self,
+        name: str,
+        ingredients: list[str],
+        steps: list[dict | str],
+        servings: int = 4,
+        prep_time: int = 30,
+        total_time: int = 60,
+        hints: list[str] | None = None,
+        machine_types: list[ThermomixMachineType] | None = None,
+    ) -> str:
+        """Create a custom recipe from scratch.
+
+        This uses the undocumented created-recipes API to first create a recipe
+        stub and then PATCH it with the full recipe data.
+
+        Parameters
+        ----------
+        name
+            The recipe name
+        ingredients
+            List of ingredient description strings (e.g. ["200g flour", "2 eggs"])
+        steps
+            List of cooking steps.  Each element is either a plain string or a
+            dict with keys ``text`` (str) and optionally ``annotations`` (list).
+            Annotations are dicts with ``type``, ``slot``, optionally ``name``,
+            and ``data``.  The ``slot`` value must appear literally in the step
+            ``text`` so that its offset/length can be computed automatically.
+        servings
+            Number of servings (default 4)
+        prep_time
+            Preparation time **in minutes** (default 30)
+        total_time
+            Total time **in minutes** (default 60)
+        hints
+            Optional list of cooking tips
+        machine_types
+            List of Thermomix machine types.
+            Defaults to ``[ThermomixMachineType.TM7]`` when *None* or empty.
+
+        Returns
+        -------
+        str
+            The created recipe ID
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If any HTTP request fails.
+        CookidooParseException
+            If the response cannot be parsed.
+
+        """
+        import asyncio
+
+        if machine_types is None or len(machine_types) == 0:
+            machine_types = [ThermomixMachineType.TM7]
+
+        json_headers = {"CONTENT-TYPE": "application/json"}
+
+        # Step 1: POST to create a recipe stub
+        url_create = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        data = await self._request_json(
+            "post",
+            url_create,
+            "create custom recipe",
+            json={"recipeName": name},
+            headers=json_headers,
+        )
+
+        recipe_id = (data or {}).get("recipeId")
+        if not recipe_id:
+            raise CookidooParseException("No recipe ID returned from creation.")
+
+        # Process steps / annotations
+        processed_instructions = self._process_recipe_steps(steps, ingredients)
+
+        # Step 2: PATCH with full recipe data
+        url_update = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__, id=recipe_id
+        )
+        json_update = {
+            "name": name,
+            "image": None,
+            "isImageOwnedByUser": False,
+            "tools": [
+                mt.value if hasattr(mt, "value") else mt for mt in machine_types
+            ],
+            "yield": {"value": servings, "unitText": "portion"},
+            "prepTime": prep_time * 60,
+            "cookTime": 0,
+            "totalTime": total_time * 60,
+            "ingredients": [
+                {"type": "INGREDIENT", "text": ing} for ing in ingredients
+            ],
+            "instructions": processed_instructions,
+            "hints": (
+                "\n".join(hints)
+                if hints and isinstance(hints, list)
+                else (hints if hints else "")
+            ),
+            "workStatus": "PRIVATE",
+            "recipeMetadata": {"requiresAnnotationsCheck": False},
+        }
+
+        # Small delay to avoid rate-limiting on the undocumented endpoint
+        await asyncio.sleep(5)
+
+        await self._request_json(
+            "patch",
+            url_update,
+            "update custom recipe",
+            json=json_update,
+            headers=json_headers,
+            accepted_statuses=(HTTPStatus.OK, HTTPStatus.NO_CONTENT),
+        )
+
+        return recipe_id
