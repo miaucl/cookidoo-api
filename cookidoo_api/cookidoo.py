@@ -57,6 +57,8 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import (
+    normalize_list_param,
+    normalize_tmv_param,
     cookidoo_additional_item_from_json,
     cookidoo_auth_data_from_json,
     cookidoo_calendar_day_from_json,
@@ -97,29 +99,6 @@ from cookidoo_api.types import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _normalize_list_param(value: str | list[str] | None) -> str | None:
-    """Normalize list/string params to comma-separated string."""
-    if value is None:
-        return None
-    if isinstance(value, list):
-        return ",".join([v for v in value if v])
-    return value
-
-
-def _normalize_tmv_param(
-    value: ThermomixMachineType | str | list[ThermomixMachineType | str] | None,
-) -> str | None:
-    """Normalize TMV param to comma-separated string."""
-    if value is None:
-        return None
-    if isinstance(value, list):
-        normalized: list[str] = []
-        for item in value:
-            normalized.append(item.value if isinstance(item, ThermomixMachineType) else str(item))
-        return ",".join([v for v in normalized if v])
-    return value.value if isinstance(value, ThermomixMachineType) else value
 
 
 class Cookidoo:
@@ -793,21 +772,21 @@ class Cookidoo:
         url = self.api_endpoint / "search" / locale
         params: dict[str, str] = {"query": query}
         if accessories is not None:
-            params["accessories"] = _normalize_list_param(accessories)
+            params["accessories"] = normalize_list_param(accessories)
         if languages is not None:
-            params["languages"] = _normalize_list_param(languages)
+            params["languages"] = normalize_list_param(languages)
         if categories is not None:
-            params["categories"] = _normalize_list_param(categories)
+            params["categories"] = normalize_list_param(categories)
         if countries is not None:
-            params["countries"] = _normalize_list_param(countries)
+            params["countries"] = normalize_list_param(countries)
         if ingredients is not None:
-            params["ingredients"] = _normalize_list_param(ingredients)
+            params["ingredients"] = normalize_list_param(ingredients)
         if exclude_ingredients is not None:
-            params["excludeIngredients"] = _normalize_list_param(exclude_ingredients)
+            params["excludeIngredients"] = normalize_list_param(exclude_ingredients)
         if tags is not None:
-            params["tags"] = _normalize_list_param(tags)
+            params["tags"] = normalize_list_param(tags)
         if ratings is not None:
-            params["ratings"] = _normalize_list_param(ratings)
+            params["ratings"] = normalize_list_param(ratings)
         if difficulty is not None:
             params["difficulty"] = difficulty
         if preparation_time is not None:
@@ -821,7 +800,7 @@ class Cookidoo:
         if page_size is not None:
             params["pageSize"] = str(page_size)
         if tmv is not None:
-            params["tmv"] = _normalize_tmv_param(tmv)
+            params["tmv"] = normalize_tmv_param(tmv)
         url = url.with_query(params)
         result = await self._request(
             "get", url, "search recipes", accepted_statuses=(HTTPStatus.OK,)

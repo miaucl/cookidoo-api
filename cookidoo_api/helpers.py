@@ -48,11 +48,37 @@ from cookidoo_api.types import (
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
+    ThermomixMachineType,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
+
+
+def normalize_list_param(value: str | list[str] | None) -> str | None:
+    """Normalize list/string params to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join([v for v in value if v])
+    return value
+
+
+def normalize_tmv_param(
+    value: ThermomixMachineType | str | list[ThermomixMachineType | str] | None,
+) -> str | None:
+    """Normalize TMV param to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        normalized: list[str] = []
+        for item in value:
+            normalized.append(
+                item.value if isinstance(item, ThermomixMachineType) else str(item)
+            )
+        return ",".join([v for v in normalized if v])
+    return value.value if isinstance(value, ThermomixMachineType) else value
 
 
 def cookidoo_auth_data_from_json(

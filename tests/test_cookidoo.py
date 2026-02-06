@@ -22,6 +22,7 @@ from cookidoo_api.types import (
     CookidooConfig,
     CookidooIngredientItem,
     CookidooSearchResult,
+    ThermomixMachineType,
 )
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
@@ -577,6 +578,86 @@ class TestSearchRecipes:
         )
         with pytest.raises(CookidooAuthException):
             await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_unauthorized_non_json_body(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes 401 with non-JSON body still raises CookidooAuthException."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.UNAUTHORIZED,
+            body="not json",
+            content_type="text/plain",
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_parse_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes raises CookidooParseException when response is not valid JSON."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.OK,
+            body="not valid json",
+            content_type="application/json",
+        )
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_no_content(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes when API returns 204 No Content."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.NO_CONTENT,
+        )
+
+        data = await cookidoo.search_recipes("chicken")
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
+
+    async def test_search_recipes_with_string_params(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with string (non-list) filter params."""
+        url = (
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
+            "query=pasta&accessories=includingFriend&difficulty=easy"
+        )
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes(
+            "pasta",
+            accessories="includingFriend",
+            difficulty="easy",
+        )
+        assert isinstance(data, CookidooSearchResult)
+        assert data.total == 0
+
+    async def test_search_recipes_with_tmv_single_enum(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with single ThermomixMachineType (not list)."""
+        url = (
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
+            "query=soup&tmv=TM7"
+        )
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes("soup", tmv=ThermomixMachineType.TM7)
+        assert isinstance(data, CookidooSearchResult)
+        assert data.total == 0
 
 
 class TestGetCustomRecipe:
