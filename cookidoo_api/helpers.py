@@ -42,6 +42,8 @@ from cookidoo_api.types import (
     CookidooNutritionGroup,
     CookidooRecipeCollection,
     CookidooRecipeNutrition,
+    CookidooSearchRecipeHit,
+    CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
@@ -215,6 +217,44 @@ def cookidoo_recipe_from_json(
         image=image,
         url=url,
     )
+
+
+def cookidoo_search_result_from_json(
+    data: dict,
+    localization: CookidooLocalizationConfig | None = None,
+) -> CookidooSearchResult:
+    """Convert a search result received from the API to a CookidooSearchResult.
+
+    The API may return recipes in ``data`` (search endpoint) or ``recipes``;
+    total is optional and defaults to len(recipes).
+    """
+    recipes_data = data.get("data") or data.get("recipes") or []
+    total = data.get("total")
+    if total is None or not isinstance(total, int):
+        total = len(recipes_data) if isinstance(recipes_data, list) else 0
+    hits: list[CookidooSearchRecipeHit] = []
+    for item in recipes_data:
+        if not isinstance(item, dict):
+            continue
+        recipe_id = item.get("id", "")
+        name = item.get("title") or item.get("name", "")
+        thumbnail, image = None, None
+        descriptive_assets = item.get("descriptiveAssets")
+        if descriptive_assets and isinstance(descriptive_assets, list):
+            thumbnail, image = _extract_images_from_descriptive_assets(
+                cast(list[DescriptiveAssetJSON], descriptive_assets)
+            )
+        url = _construct_recipe_url(localization, recipe_id)
+        hits.append(
+            CookidooSearchRecipeHit(
+                id=recipe_id,
+                name=name,
+                thumbnail=thumbnail,
+                image=image,
+                url=url,
+            )
+        )
+    return CookidooSearchResult(recipes=hits, total=total)
 
 
 def cookidoo_quantity_from_json(
