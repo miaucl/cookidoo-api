@@ -21,6 +21,8 @@ from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooConfig,
     CookidooIngredientItem,
+    CookidooSearchResult,
+    ThermomixMachineType,
 )
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
@@ -46,6 +48,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
+    COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
@@ -461,6 +464,215 @@ class TestGetRecipeDetails:
 
         with pytest.raises(exception):
             await cookidoo.get_recipe_details("r907015")
+
+
+class TestSearchRecipes:
+    """Tests for search_recipes method."""
+
+    async def test_search_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for search_recipes."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes("chicken")
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
+
+    async def test_search_recipes_with_options(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with filters and list parameters."""
+        accessories = [
+            "includingFriend",
+            "includingBladeCover",
+            "includingBladeCoverWithPeeler",
+            "includingCutter",
+            "includingSensor",
+        ]
+        categories = [
+            "VrkNavCategory-RPF-001",
+            "VrkNavCategory-RPF-002",
+            "VrkNavCategory-RPF-003",
+        ]
+        url = (
+            "https://ch.tmmobile.vorwerk-digital.com/search/es?"
+            "query=chicken"
+            "&accessories=includingFriend,includingBladeCover,includingBladeCoverWithPeeler,includingCutter,includingSensor"
+            "&languages=en,es"
+            "&categories=VrkNavCategory-RPF-001,VrkNavCategory-RPF-002,VrkNavCategory-RPF-003"
+            "&countries=ar,es"
+            "&ingredients=sal,aceite%20de%20oliva"
+            "&excludeIngredients=polvo%20de%20hornear"
+            "&tags=De%20diario"
+            "&ratings=5,4"
+            "&difficulty=easy"
+            "&preparationTime=900"
+            "&totalTime=1200"
+            "&portions=2"
+            "&page=1"
+            "&pageSize=10"
+            "&tmv=TM7,TM6,TM5,TM31"
+        )
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes(
+            "chicken",
+            locale="es",
+            accessories=accessories,
+            languages=["en", "es"],
+            categories=categories,
+            countries=["ar", "es"],
+            ingredients=["sal", "aceite de oliva"],
+            exclude_ingredients=["polvo de hornear"],
+            tags=["De diario"],
+            ratings=["5", "4"],
+            difficulty="easy",
+            preparation_time=900,
+            total_time=1200,
+            portions=2,
+            page=1,
+            page_size=10,
+            tmv=["TM7", "TM6", "TM5", "TM31"],
+        )
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_search_recipes_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test search_recipes request exceptions."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_unauthorized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes unauthorized exception."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_unauthorized_non_json_body(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes 401 with non-JSON body still raises CookidooAuthException."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.UNAUTHORIZED,
+            body="not json",
+            content_type="text/plain",
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_parse_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes raises CookidooParseException when response is not valid JSON."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.OK,
+            body="not valid json",
+            content_type="application/json",
+        )
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_no_content(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes when API returns 204 No Content."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            status=HTTPStatus.NO_CONTENT,
+        )
+
+        data = await cookidoo.search_recipes("chicken")
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
+
+    async def test_search_recipes_with_string_params(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with string (non-list) filter params."""
+        url = (
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
+            "query=pasta&accessories=includingFriend&difficulty=easy"
+        )
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes(
+            "pasta",
+            accessories="includingFriend",
+            difficulty="easy",
+        )
+        assert isinstance(data, CookidooSearchResult)
+        assert data.total == 0
+
+    async def test_search_recipes_with_tmv_single_enum(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with single ThermomixMachineType (not list)."""
+        url = (
+            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
+            "query=soup&tmv=TM7"
+        )
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes("soup", tmv=ThermomixMachineType.TM7)
+        assert isinstance(data, CookidooSearchResult)
+        assert data.total == 0
+
+    async def test_search_recipes_without_query(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with optional query omitted (params without query)."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes()
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
 
 
 class TestGetCustomRecipe:

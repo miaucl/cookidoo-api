@@ -57,6 +57,8 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import (
+    normalize_list_param,
+    normalize_tmv_param,
     cookidoo_additional_item_from_json,
     cookidoo_auth_data_from_json,
     cookidoo_calendar_day_from_json,
@@ -65,6 +67,7 @@ from cookidoo_api.helpers import (
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
+    cookidoo_search_result_from_json,
     cookidoo_subscription_from_json,
     cookidoo_user_info_from_json,
 )
@@ -87,10 +90,12 @@ from cookidoo_api.types import (
     CookidooCustomRecipe,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
+    CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
+    ThermomixMachineType,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -164,6 +169,121 @@ class Cookidoo:
         if "co.uk" in self._cfg.localization.url:
             return URL(API_ENDPOINT.format(country_code=CO_UK_COUNTRY_CODE))
         return URL(API_ENDPOINT.format(**self._cfg.localization.__dict__))
+
+    # ------------------------------------------------------------------
+    # Low-level request helper
+    # ------------------------------------------------------------------
+
+    async def _request(
+        self,
+        method: str,
+        url: URL,
+        operation: str,
+        *,
+        json: dict | list | None = None,
+        headers: dict[str, str] | None = None,
+        accepted_statuses: tuple[HTTPStatus, ...] = (HTTPStatus.OK,),
+    ) -> dict | None:
+        """Execute an HTTP request with standard error handling.
+
+        This centralises the boilerplate shared by every public method:
+        debug logging, 401 handling, timeout / client-error wrapping and
+        JSON parsing.
+
+        Parameters
+        ----------
+        method
+            HTTP verb (``"get"``, ``"post"``, ``"patch"``, ``"delete"``, ...)
+        url
+            Fully-qualified URL to call
+        operation
+            Human-readable label used in log / exception messages
+            (e.g. ``"create custom recipe"``)
+        json
+            Optional JSON body
+        headers
+            Extra headers merged on top of ``self._api_headers``
+        accepted_statuses
+            HTTP status codes considered successful.  Defaults to
+            ``(HTTPStatus.OK,)``.
+
+        Returns
+        -------
+        dict | None
+            Parsed JSON body, or *None* when the response has no content
+            (e.g. 204).
+
+        Raises
+        ------
+        CookidooAuthException
+            When the server returns 401.
+        CookidooRequestException
+            On timeout, client error or unexpected status code.
+
+        """
+        merged_headers = {**self._api_headers, **(headers or {})}
+
+        try:
+            async with self._session.request(
+                method, url, headers=merged_headers, json=json
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    try:
+                        errmsg = await r.json()
+                    except (JSONDecodeError, ClientError):
+                        _LOGGER.debug(
+                            "Exception: Cannot parse request response:\n %s",
+                            traceback.format_exc(),
+                        )
+                    else:
+                        _LOGGER.debug(
+                            "Exception: Cannot %s: %s",
+                            operation,
+                            errmsg.get("error_description", ""),
+                        )
+                    raise CookidooAuthException(
+                        f"{operation.capitalize()} failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                if r.status not in accepted_statuses:
+                    r.raise_for_status()
+
+                # Return parsed JSON when a body is present
+                if r.status == HTTPStatus.NO_CONTENT:
+                    return None
+                try:
+                    return await r.json()  # type: ignore[return-value]
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot parse %s response:\n%s",
+                        operation,
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        f"{operation.capitalize()} failed during parsing of request response."
+                    ) from e
+
+        except (CookidooAuthException, CookidooRequestException, CookidooParseException):
+            raise
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot %s:\n%s", operation, traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                f"{operation.capitalize()} failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot %s:\n%s", operation, traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                f"{operation.capitalize()} failed due to request exception."
+            ) from e
 
     async def refresh_token(self) -> CookidooAuthResponse:
         """Try to refresh the token.
@@ -566,6 +686,130 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Loading recipe details failed due to request exception."
             ) from e
+
+    async def search_recipes(
+        self,
+        query: str | None = None,
+        locale: str | None = None,
+        accessories: str | list[str] | None = None,
+        languages: str | list[str] | None = None,
+        categories: str | list[str] | None = None,
+        countries: str | list[str] | None = None,
+        ingredients: str | list[str] | None = None,
+        exclude_ingredients: str | list[str] | None = None,
+        tags: str | list[str] | None = None,
+        ratings: str | list[str] | None = None,
+        difficulty: str | None = None,
+        preparation_time: int | None = None,
+        total_time: int | None = None,
+        portions: int | None = None,
+        page: int | None = None,
+        page_size: int | None = None,
+        tmv: ThermomixMachineType | str | list[ThermomixMachineType | str] | None = None,
+    ) -> CookidooSearchResult:
+        """Search recipes in Cookidoo (GET).
+
+        Uses the same API base as the rest of the client (api_endpoint):
+        {api_endpoint}/search/{locale}
+
+        Parameters
+        ----------
+        query
+            Optional search query (e.g. "chicken", "pasta").
+        locale
+            Locale for the search path (e.g. "es", "en", "de").
+            Defaults to the first part of the configured language (e.g. "de-CH" -> "de").
+        accessories
+            Optional comma-separated accessory filters
+            (e.g. "includingFriend,includingBladeCover,includingBladeCoverWithPeeler,includingCutter,includingSensor").
+        languages
+            Optional comma-separated language codes (e.g. "en,es").
+        categories
+            Optional comma-separated category IDs.
+        countries
+            Optional comma-separated country codes (e.g. "ar").
+        ingredients
+            Optional comma-separated ingredients.
+        exclude_ingredients
+            Optional comma-separated excluded ingredients.
+        tags
+            Optional comma-separated tags.
+        ratings
+            Optional comma-separated ratings (e.g. "5,4").
+        difficulty
+            Optional difficulty (e.g. "easy", "medium", "hard").
+        preparation_time
+            Optional preparation time in seconds.
+        total_time
+            Optional total time in seconds.
+        portions
+            Optional portions count.
+        page
+            Optional page number (API-dependent, often 0- or 1-based).
+        page_size
+            Optional page size (API-dependent; common keys: pageSize).
+        tmv
+            Optional Thermomix machine version. Use ``ThermomixMachineType``
+            (e.g. ``ThermomixMachineType.TM7``) or a string ("TM7", "TM6", "TM5").
+
+        Returns
+        -------
+        CookidooSearchResult
+            Search result with recipes and total count.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore.
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        if locale is None:
+            locale = self._cfg.localization.language.split("-")[0]
+        url = self.api_endpoint / "search" / locale
+        params: dict[str, str] = {}
+        if query is not None:
+            params["query"] = query
+        if accessories is not None:
+            params["accessories"] = normalize_list_param(accessories)
+        if languages is not None:
+            params["languages"] = normalize_list_param(languages)
+        if categories is not None:
+            params["categories"] = normalize_list_param(categories)
+        if countries is not None:
+            params["countries"] = normalize_list_param(countries)
+        if ingredients is not None:
+            params["ingredients"] = normalize_list_param(ingredients)
+        if exclude_ingredients is not None:
+            params["excludeIngredients"] = normalize_list_param(exclude_ingredients)
+        if tags is not None:
+            params["tags"] = normalize_list_param(tags)
+        if ratings is not None:
+            params["ratings"] = normalize_list_param(ratings)
+        if difficulty is not None:
+            params["difficulty"] = difficulty
+        if preparation_time is not None:
+            params["preparationTime"] = str(preparation_time)
+        if total_time is not None:
+            params["totalTime"] = str(total_time)
+        if portions is not None:
+            params["portions"] = str(portions)
+        if page is not None:
+            params["page"] = str(page)
+        if page_size is not None:
+            params["pageSize"] = str(page_size)
+        if tmv is not None:
+            params["tmv"] = normalize_tmv_param(tmv)
+        url = url.with_query(params)
+        result = await self._request(
+            "get", url, "search recipes", accepted_statuses=(HTTPStatus.OK,)
+        )
+        if result is None:
+            return CookidooSearchResult(recipes=[], total=0)
+        return cookidoo_search_result_from_json(result, self._cfg.localization)
 
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
         """Get custom recipe.
@@ -3218,3 +3462,4 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Remove custom recipe from calendar failed due to request exception."
             ) from e
+
