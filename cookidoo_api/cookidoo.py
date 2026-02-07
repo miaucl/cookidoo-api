@@ -689,7 +689,7 @@ class Cookidoo:
 
     async def search_recipes(
         self,
-        query: str,
+        query: str | None = None,
         locale: str | None = None,
         accessories: str | list[str] | None = None,
         languages: str | list[str] | None = None,
@@ -715,7 +715,7 @@ class Cookidoo:
         Parameters
         ----------
         query
-            Search query (e.g. "chicken", "pasta").
+            Optional search query (e.g. "chicken", "pasta").
         locale
             Locale for the search path (e.g. "es", "en", "de").
             Defaults to the first part of the configured language (e.g. "de-CH" -> "de").
@@ -770,7 +770,9 @@ class Cookidoo:
         if locale is None:
             locale = self._cfg.localization.language.split("-")[0]
         url = self.api_endpoint / "search" / locale
-        params: dict[str, str] = {"query": query}
+        params: dict[str, str] = {}
+        if query is not None:
+            params["query"] = query
         if accessories is not None:
             params["accessories"] = normalize_list_param(accessories)
         if languages is not None:

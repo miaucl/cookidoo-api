@@ -659,6 +659,21 @@ class TestSearchRecipes:
         assert isinstance(data, CookidooSearchResult)
         assert data.total == 0
 
+    async def test_search_recipes_without_query(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes with optional query omitted (params without query)."""
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/search/de",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.search_recipes()
+        assert isinstance(data, CookidooSearchResult)
+        assert data.recipes == []
+        assert data.total == 0
+
 
 class TestGetCustomRecipe:
     """Tests for get_custom_recipe method."""
