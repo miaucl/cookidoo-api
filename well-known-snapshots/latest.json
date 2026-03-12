@@ -350,6 +350,7 @@
       "foundation:mobile-compatibility-qrcode": "https://cookidoo.co.uk/internalurl?url=https%3A%2F%2Fcookidoo.de%2Ffoundation%2F{lang}%2Fthermomix-compatibility%26utensilId%3D{utensilId}",
       "foundation:mobile-for-you-page-api": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/foundation/{lang}/api/content/mobileForYouPage{?country,clusterdata*}",
       "foundation:mobile-for-you-page-layout-api": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/foundation/{lang}/api/content/mobileForYouPageLayout",
+      "foundation:mobile-for-you-page-layout-api-v2": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/foundation/{lang}/api/content/mobileForYouPageLayoutV2",
       "foundation:mobile-for-you-page-portal-api": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/for-you-portal/{lang}/for-you-page",
       "foundation:mode-tips-api": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/foundation/{lang}/api/content/modeTips/{id}?country={country}",
       "foundation:my-advisor": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/foundation/{lang}/my-advisor",
