@@ -2,7 +2,7 @@ name: Cookidoo API Discovery of Well Known HAL Endpoint
 
 on:
   schedule:
-    - cron: "0 3 * * *"   # täglich um 03:00 UTC
+    - cron: "0 3 1 * *"
   workflow_dispatch:
 
 permissions:
