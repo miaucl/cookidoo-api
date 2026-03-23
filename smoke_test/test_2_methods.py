@@ -48,6 +48,17 @@ class TestMethods:
         assert recipe_details.id == recipe_id
         assert recipe_details.name == name
 
+    async def test_cookidoo_search_recipes(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo search recipes."""
+        result = await cookidoo.search_recipes("Brötchen")
+        assert hasattr(result, "recipes") and hasattr(result, "total")
+        assert isinstance(result.recipes, list)
+        assert isinstance(result.total, int)
+        assert result.total >= len(result.recipes)
+        if result.recipes:
+            recipe = result.recipes[0]
+            assert hasattr(recipe, "id") and hasattr(recipe, "name")
+
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo
     ) -> None:

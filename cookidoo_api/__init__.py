@@ -26,10 +26,13 @@ from .types import (
     CookidooItem,
     CookidooLocalizationConfig,
     CookidooRecipeCollection,
+    CookidooSearchRecipeHit,
+    CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
+    ThermomixMachineType,
 )
 
 __all__ = [
@@ -51,6 +54,8 @@ __all__ = [
     "CookidooChapter",
     "CookidooChapterRecipe",
     "CookidooRecipeCollection",
+    "CookidooSearchRecipeHit",
+    "CookidooSearchResult",
     "CookidooIngredient",
     "CookidooCollection",
     "CookidooException",
@@ -60,4 +65,5 @@ __all__ = [
     "CookidooRequestException",
     "CookidooResponseException",
     "CookidooUnavailableException",
+    "ThermomixMachineType",
 ]

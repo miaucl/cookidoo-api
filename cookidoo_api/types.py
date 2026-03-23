@@ -1,6 +1,16 @@
 """Cookidoo API types."""
 
 from dataclasses import dataclass, field
+from enum import Enum
+
+
+class ThermomixMachineType(str, Enum):
+    """Thermomix machine types."""
+
+    TM5 = "TM5"
+    TM6 = "TM6"
+    TM7 = "TM7"
+    TM31 = "TM31"
 
 
 @dataclass
@@ -154,6 +164,49 @@ class CookidooShoppingRecipe:
     thumbnail: str | None
     image: str | None
     url: str
+
+
+@dataclass
+class CookidooSearchRecipeHit:
+    """A single recipe hit from Cookidoo search.
+
+    Attributes
+    ----------
+    id
+        The id of the recipe
+    name
+        The title of the recipe
+    thumbnail
+        The thumbnail image URL (small preview)
+    image
+        The full-size image URL
+    url
+        The URL of the recipe
+
+    """
+
+    id: str
+    name: str
+    thumbnail: str | None
+    image: str | None
+    url: str
+
+
+@dataclass
+class CookidooSearchResult:
+    """Cookidoo search result type.
+
+    Attributes
+    ----------
+    recipes
+        List of recipe hits matching the search
+    total
+        Total number of matching recipes
+
+    """
+
+    recipes: list[CookidooSearchRecipeHit]
+    total: int
 
 
 @dataclass
