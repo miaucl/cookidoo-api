@@ -263,3 +263,29 @@ class TestRecipeImagesAndUrls:
         assert recipe.thumbnail is None
         assert recipe.image is None
         assert recipe.url == "https://cookidoo.ch/recipes/recipe/de-CH/r214846"
+
+    def test_cookidoo_calendar_day_from_json_with_customer_recipe_ids(self) -> None:
+        """Test cookidoo_calendar_day_from_json keeps customer recipe IDs."""
+        calendar_json = cast(
+            CalendarDayJSON,
+            COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK["myDays"][0].copy(),
+        )
+        calendar_json["customerRecipeIds"] = ["01CUSTOMRECIPEID"]
+
+        result = cookidoo_calendar_day_from_json(calendar_json)
+
+        assert result.customer_recipe_ids == ["01CUSTOMRECIPEID"]
+
+    def test_cookidoo_calendar_day_from_json_with_customer_recipes(self) -> None:
+        """Test cookidoo_calendar_day_from_json includes customer recipes when present."""
+        calendar_json = cast(
+            CalendarDayJSON,
+            COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK["myDays"][0].copy(),
+        )
+        calendar_json["customerRecipes"] = [calendar_json["recipes"][0]]
+
+        result = cookidoo_calendar_day_from_json(calendar_json)
+
+        assert len(result.recipes) == 2
+        assert result.recipes[0].id == "r214846"
+        assert result.recipes[1].id == "r214846"

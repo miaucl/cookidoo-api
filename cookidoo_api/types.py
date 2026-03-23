@@ -436,9 +436,12 @@ class CookidooCalendarDay:
         The title of the calendar day
     recipes
         The recipes in the calendar day
+    customer_recipe_ids
+        IDs of custom recipes planned for the day (when returned by the API)
 
     """
 
     id: str
     title: str
     recipes: list[CookidooCalendarDayRecipe]
+    customer_recipe_ids: list[str] = field(default_factory=list)

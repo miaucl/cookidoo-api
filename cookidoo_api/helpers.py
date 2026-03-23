@@ -13,6 +13,7 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     AuthResponseJSON,
     CalendarDayJSON,
+    CalenderDayRecipeJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     DescriptiveAssetJSON,
@@ -398,8 +399,8 @@ def cookidoo_calendar_day_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCalendarDay:
     """Convert a calendar day received from the API to a cookidoo item."""
-    recipes = []
-    for recipe in calendar_day["recipes"]:
+
+    def _to_day_recipe(recipe: CalenderDayRecipeJSON) -> CookidooCalendarDayRecipe:
         assets = recipe["assets"]
         thumbnail, image = None, None
         descriptive_assets = [assets["images"]] if assets and assets["images"] else None
@@ -410,21 +411,25 @@ def cookidoo_calendar_day_from_json(
 
         url = _construct_recipe_url(localization, recipe["id"])
 
-        recipes.append(
-            CookidooCalendarDayRecipe(
-                id=recipe["id"],
-                name=recipe["title"],
-                total_time=recipe["totalTime"],
-                thumbnail=thumbnail,
-                image=image,
-                url=url,
-            )
+        return CookidooCalendarDayRecipe(
+            id=recipe["id"],
+            name=recipe["title"],
+            total_time=recipe["totalTime"],
+            thumbnail=thumbnail,
+            image=image,
+            url=url,
         )
+
+    regular_recipes = [_to_day_recipe(recipe) for recipe in calendar_day["recipes"]]
+    custom_recipes = [
+        _to_day_recipe(recipe) for recipe in calendar_day.get("customerRecipes", [])
+    ]
 
     return CookidooCalendarDay(
         id=calendar_day["id"],
         title=calendar_day["title"],
-        recipes=recipes,
+        recipes=[*regular_recipes, *custom_recipes],
+        customer_recipe_ids=list(calendar_day.get("customerRecipeIds", [])),
     )
 
 

@@ -1,6 +1,6 @@
 """Cookidoo API raw json types."""
 
-from typing import Literal, TypedDict
+from typing import Literal, NotRequired, TypedDict
 
 
 class AuthResponseJSON(TypedDict):
@@ -288,7 +288,8 @@ class CalendarDayJSON(TypedDict):
     title: str
     dayKey: str
     recipes: list[CalenderDayRecipeJSON]
-    customerRecipes: list[CalenderDayRecipeJSON]
+    customerRecipes: NotRequired[list[CalenderDayRecipeJSON]]
+    customerRecipeIds: NotRequired[list[str]]
 
 
 __all__ = ["QuantityJSON"]
