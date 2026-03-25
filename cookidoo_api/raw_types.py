@@ -292,4 +292,58 @@ class CalendarDayJSON(TypedDict):
     customerRecipeIds: NotRequired[list[str]]
 
 
+class CreateCustomRecipeRequestJSON(TypedDict):
+    """The json payload for creating a blank custom recipe in the API."""
+
+    recipeName: str
+
+
+class EditCustomRecipeIngredientJSON(TypedDict):
+    """The json for an ingredient in the edit custom recipe payload."""
+
+    type: str
+    text: str
+
+
+class EditCustomRecipeInstructionJSON(TypedDict):
+    """The json for an instruction in the edit custom recipe payload."""
+
+    type: str
+    text: str
+
+
+class EditCustomRecipeMetadataJSON(TypedDict):
+    """The json for recipe metadata in the edit custom recipe payload."""
+
+    requiresAnnotationsCheck: bool
+
+
+#  Need to use alternative syntax as "yield" is a protected keyword
+EditCustomRecipeRequestJSON = TypedDict(
+    "EditCustomRecipeRequestJSON",
+    {
+        "name": str,
+        "image": str | None,
+        "isImageOwnedByUser": bool,
+        "tools": list[str],
+        "yield": CustomRecipeYieldJSON,
+        "prepTime": int,
+        "cookTime": int,
+        "totalTime": int,
+        "ingredients": list[EditCustomRecipeIngredientJSON],
+        "instructions": list[EditCustomRecipeInstructionJSON],
+        "hints": str | None,
+        "workStatus": str,
+        "recipeMetadata": EditCustomRecipeMetadataJSON,
+    },
+)
+
+
+class CustomRecipesResponseJSON(TypedDict):
+    """The json for the custom recipes list response in the API."""
+
+    meta: dict[str, int]
+    items: list[CustomRecipeJSON]
+
+
 __all__ = ["QuantityJSON"]

@@ -445,3 +445,79 @@ class CookidooCalendarDay:
     title: str
     recipes: list[CookidooCalendarDayRecipe]
     customer_recipe_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CookidooCreateCustomRecipe:
+    """Input type for creating a new custom recipe from scratch.
+
+    Attributes
+    ----------
+    name
+        The name of the recipe
+    ingredients
+        List of ingredient strings (e.g., ["100 g flour", "2 eggs"])
+    instructions
+        List of instruction step strings
+    serving_size
+        The number of servings
+    total_time
+        Total time in seconds
+    active_time
+        Active/prep time in seconds
+    tools
+        List of tools needed (e.g., ["TM6", "TM5"])
+    unit_text
+        The unit text for the yield (e.g., "portion")
+    image
+        Optional image URL
+
+    """
+
+    name: str
+    ingredients: list[str]
+    instructions: list[str]
+    serving_size: int
+    total_time: int
+    active_time: int
+    tools: list[str] = field(default_factory=list)
+    unit_text: str = "portion"
+    image: str | None = None
+
+
+@dataclass
+class CookidooEditCustomRecipe:
+    """Input type for editing an existing custom recipe.
+
+    Attributes
+    ----------
+    name
+        The name of the recipe (optional, keeps existing if None)
+    ingredients
+        List of ingredient strings (optional, keeps existing if None)
+    instructions
+        List of instruction step strings (optional, keeps existing if None)
+    serving_size
+        The number of servings (optional, keeps existing if None)
+    total_time
+        Total time in seconds (optional, keeps existing if None)
+    active_time
+        Active/prep time in seconds (optional, keeps existing if None)
+    tools
+        List of tools needed (optional, keeps existing if None)
+    unit_text
+        The unit text for the yield (optional, keeps existing if None)
+    image
+        Image URL (optional, keeps existing if None)
+
+    """
+
+    name: str | None = None
+    ingredients: list[str] | None = None
+    instructions: list[str] | None = None
+    serving_size: int | None = None
+    total_time: int | None = None
+    active_time: int | None = None
+    tools: list[str] | None = None
+    unit_text: str | None = None
+    image: str | None = None
