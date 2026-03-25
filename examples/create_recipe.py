@@ -40,7 +40,7 @@ async def main():
             total_time=95*60,     # 95 minutes total
             active_time=30*60,    # 30 minutes active prep
             unit_text="portion",  # IMPORTANT: Must be exactly "portion"
-            tools=["TM6"],
+            tools=["TM6", "TM5"],  # Works with both TM6 and TM5 models
             ingredients=[
                 "1 κοτόπουλο ολόκληρο (~1,5 κιλό), κομμένο σε 10 μερίδες",
                 "500 γρ. χυλοπίτες (ή ψιλό χυλοπιτάκι)",

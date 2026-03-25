@@ -67,7 +67,7 @@ recipe = CookidooCreateCustomRecipe(
     total_time=95*60,      # seconds
     active_time=30*60,     # prep time in seconds
     unit_text="portion",   # MUST be "portion"
-    tools=["TM6"],
+    tools=["TM6", "TM5"],  # Supports multiple Thermomix models
     ingredients=[
         "1 chicken (~1.5kg)",
         "500g pasta",
@@ -132,6 +132,16 @@ Example:
 "Mix: 20 δευτ. / ταχύτητα 4"
 "Cook: 35 λεπτά / 100°C / αντίστροφη / ταχύτητα 0.5"
 ```
+
+### Device Compatibility
+Recipes can be marked as compatible with multiple Thermomix models:
+```python
+tools=["TM6", "TM5"]  # Works with both TM6 and TM5
+# or
+tools=["TM6", "TM5", "TM31"]  # Works with TM6, TM5, and TM31
+```
+
+Available model codes: `"TM6"`, `"TM5"`, `"TM31"`
 
 ## Data Formats
 
