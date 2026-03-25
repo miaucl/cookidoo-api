@@ -531,8 +531,13 @@ def cookidoo_create_custom_recipe_edit_to_json(
                 if step.settings.time is not None:
                     if step.settings.time < 60:
                         settings_parts.append(f"{step.settings.time} sec")
+                        time_str = str(step.settings.time)
                     else:
-                        settings_parts.append(f"{step.settings.time // 60} min")
+                        mins = step.settings.time // 60
+                        settings_parts.append(f"{mins} min")
+                        time_str = str(mins)
+                else:
+                    time_str = ""
                 if step.settings.temperature is not None:
                     settings_parts.append(str(step.settings.temperature))
                 if step.settings.speed is not None:
@@ -540,10 +545,9 @@ def cookidoo_create_custom_recipe_edit_to_json(
             
             if settings_parts:
                 settings_text = "/".join(settings_parts)
-                # Create duplicated format: "description. settingsXsettings" where X is the first number
+                # Create duplicated format: "description. settingsXsettings"
                 # e.g., "Chop. 5 sec/speed 55 sec/speed 5"
-                first_num = str(step.settings.time) if step.settings.time else ""
-                text = f"{step.text}. {settings_text}{first_num}{settings_text}"
+                text = f"{step.text}. {settings_text}{time_str}{settings_text}"
             else:
                 text = step.text
             
