@@ -458,7 +458,7 @@ class CookidooCreateCustomRecipe:
     ingredients
         List of ingredient strings (e.g., ["100 g flour", "2 eggs"])
     instructions
-        List of instruction step strings
+        List of instruction steps (strings or CookidooInstruction with settings)
     serving_size
         The number of servings
     total_time
@@ -476,7 +476,7 @@ class CookidooCreateCustomRecipe:
 
     name: str
     ingredients: list[str]
-    instructions: list[str]
+    instructions: list[str | CookidooInstruction]
     serving_size: int
     total_time: int
     active_time: int
@@ -485,6 +485,39 @@ class CookidooCreateCustomRecipe:
     image: str | None = None
 
 
+@dataclass
+class CookidooStepSettings:
+    """Structured settings for a recipe step (for guided cooking).
+
+    Attributes
+    ----------
+    time
+        Time in seconds for the step
+    temperature
+        Temperature in Celsius (e.g., 100, Varoma)
+    speed
+        Speed setting (e.g., 1, 2, 0.5)
+    """
+
+    time: int | None = None
+    temperature: int | str | None = None
+    speed: float | None = None
+
+
+@dataclass
+class CookidooInstruction:
+    """A recipe instruction with optional structured settings.
+
+    Attributes
+    ----------
+    text
+        The instruction text
+    settings
+        Optional structured settings for guided cooking
+    """
+
+    text: str
+    settings: CookidooStepSettings | None = None
 @dataclass
 class CookidooEditCustomRecipe:
     """Input type for editing an existing custom recipe.
@@ -496,7 +529,7 @@ class CookidooEditCustomRecipe:
     ingredients
         List of ingredient strings (optional, keeps existing if None)
     instructions
-        List of instruction step strings (optional, keeps existing if None)
+        List of instruction steps (strings or CookidooInstruction with settings)
     serving_size
         The number of servings (optional, keeps existing if None)
     total_time
@@ -514,7 +547,7 @@ class CookidooEditCustomRecipe:
 
     name: str | None = None
     ingredients: list[str] | None = None
-    instructions: list[str] | None = None
+    instructions: list[str | CookidooInstruction] | None = None
     serving_size: int | None = None
     total_time: int | None = None
     active_time: int | None = None

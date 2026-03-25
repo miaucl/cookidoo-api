@@ -43,6 +43,7 @@ from cookidoo_api.types import (
     CookidooEditCustomRecipe,
     CookidooIngredient,
     CookidooIngredientItem,
+    CookidooInstruction,
     CookidooLocalizationConfig,
     CookidooNutrition,
     CookidooNutritionGroup,
@@ -50,6 +51,7 @@ from cookidoo_api.types import (
     CookidooRecipeNutrition,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
+    CookidooStepSettings,
     CookidooSubscription,
     CookidooUserInfo,
 )
@@ -519,6 +521,22 @@ def cookidoo_create_custom_recipe_edit_to_json(
     """
     cook_time = max(0, recipe.total_time - recipe.active_time)
 
+    # Convert instructions - handle both strings and CookidooInstruction objects
+    instructions = []
+    for step in recipe.instructions:
+        if isinstance(step, CookidooInstruction):
+            step_dict: dict = {"type": "STEP", "text": step.text}
+            if step.settings:
+                if step.settings.time is not None:
+                    step_dict["time"] = step.settings.time
+                if step.settings.temperature is not None:
+                    step_dict["temperature"] = step.settings.temperature
+                if step.settings.speed is not None:
+                    step_dict["speed"] = step.settings.speed
+            instructions.append(step_dict)
+        else:
+            instructions.append({"type": "STEP", "text": step})
+
     return {
         "name": recipe.name,
         "image": recipe.image,
@@ -531,9 +549,7 @@ def cookidoo_create_custom_recipe_edit_to_json(
         "ingredients": [
             {"type": "INGREDIENT", "text": ing} for ing in recipe.ingredients
         ],
-        "instructions": [
-            {"type": "STEP", "text": step} for step in recipe.instructions
-        ],
+        "instructions": instructions,
         "hints": None,
         "workStatus": "PRIVATE",
         "recipeMetadata": {"requiresAnnotationsCheck": False},
