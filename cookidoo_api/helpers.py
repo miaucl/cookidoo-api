@@ -525,14 +525,29 @@ def cookidoo_create_custom_recipe_edit_to_json(
     instructions = []
     for step in recipe.instructions:
         if isinstance(step, CookidooInstruction):
-            step_dict: dict = {"type": "STEP", "text": step.text}
+            # Build settings text for presets (duplicated format)
+            settings_parts = []
             if step.settings:
                 if step.settings.time is not None:
-                    step_dict["time"] = step.settings.time
+                    if step.settings.time < 60:
+                        settings_parts.append(f"{step.settings.time} sec")
+                    else:
+                        settings_parts.append(f"{step.settings.time // 60} min")
                 if step.settings.temperature is not None:
-                    step_dict["temperature"] = step.settings.temperature
+                    settings_parts.append(str(step.settings.temperature))
                 if step.settings.speed is not None:
-                    step_dict["speed"] = step.settings.speed
+                    settings_parts.append(f"speed {step.settings.speed}")
+            
+            if settings_parts:
+                settings_text = "/".join(settings_parts)
+                # Create duplicated format: "description. settingsXsettings" where X is the first number
+                # e.g., "Chop. 5 sec/speed 55 sec/speed 5"
+                first_num = str(step.settings.time) if step.settings.time else ""
+                text = f"{step.text}. {settings_text}{first_num}{settings_text}"
+            else:
+                text = step.text
+            
+            step_dict: dict = {"type": "STEP", "text": text}
             instructions.append(step_dict)
         else:
             instructions.append({"type": "STEP", "text": step})
