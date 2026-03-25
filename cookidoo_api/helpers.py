@@ -545,10 +545,9 @@ def cookidoo_create_custom_recipe_edit_to_json(
             
             if settings_parts:
                 settings_text = "/".join(settings_parts)
-                # Create TRIPLE duplicated format for preset recognition
-                # Pattern: "description. settingsXsettingsXsettings"
-                # Example: "Chop. 5 sec/speed 55 sec/speed 55 sec/speed 5"
-                text = f"{step.text}. {settings_text}{time_str}{settings_text}{time_str}{settings_text}"
+                # Simple format - show settings once
+                # Example: "Chop. 5 sec/speed 5"
+                text = f"{step.text}. {settings_text}"
             else:
                 text = step.text
             
