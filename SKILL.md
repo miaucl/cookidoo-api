@@ -61,6 +61,8 @@ pip install -e .
 
 ### Create Custom Recipes
 ```python
+from cookidoo_api.types import CookidooCreateCustomRecipe, CookidooInstruction, CookidooStepSettings
+
 recipe = CookidooCreateCustomRecipe(
     name="Recipe Title",
     serving_size=6,
@@ -72,6 +74,28 @@ recipe = CookidooCreateCustomRecipe(
         "1 chicken (~1.5kg)",
         "500g pasta",
         "salt and pepper"
+    ],
+    instructions=[
+        # Simple text instructions
+        "Prepare ingredients",
+        
+        # Or structured instructions with settings for guided cooking
+        CookidooInstruction(
+            text="Chop onion",
+            settings=CookidooStepSettings(time=5, speed=5)
+        ),
+        CookidooInstruction(
+            text="Sauté vegetables",
+            settings=CookidooStepSettings(time=180, temperature=100, speed=1)
+        ),
+        CookidooInstruction(
+            text="Cook with Varoma",
+            settings=CookidooStepSettings(time=600, temperature="Varoma", speed=0.5)
+        )
+    ]
+)
+result = await api.create_custom_recipe(recipe)
+```
     ],
     instructions=[
         "Chop onion: 5 sec / Speed 5",
@@ -132,6 +156,47 @@ Example:
 "Mix: 20 δευτ. / ταχύτητα 4"
 "Cook: 35 λεπτά / 100°C / αντίστροφη / ταχύτητα 0.5"
 ```
+
+### Structured Step Settings (NEW!)
+For guided cooking support, you can now add structured settings to each step:
+
+```python
+from cookidoo_api.types import CookidooInstruction, CookidooStepSettings
+
+# Create instructions with time, temperature, and speed settings
+instructions=[
+    CookidooInstruction(
+        text="Chop onion and garlic",
+        settings=CookidooStepSettings(
+            time=5,        # 5 seconds
+            speed=5        # Speed 5
+        )
+    ),
+    CookidooInstruction(
+        text="Sauté vegetables",
+        settings=CookidooStepSettings(
+            time=180,           # 3 minutes
+            temperature=100,    # 100°C
+            speed=1             # Speed 1
+        )
+    ),
+    CookidooInstruction(
+        text="Steam cook",
+        settings=CookidooStepSettings(
+            time=600,               # 10 minutes
+            temperature="Varoma",   # Varoma temperature
+            speed=0.5               # Speed 0.5 (gentle stirring)
+        )
+    )
+]
+```
+
+**Settings fields:**
+- `time`: Duration in seconds (e.g., `180` for 3 minutes)
+- `temperature`: Temperature in °C or `"Varoma"` for highest setting
+- `speed`: Mixing speed (0.5 to 10, or 0 for no mixing)
+
+**Note:** These settings are stored with the recipe and may be used by the Cookidoo app for guided cooking features.
 
 ### Device Compatibility
 Recipes can be marked as compatible with multiple Thermomix models:
