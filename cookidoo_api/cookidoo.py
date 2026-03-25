@@ -29,7 +29,6 @@ from cookidoo_api.const import (
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
     CUSTOM_RECIPE_PATH,
     CUSTOM_RECIPES_PATH,
-    CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
     DEFAULT_TOKEN_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
@@ -64,6 +63,7 @@ from cookidoo_api.helpers import (
     cookidoo_auth_data_from_json,
     cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
+    cookidoo_create_custom_recipe_edit_to_json,
     cookidoo_create_custom_recipe_to_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_custom_recipes_from_json,
@@ -80,6 +80,7 @@ from cookidoo_api.raw_types import (
     CustomCollectionJSON,
     CustomRecipeJSON,
     CustomRecipesResponseJSON,
+    EditCustomRecipeRequestJSON,
     ItemJSON,
     ManagedCollectionJSON,
     RecipeDetailsJSON,
@@ -835,6 +836,10 @@ class Cookidoo:
     ) -> CookidooCustomRecipe:
         """Create a new custom recipe from scratch.
 
+        Creates a blank recipe with the given name, then updates it with
+        the full recipe details (ingredients, instructions, times, etc.)
+        via a PATCH request, and finally retrieves the recipe in standard format.
+
         Parameters
         ----------
         recipe
@@ -855,8 +860,9 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        json_data = cookidoo_create_custom_recipe_to_json(recipe)
+        create_json = cookidoo_create_custom_recipe_to_json(recipe)
         try:
+            # Step 1: Create blank recipe
             url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
                 **self._cfg.localization.__dict__
             )
@@ -865,7 +871,7 @@ class Cookidoo:
                 headers={
                     **self._api_headers,
                 },
-                json=json_data,
+                json=create_json,
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -891,19 +897,43 @@ class Cookidoo:
 
                 r.raise_for_status()
                 try:
-                    return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json()),
-                        self._cfg.localization,
-                    )
-
+                    create_response = await r.json()
+                    recipe_id: str = create_response["recipeId"]
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
-                        "Exception: Cannot get created custom recipe:\n%s",
+                        "Exception: Cannot parse created custom recipe:\n%s",
                         traceback.format_exc(),
                     )
                     raise CookidooParseException(
                         "Loading created custom recipe failed during parsing of request response."
                     ) from e
+
+            # Step 2: Update with full recipe details via PATCH
+            edit_json: EditCustomRecipeRequestJSON = (
+                cookidoo_create_custom_recipe_edit_to_json(recipe)
+            )
+            edit_url = self.api_endpoint / EDIT_CUSTOM_RECIPE_PATH.format(
+                **self._cfg.localization.__dict__, id=recipe_id
+            )
+            async with self._session.patch(
+                edit_url,
+                headers={
+                    **self._api_headers,
+                },
+                json=edit_json,
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", edit_url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    raise CookidooAuthException(
+                        "Create custom recipe failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
         except TimeoutError as e:
             _LOGGER.debug(
                 "Exception: Cannot execute create custom recipe:\n%s",
@@ -921,10 +951,16 @@ class Cookidoo:
                 "Create custom recipe failed due to request exception."
             ) from e
 
+        # Step 3: Retrieve in standard format
+        return await self.get_custom_recipe(recipe_id)
+
     async def edit_custom_recipe(
         self, custom_recipe_id: str, recipe: CookidooEditCustomRecipe
     ) -> CookidooCustomRecipe:
         """Edit an existing custom recipe.
+
+        Fetches the existing recipe to merge with provided fields,
+        then sends a PATCH request with the updated data.
 
         Parameters
         ----------
@@ -954,7 +990,7 @@ class Cookidoo:
             url = self.api_endpoint / EDIT_CUSTOM_RECIPE_PATH.format(
                 **self._cfg.localization.__dict__, id=custom_recipe_id
             )
-            async with self._session.put(
+            async with self._session.patch(
                 url,
                 headers={
                     **self._api_headers,
@@ -984,20 +1020,7 @@ class Cookidoo:
                     )
 
                 r.raise_for_status()
-                try:
-                    return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json()),
-                        self._cfg.localization,
-                    )
 
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get edited custom recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading edited custom recipe failed during parsing of request response."
-                    ) from e
         except TimeoutError as e:
             _LOGGER.debug(
                 "Exception: Cannot execute edit custom recipe:\n%s",
@@ -1014,6 +1037,9 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Edit custom recipe failed due to request exception."
             ) from e
+
+        # Retrieve updated recipe in standard format
+        return await self.get_custom_recipe(custom_recipe_id)
 
     async def get_custom_recipes(
         self,
@@ -1042,10 +1068,7 @@ class Cookidoo:
             )
             async with self._session.get(
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": CUSTOM_RECIPES_PATH_ACCEPT,
-                },
+                headers=self._api_headers,
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
