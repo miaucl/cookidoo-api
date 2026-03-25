@@ -67,7 +67,7 @@ recipe = CookidooCreateCustomRecipe(
     total_time=95*60,      # seconds
     active_time=30*60,     # prep time in seconds
     unit_text="portion",   # MUST be "portion"
-    tools=["TM6", "TM5"],  # Supports multiple Thermomix models
+    tools=["TM7", "TM6"],  # Supports multiple Thermomix models
     ingredients=[
         "1 chicken (~1.5kg)",
         "500g pasta",
@@ -136,12 +136,12 @@ Example:
 ### Device Compatibility
 Recipes can be marked as compatible with multiple Thermomix models:
 ```python
-tools=["TM6", "TM5"]  # Works with both TM6 and TM5
+tools=["TM7", "TM6"]  # Works with both TM7 and TM6
 # or
-tools=["TM6", "TM5", "TM31"]  # Works with TM6, TM5, and TM31
+tools=["TM7", "TM6", "TM5", "TM31"]  # Works with all models
 ```
 
-Available model codes: `"TM6"`, `"TM5"`, `"TM31"`
+Available model codes: `"TM7"`, `"TM6"`, `"TM5"`, `"TM31"`
 
 ## Data Formats
 
