@@ -342,13 +342,6 @@ EditCustomRecipeRequestJSON = TypedDict(
         "recipeMetadata": dict[str, bool],
     }
 )
-        "ingredients": list[dict[str, str]],
-        "instructions": list[InstructionJSON],
-        "hints": None,
-        "workStatus": str,
-        "recipeMetadata": dict[str, bool],
-    }
-)
 
 
 __all__ = ["QuantityJSON"]
