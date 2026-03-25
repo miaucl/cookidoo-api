@@ -323,23 +323,6 @@ class CreateCustomRecipeRequestJSON(TypedDict):
     recipeName: str
 
 
-class EditCustomRecipeRequestJSON(TypedDict):
-    """The json for editing a custom recipe in the API."""
-
-    name: str
-    image: str | None
-    isImageOwnedByUser: bool
-    tools: list[str]
-    prepTime: int
-    cookTime: int
-    totalTime: int
-    ingredients: list[dict[str, str]]
-    instructions: list[InstructionJSON]
-    hints: None
-    workStatus: str
-    recipeMetadata: dict[str, bool]
-
-
 # Use alternative syntax for "yield" since it's a reserved keyword
 EditCustomRecipeRequestJSON = TypedDict(
     "EditCustomRecipeRequestJSON",
@@ -352,6 +335,13 @@ EditCustomRecipeRequestJSON = TypedDict(
         "prepTime": int,
         "cookTime": int,
         "totalTime": int,
+        "ingredients": list[dict[str, str]],
+        "instructions": list[InstructionJSON],
+        "hints": None,
+        "workStatus": str,
+        "recipeMetadata": dict[str, bool],
+    }
+)
         "ingredients": list[dict[str, str]],
         "instructions": list[InstructionJSON],
         "hints": None,
