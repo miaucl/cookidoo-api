@@ -292,4 +292,30 @@ class CalendarDayJSON(TypedDict):
     customerRecipeIds: NotRequired[list[str]]
 
 
+class CreateCustomRecipeContentJSON(TypedDict):
+    """The json payload for creating a custom recipe content in the API."""
+
+    name: str
+    totalTime: str
+    prepTime: str
+    tool: list[str]
+    recipeYield: CustomRecipeYieldJSON
+    recipeIngredient: list[str]
+    recipeInstructions: list[str]
+    image: NotRequired[str | None]
+
+
+class CreateCustomRecipeJSON(TypedDict):
+    """The json payload for creating a custom recipe in the API."""
+
+    recipeContent: CreateCustomRecipeContentJSON
+
+
+class CustomRecipesResponseJSON(TypedDict):
+    """The json for the custom recipes list response in the API."""
+
+    meta: dict[str, int]
+    items: list[CustomRecipeJSON]
+
+
 __all__ = ["QuantityJSON"]

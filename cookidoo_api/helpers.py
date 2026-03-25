@@ -14,8 +14,10 @@ from cookidoo_api.raw_types import (
     AuthResponseJSON,
     CalendarDayJSON,
     CalenderDayRecipeJSON,
+    CreateCustomRecipeJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
+    CustomRecipesResponseJSON,
     DescriptiveAssetJSON,
     IngredientJSON,
     ItemJSON,
@@ -35,7 +37,9 @@ from cookidoo_api.types import (
     CookidooChapter,
     CookidooChapterRecipe,
     CookidooCollection,
+    CookidooCreateCustomRecipe,
     CookidooCustomRecipe,
+    CookidooEditCustomRecipe,
     CookidooIngredient,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
@@ -431,6 +435,96 @@ def cookidoo_calendar_day_from_json(
         recipes=[*regular_recipes, *custom_recipes],
         customer_recipe_ids=list(calendar_day.get("customerRecipeIds", [])),
     )
+
+
+def _seconds_to_iso_duration(seconds: int) -> str:
+    """Convert seconds to an ISO 8601 duration string."""
+    duration = isodate.duration_isoformat(isodate.parse_duration(f"PT{seconds}S"))
+    return str(duration)
+
+
+def cookidoo_create_custom_recipe_to_json(
+    recipe: CookidooCreateCustomRecipe,
+) -> CreateCustomRecipeJSON:
+    """Convert a create custom recipe input to a JSON payload for the API."""
+    content: CreateCustomRecipeJSON = {
+        "recipeContent": {
+            "name": recipe.name,
+            "totalTime": _seconds_to_iso_duration(recipe.total_time),
+            "prepTime": _seconds_to_iso_duration(recipe.active_time),
+            "tool": recipe.tools,
+            "recipeYield": {
+                "value": recipe.serving_size,
+                "unitText": recipe.unit_text,
+            },
+            "recipeIngredient": recipe.ingredients,
+            "recipeInstructions": recipe.instructions,
+        },
+    }
+    if recipe.image is not None:
+        content["recipeContent"]["image"] = recipe.image
+    return content
+
+
+def cookidoo_edit_custom_recipe_to_json(
+    recipe: CookidooEditCustomRecipe,
+    existing: CookidooCustomRecipe,
+) -> CreateCustomRecipeJSON:
+    """Convert an edit custom recipe input to a JSON payload for the API.
+
+    Merges the edit fields with the existing recipe, keeping existing values
+    for any fields not specified in the edit.
+    """
+    name = recipe.name if recipe.name is not None else existing.name
+    ingredients = (
+        recipe.ingredients if recipe.ingredients is not None else existing.ingredients
+    )
+    instructions = (
+        recipe.instructions
+        if recipe.instructions is not None
+        else existing.instructions
+    )
+    serving_size = (
+        recipe.serving_size
+        if recipe.serving_size is not None
+        else existing.serving_size
+    )
+    total_time = (
+        recipe.total_time if recipe.total_time is not None else existing.total_time
+    )
+    active_time = (
+        recipe.active_time if recipe.active_time is not None else existing.active_time
+    )
+    tools = recipe.tools if recipe.tools is not None else existing.tools
+    image = recipe.image if recipe.image is not None else existing.image
+
+    content: CreateCustomRecipeJSON = {
+        "recipeContent": {
+            "name": name,
+            "totalTime": _seconds_to_iso_duration(total_time),
+            "prepTime": _seconds_to_iso_duration(active_time),
+            "tool": tools,
+            "recipeYield": {
+                "value": serving_size,
+                "unitText": recipe.unit_text or "portion",
+            },
+            "recipeIngredient": ingredients,
+            "recipeInstructions": instructions,
+        },
+    }
+    if image is not None:
+        content["recipeContent"]["image"] = image
+    return content
+
+
+def cookidoo_custom_recipes_from_json(
+    data: CustomRecipesResponseJSON,
+    localization: CookidooLocalizationConfig | None = None,
+) -> list[CookidooCustomRecipe]:
+    """Convert a custom recipes list response from the API to a list of custom recipes."""
+    return [
+        cookidoo_custom_recipe_from_json(item, localization) for item in data["items"]
+    ]
 
 
 async def __get_localization_options(
