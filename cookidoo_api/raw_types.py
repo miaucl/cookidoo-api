@@ -229,6 +229,12 @@ class CustomRecipeJSON(TypedDict):
     recipeContent: CustomRecipeContentJSON
 
 
+class CustomRecipesResponseJSON(TypedDict):
+    """The json for custom recipes list response in the API."""
+
+    items: list[CustomRecipeJSON]
+
+
 class ChapterRecipeJSON(TypedDict):
     """The json for a chapter recipe in the API."""
 
@@ -290,6 +296,69 @@ class CalendarDayJSON(TypedDict):
     recipes: list[CalenderDayRecipeJSON]
     customerRecipes: NotRequired[list[CalenderDayRecipeJSON]]
     customerRecipeIds: NotRequired[list[str]]
+
+
+class StepSettingsJSON(TypedDict, total=False):
+    """The json for step settings in the API."""
+
+    time: int
+    temperature: int | str
+    speed: float
+
+
+class InstructionJSON(TypedDict):
+    """The json for an instruction in the API."""
+
+    type: str
+    text: str
+    time: NotRequired[int]
+    temperature: NotRequired[int | str]
+    speed: NotRequired[float]
+    settings: NotRequired[StepSettingsJSON]
+
+
+class CreateCustomRecipeRequestJSON(TypedDict):
+    """The json for creating a custom recipe in the API."""
+
+    recipeName: str
+
+
+class EditCustomRecipeRequestJSON(TypedDict):
+    """The json for editing a custom recipe in the API."""
+
+    name: str
+    image: str | None
+    isImageOwnedByUser: bool
+    tools: list[str]
+    prepTime: int
+    cookTime: int
+    totalTime: int
+    ingredients: list[dict[str, str]]
+    instructions: list[InstructionJSON]
+    hints: None
+    workStatus: str
+    recipeMetadata: dict[str, bool]
+
+
+# Use alternative syntax for "yield" since it's a reserved keyword
+EditCustomRecipeRequestJSON = TypedDict(
+    "EditCustomRecipeRequestJSON",
+    {
+        "name": str,
+        "image": str | None,
+        "isImageOwnedByUser": bool,
+        "tools": list[str],
+        "yield": dict[str, int | str],
+        "prepTime": int,
+        "cookTime": int,
+        "totalTime": int,
+        "ingredients": list[dict[str, str]],
+        "instructions": list[InstructionJSON],
+        "hints": None,
+        "workStatus": str,
+        "recipeMetadata": dict[str, bool],
+    }
+)
 
 
 __all__ = ["QuantityJSON"]
