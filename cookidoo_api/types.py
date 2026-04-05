@@ -1,7 +1,5 @@
 """Cookidoo API types."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 
@@ -450,6 +448,43 @@ class CookidooCalendarDay:
 
 
 @dataclass
+class CookidooStepSettings:
+    """Structured settings for a recipe step (for guided cooking).
+
+    Attributes
+    ----------
+    time
+        Time in seconds for the step
+    temperature
+        Temperature in Celsius (e.g., 100, Varoma)
+    speed
+        Speed setting (e.g., 1, 2, 0.5)
+
+    """
+
+    time: int | None = None
+    temperature: int | str | None = None
+    speed: float | None = None
+
+
+@dataclass
+class CookidooInstruction:
+    """A recipe instruction with optional structured settings.
+
+    Attributes
+    ----------
+    text
+        The instruction text
+    settings
+        Optional structured settings for guided cooking
+
+    """
+
+    text: str
+    settings: CookidooStepSettings | None = None
+
+
+@dataclass
 class CookidooCreateCustomRecipe:
     """Input type for creating a new custom recipe from scratch.
 
@@ -485,43 +520,6 @@ class CookidooCreateCustomRecipe:
     tools: list[str] = field(default_factory=list)
     unit_text: str = "portion"
     image: str | None = None
-
-
-@dataclass
-class CookidooStepSettings:
-    """Structured settings for a recipe step (for guided cooking).
-
-    Attributes
-    ----------
-    time
-        Time in seconds for the step
-    temperature
-        Temperature in Celsius (e.g., 100, Varoma)
-    speed
-        Speed setting (e.g., 1, 2, 0.5)
-
-    """
-
-    time: int | None = None
-    temperature: int | str | None = None
-    speed: float | None = None
-
-
-@dataclass
-class CookidooInstruction:
-    """A recipe instruction with optional structured settings.
-
-    Attributes
-    ----------
-    text
-        The instruction text
-    settings
-        Optional structured settings for guided cooking
-
-    """
-
-    text: str
-    settings: CookidooStepSettings | None = None
 
 
 @dataclass
