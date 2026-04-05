@@ -1,31 +1,28 @@
-"""Extended unit tests for cookidoo-api edge cases and error handling.
+"""Unit tests for custom recipes and additional edge cases.
 
-These tests cover edge cases, error scenarios, and API volatility protection.
+These tests cover custom recipe CRUD operations, localization, authentication,
+network resilience, data validation, and API volatility protection.
 """
 
 from datetime import datetime
 from http import HTTPStatus
-from unittest.mock import AsyncMock, patch
 
-from aiohttp import ClientError, ClientSession
+from aiohttp import ClientSession
 from aioresponses import aioresponses
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.exceptions import (
     CookidooAuthException,
-    CookidooConfigException,
     CookidooParseException,
     CookidooRequestException,
 )
 from cookidoo_api.helpers import get_localization_options
 from cookidoo_api.types import (
-    CookidooAuthResponse,
     CookidooConfig,
     CookidooCreateCustomRecipe,
     CookidooEditCustomRecipe,
     CookidooInstruction,
-    CookidooLocalizationConfig,
     CookidooStepSettings,
 )
 
@@ -58,7 +55,9 @@ class TestConfigAndLocalization:
         expected_prefix: str,
     ) -> None:
         """Test API endpoint generation for various localizations."""
-        localization = (await get_localization_options(country=country, language=language))[0]
+        localization = (
+            await get_localization_options(country=country, language=language)
+        )[0]
         cookidoo = Cookidoo(
             session,
             cfg=CookidooConfig(localization=localization),
@@ -206,9 +205,7 @@ class TestRecipeOperations:
                 ),
                 CookidooInstruction(
                     text="Cook",
-                    settings=CookidooStepSettings(
-                        time=1800, temperature=100, speed=1
-                    ),
+                    settings=CookidooStepSettings(time=1800, temperature=100, speed=1),
                 ),
             ],
         )
@@ -291,7 +288,9 @@ class TestNetworkResilience:
 class TestDataValidation:
     """Tests for data validation and type checking."""
 
-    async def test_empty_recipe_list(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+    async def test_empty_recipe_list(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
         """Test handling of empty recipe lists."""
         mocked.get(
             "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list?page=0",
@@ -332,7 +331,7 @@ class TestDataValidation:
                 "name": f"Ingredient {i}",
                 "isOwned": False,
                 "isIngredient": True,
-                "description": f"{i*10}g",
+                "description": f"{i * 10}g",
             }
             for i in range(100)
         ]

@@ -1,7 +1,5 @@
 """Cookidoo API types."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 
@@ -499,6 +497,7 @@ class CookidooStepSettings:
         Temperature in Celsius (e.g., 100, Varoma)
     speed
         Speed setting (e.g., 1, 2, 0.5)
+
     """
 
     time: int | None = None
@@ -516,10 +515,13 @@ class CookidooInstruction:
         The instruction text
     settings
         Optional structured settings for guided cooking
+
     """
 
     text: str
     settings: CookidooStepSettings | None = None
+
+
 @dataclass
 class CookidooEditCustomRecipe:
     """Input type for editing an existing custom recipe.

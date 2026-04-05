@@ -1,8 +1,9 @@
-"""
-Example: Create a recipe and add it to a collection
-"""
+"""Example: Create a recipe and add it to a collection."""
+
 import asyncio
+
 import aiohttp
+
 from cookidoo_api import Cookidoo, CookidooConfig, CookidooLocalizationConfig
 from cookidoo_api.types import CookidooCreateCustomRecipe
 
@@ -16,77 +17,74 @@ COLLECTION_ID = "your-collection-id"
 
 async def main():
     """Create a recipe and add it to a collection."""
-    
-    # Setup config for Greece
+
+    # Setup config
     cfg = CookidooConfig(
         email=EMAIL,
         password=PASSWORD,
         localization=CookidooLocalizationConfig(
-            country_code="gr",
-            language="el-GR",
-            url="https://cookidoo.gr/foundation/el-GR"
-        )
+            country_code="ch",
+            language="de-CH",
+            url="https://cookidoo.ch/foundation/de-CH",
+        ),
     )
-    
+
     async with aiohttp.ClientSession() as session:
         api = Cookidoo(session, cfg)
         await api.login()
-        print("✅ Logged in")
-        
+        print("Logged in")
+
         # Create a custom recipe
         recipe = CookidooCreateCustomRecipe(
-            name="Κοτόπουλο με Χυλοπίτες (Thermomix)",
+            name="Chicken with Egg Noodles (Thermomix)",
             serving_size=6,
-            total_time=95*60,     # 95 minutes total
-            active_time=30*60,    # 30 minutes active prep
+            total_time=95 * 60,  # 95 minutes total
+            active_time=30 * 60,  # 30 minutes active prep
             unit_text="portion",  # IMPORTANT: Must be exactly "portion"
             tools=["TM7", "TM6"],  # Works with both TM7 and TM6 models
             ingredients=[
-                "1 κοτόπουλο ολόκληρο (~1,5 κιλό), κομμένο σε 10 μερίδες",
-                "500 γρ. χυλοπίτες (ή ψιλό χυλοπιτάκι)",
-                "1 κρεμμύδι",
-                "2 σκελίδες σκόρδο",
-                "2-3 κλαδάκια ρίγανη",
-                "2-3 κλαδάκια θυμάρι",
-                "4-6 κ.σ. ελαιόλαδο",
-                "6 κόκκοι μπαχάρι",
-                "1 στικ κανέλας",
-                "1 κύβος κότας",
-                "½ κ.σ. κρυσταλλική ζάχαρη",
-                "1 κ.σ. πελτές ντομάτας",
-                "100 γρ. λευκό κρασί",
-                "1 λίτρο νερό βραστό",
-                "500 γρ. τριμμένες ντομάτες",
-                "αλάτι και πιπέρι κατά βούληση",
-                "φέτα τριμμένη (για σερβίρισμα)",
-                "ψιλοκομμένος μαϊντανός (για σερβίρισμα)"
+                "1 whole chicken (~1.5 kg), cut into 10 pieces",
+                "500 g egg noodles",
+                "1 onion",
+                "2 cloves garlic",
+                "2-3 sprigs oregano",
+                "2-3 sprigs thyme",
+                "4-6 tbsp olive oil",
+                "6 allspice berries",
+                "1 cinnamon stick",
+                "1 chicken bouillon cube",
+                "1/2 tbsp granulated sugar",
+                "1 tbsp tomato paste",
+                "100 g white wine",
+                "1 litre boiling water",
+                "500 g crushed tomatoes",
+                "salt and pepper to taste",
+                "crumbled feta cheese (for serving)",
+                "finely chopped parsley (for serving)",
             ],
             instructions=[
-                "Ψιλόκοψε κρεμμύδι + σκόρδο: Βάλε στον κάδο. 5 δευτ. / Ταχύτητα 5. Κατέβασε από τα τοιχώματα.",
-                "Σοτάρισμα αρωματικών: Πρόσθεσε 2-3 κ.σ. ελαιόλαδο, ρίγανη, θυμάρι. 3 λεπτά / Varoma / Ταχύτητα 1.",
-                "Σοτάρισμα κοτόπουλου: Βγάλε τα αρωματικά. Σοτάρισε τα κομμάτια κοτόπουλου σε τηγάνι με λίγο ελαιόλαδο 2-3 λεπτά ανά πλευρά. Βάλε στον κάδο με αλάτι, πιπέρι, μπαχάρι, κανέλα. 5 λεπτά / Varoma / αντίστροφη / Ταχύτητα 0.5.",
-                "Σάλτσα & βράσιμο: Πρόσθεσε ζάχαρη, πελτέ, κρασί, 400 γρ. νερό, τριμμένες ντομάτες, κύβο κότας. 35 λεπτά / 100°C / αντίστροφη / Ταχύτητα 0.5.",
-                "Προθέρμανε φούρνο στους 200°C αέρα. Σε ταψί 30x40 βάλε τις χυλοπίτες + 600 γρ. νερό + κοτόπουλο με τη σάλτσα. Ανακάτεψε.",
-                "Ψήσε στους 200°C για 20-25 λεπτά μέχρι να απορροφηθεί η υγρασία και να ροδίσουν οι χυλοπίτες.",
-                "Σερβίρισμα: Πρόσθεσε τριμμένη φέτα και ψιλοκομμένο μαϊντανό από πάνω. Καλή όρεξη!"
-            ]
+                "Chop onion and garlic: Place in the bowl. 5 sec / Speed 5. Scrape down the sides.",
+                "Saute aromatics: Add 2-3 tbsp olive oil, oregano, thyme. 3 min / Varoma / Speed 1.",
+                "Saute chicken: Remove the aromatics. Brown the chicken pieces in a pan with a little olive oil, 2-3 min per side. Place in the bowl with salt, pepper, allspice, cinnamon. 5 min / Varoma / Reverse / Speed 0.5.",
+                "Sauce and simmer: Add sugar, tomato paste, wine, 400 g water, crushed tomatoes, chicken bouillon cube. 35 min / 100C / Reverse / Speed 0.5.",
+                "Preheat oven to 200C fan. In a 30x40 cm baking tray, combine egg noodles + 600 g water + chicken with sauce. Mix well.",
+                "Bake at 200C for 20-25 minutes until the liquid is absorbed and the noodles are golden.",
+                "Serving: Top with crumbled feta cheese and finely chopped parsley. Enjoy!",
+            ],
         )
-        
+
         result = await api.create_custom_recipe(recipe)
-        print(f"✅ Recipe created: {result.id}")
+        print(f"Recipe created: {result.id}")
         print(f"   Name: {result.name}")
         print(f"   Ingredients: {len(result.ingredients)}")
         print(f"   Instructions: {len(result.instructions)}")
-        
+
         # Add to collection
-        await api.add_recipes_to_custom_collection(
-            COLLECTION_ID,
-            [result.id]
-        )
-        print(f"✅ Added to collection")
-        
-        print(f"\n🎉 Done!")
-        print(f"   URL: https://cookidoo.gr/created-recipes/el-GR/{result.id}")
+        await api.add_recipes_to_custom_collection(COLLECTION_ID, [result.id])
+        print("Added to collection")
+
+        print("\nDone!")
+        print(f"   URL: https://cookidoo.ch/created-recipes/de-CH/{result.id}")
 
 
 if __name__ == "__main__":

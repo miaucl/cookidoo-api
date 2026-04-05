@@ -51,7 +51,6 @@ from cookidoo_api.types import (
     CookidooRecipeNutrition,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
-    CookidooStepSettings,
     CookidooSubscription,
     CookidooUserInfo,
 )
@@ -542,7 +541,7 @@ def cookidoo_create_custom_recipe_edit_to_json(
                     settings_parts.append(str(step.settings.temperature))
                 if step.settings.speed is not None:
                     settings_parts.append(f"speed {step.settings.speed}")
-            
+
             if settings_parts:
                 settings_text = "/".join(settings_parts)
                 # Simple format - show settings once
@@ -550,7 +549,7 @@ def cookidoo_create_custom_recipe_edit_to_json(
                 text = f"{step.text}. {settings_text}"
             else:
                 text = step.text
-            
+
             step_dict: dict = {"type": "STEP", "text": text}
             instructions.append(step_dict)
         else:

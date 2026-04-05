@@ -340,7 +340,7 @@ EditCustomRecipeRequestJSON = TypedDict(
         "hints": None,
         "workStatus": str,
         "recipeMetadata": dict[str, bool],
-    }
+    },
 )
 
 
