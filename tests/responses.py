@@ -1866,3 +1866,59 @@ COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR = {
     },
     "code": None,
 }
+
+COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN: Final = {
+    "apiKey": "dGVzdC1hbGdvbGlhLWFwaS1rZXk=",
+    "validUntil": 9999999999,
+    "version": "1",
+    "subscriptionLevel": "FULL",
+}
+
+COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS: Final = {
+    "results": [
+        {
+            "hits": [
+                {
+                    "id": "r130616",
+                    "objectID": "r130616",
+                    "title": "Tomaten-Knoblauch-Pasta",
+                    "rating": 4.1,
+                    "numberOfRatings": 5258,
+                    "totalTime": 1800,
+                    "image": "https://{assethost}/image/upload/{transformation}/img/recipe/ras/Assets/recipe1.jpg",
+                },
+                {
+                    "id": "r907016",
+                    "objectID": "r907016",
+                    "title": "Spaghetti Carbonara",
+                    "rating": 4.5,
+                    "numberOfRatings": 3200,
+                    "totalTime": 2400,
+                    "image": "https://{assethost}/image/upload/{transformation}/img/recipe/ras/Assets/recipe2.jpg",
+                },
+            ],
+            "nbHits": 150,
+            "page": 0,
+            "nbPages": 8,
+            "hitsPerPage": 20,
+            "processingTimeMS": 15,
+            "exhaustiveNbHits": True,
+            "query": "Pasta",
+        }
+    ]
+}
+
+COOKIDOO_TEST_RESPONSE_SEARCH_EMPTY: Final = {
+    "results": [
+        {
+            "hits": [],
+            "nbHits": 0,
+            "page": 0,
+            "nbPages": 0,
+            "hitsPerPage": 20,
+            "processingTimeMS": 5,
+            "exhaustiveNbHits": True,
+            "query": "xyznonexistent",
+        }
+    ]
+}

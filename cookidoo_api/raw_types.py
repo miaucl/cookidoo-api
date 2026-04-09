@@ -292,4 +292,35 @@ class CalendarDayJSON(TypedDict):
     customerRecipeIds: NotRequired[list[str]]
 
 
+class SearchTokenJSON(TypedDict):
+    """The json for a search token response."""
+
+    apiKey: str
+    validUntil: int
+    version: str
+    subscriptionLevel: str
+
+
+class SearchRecipeHitJSON(TypedDict):
+    """The json for an Algolia recipe search hit."""
+
+    id: str
+    objectID: str
+    title: str
+    rating: NotRequired[float]
+    numberOfRatings: NotRequired[int]
+    totalTime: NotRequired[int]
+    image: NotRequired[str | None]
+
+
+class SearchResultJSON(TypedDict):
+    """The json for an Algolia search result."""
+
+    nbHits: int
+    page: int
+    nbPages: int
+    hitsPerPage: int
+    hits: list[SearchRecipeHitJSON]
+
+
 __all__ = ["QuantityJSON"]

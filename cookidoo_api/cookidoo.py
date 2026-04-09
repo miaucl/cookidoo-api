@@ -20,10 +20,17 @@ from cookidoo_api.const import (
     ADD_RECIPES_TO_CALENDER_PATH,
     ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
+    ALGOLIA_APPLICATION_ID,
+    ALGOLIA_DEFAULT_PAGE_SIZE,
+    ALGOLIA_EMPTY_SEARCH_INDEX_PATTERN,
+    ALGOLIA_ENDPOINT,
+    ALGOLIA_INDEX_PATTERN,
+    ALGOLIA_SORT_INDEX_SUFFIXES,
     API_ENDPOINT,
     AUTHORIZATION_HEADER,
     CO_UK_COUNTRY_CODE,
     COMMUNITY_PROFILE_PATH,
+    COOKIE_HEADER,
     COOKIDOO_CLIENT_ID,
     CUSTOM_COLLECTIONS_PATH,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
@@ -46,6 +53,7 @@ from cookidoo_api.const import (
     REMOVE_MANAGED_COLLECTION_PATH,
     REMOVE_RECIPE_FROM_CALENDER_PATH,
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
+    SEARCH_TOKEN_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_PATH,
@@ -57,6 +65,7 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import (
+    build_algolia_filter_string,
     cookidoo_additional_item_from_json,
     cookidoo_auth_data_from_json,
     cookidoo_calendar_day_from_json,
@@ -65,6 +74,7 @@ from cookidoo_api.helpers import (
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
+    cookidoo_search_recipe_hit_from_json,
     cookidoo_subscription_from_json,
     cookidoo_user_info_from_json,
 )
@@ -77,6 +87,8 @@ from cookidoo_api.raw_types import (
     ManagedCollectionJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
+    SearchTokenJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
@@ -87,6 +99,10 @@ from cookidoo_api.types import (
     CookidooCustomRecipe,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
+    CookidooSearchFilters,
+    CookidooSearchRecipeHit,
+    CookidooSearchResult,
+    CookidooSearchSort,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
@@ -104,6 +120,8 @@ class Cookidoo:
     _token_headers: dict[str, str]
     _api_headers: dict[str, str]
     _auth_data: CookidooAuthResponse | None
+    _search_api_key: str | None
+    _search_token_valid_until: int
 
     def __init__(
         self,
@@ -127,6 +145,8 @@ class Cookidoo:
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self.__expires_in: int
         self._auth_data = None
+        self._search_api_key = None
+        self._search_token_valid_until = 0
 
     @property
     def localization(self) -> CookidooLocalizationConfig:
@@ -3217,4 +3237,249 @@ class Cookidoo:
             )
             raise CookidooRequestException(
                 "Remove custom recipe from calendar failed due to request exception."
+            ) from e
+
+    def _get_search_domain(self) -> str:
+        """Derive the Cookidoo web domain from localization config."""
+        from urllib.parse import urlparse
+
+        parsed = urlparse(self._cfg.localization.url)
+        return parsed.netloc
+
+    def _get_market_code(self) -> str:
+        """Derive the Algolia market code from localization config."""
+        domain = self._get_search_domain()
+        # Extract TLD from domain like "cookidoo.ch" -> "ch", "cookidoo.de" -> "de"
+        # Special case: "cookidoo.co.uk" -> "gb", "cookidoo.international" -> "en"
+        if "co.uk" in domain:
+            return "gb"
+        if "international" in domain:
+            return "en"
+        # Get the last part after the last dot
+        return domain.rsplit(".", 1)[-1]
+
+    async def _get_search_token(self) -> str:
+        """Fetch and cache the Algolia search API key.
+
+        Returns
+        -------
+        str
+            The Algolia API key for search queries.
+
+        Raises
+        ------
+        CookidooConfigException
+            If no login has happened yet.
+        CookidooRequestException
+            If the token request fails.
+        CookidooParseException
+            If the token response cannot be parsed.
+        CookidooAuthException
+            If the token request fails due to authorization.
+
+        """
+        if not self._auth_data:
+            raise CookidooConfigException("No auth data available, please log in first")
+
+        # Return cached token if still valid
+        if self._search_api_key and self._search_token_valid_until > int(time.time()):
+            return self._search_api_key
+
+        try:
+            domain = self._get_search_domain()
+            url = URL(f"https://{domain}") / SEARCH_TOKEN_PATH
+            headers = {
+                "COOKIE": COOKIE_HEADER.format(
+                    access_token=self._auth_data.access_token
+                ),
+            }
+            async with self._session.get(url, headers=headers) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.UNAUTHORIZED:
+                    raise CookidooAuthException(
+                        "Search token request failed due to authorization failure, "
+                        "the authorization token is invalid or expired."
+                    )
+
+                r.raise_for_status()
+
+                try:
+                    token_data: SearchTokenJSON = await r.json()
+                    self._search_api_key = token_data["apiKey"]
+                    self._search_token_valid_until = token_data["validUntil"]
+                    return self._search_api_key
+                except (JSONDecodeError, KeyError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot parse search token response:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading search token failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot fetch search token:\n%s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Search token request failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot fetch search token:\n%s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Search token request failed due to request exception."
+            ) from e
+
+    async def search_recipes(
+        self,
+        query: str = "",
+        page: int = 0,
+        page_size: int = ALGOLIA_DEFAULT_PAGE_SIZE,
+        sort: CookidooSearchSort = CookidooSearchSort.RELEVANCE,
+        filters: CookidooSearchFilters | None = None,
+    ) -> CookidooSearchResult:
+        """Search for recipes.
+
+        Parameters
+        ----------
+        query
+            The search query string. Empty string returns popular recipes.
+        page
+            The page number (0-based).
+        page_size
+            The number of results per page.
+        sort
+            The sort order for results.
+        filters
+            Optional filters to apply to the search.
+
+        Returns
+        -------
+        CookidooSearchResult
+            The search result with hits and pagination metadata.
+
+        Raises
+        ------
+        CookidooConfigException
+            If no login has happened yet.
+        CookidooAuthException
+            When the access token is not valid anymore.
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        api_key = await self._get_search_token()
+        market = self._get_market_code()
+
+        # Choose index based on query and sort
+        if not query and sort == CookidooSearchSort.RELEVANCE:
+            index_name = ALGOLIA_EMPTY_SEARCH_INDEX_PATTERN.format(market=market)
+        else:
+            base_index = ALGOLIA_INDEX_PATTERN.format(market=market)
+            suffix = ALGOLIA_SORT_INDEX_SUFFIXES.get(sort.value, "")
+            index_name = f"{base_index}{suffix}"
+
+        # Build params string
+        params_parts = [
+            f"hitsPerPage={page_size}",
+            f"page={page}",
+        ]
+
+        facets = '["categories.id","difficulty","tmversion","accessories"]'
+        params_parts.append(f"facets={facets}")
+
+        if filters:
+            filter_string = build_algolia_filter_string(filters)
+            if filter_string:
+                params_parts.append(f"filters={filter_string}")
+
+        params = "&".join(params_parts)
+
+        body = {
+            "requests": [
+                {
+                    "indexName": index_name,
+                    "query": query,
+                    "params": params,
+                }
+            ]
+        }
+
+        try:
+            url = URL(
+                ALGOLIA_ENDPOINT.format(app_id=ALGOLIA_APPLICATION_ID)
+            )
+            headers = {
+                "Content-Type": "application/json",
+                "x-algolia-api-key": api_key,
+                "x-algolia-application-id": ALGOLIA_APPLICATION_ID,
+            }
+            async with self._session.post(
+                url, json=body, headers=headers
+            ) as r:
+                _LOGGER.debug(
+                    "Response from %s [%s]: %s", url, r.status, await r.text()
+                )
+
+                if r.status == HTTPStatus.FORBIDDEN:
+                    # Token may have expired, try refreshing once
+                    self._search_api_key = None
+                    api_key = await self._get_search_token()
+                    headers["x-algolia-api-key"] = api_key
+
+                    async with self._session.post(
+                        url, json=body, headers=headers
+                    ) as r2:
+                        if r2.status == HTTPStatus.FORBIDDEN:
+                            raise CookidooAuthException(
+                                "Search failed due to authorization failure. "
+                                "The search API key is invalid or expired."
+                            )
+                        r2.raise_for_status()
+                        response_data = await r2.json()
+                else:
+                    r.raise_for_status()
+                    response_data = await r.json()
+
+                try:
+                    result = response_data["results"][0]
+                    hits = [
+                        cookidoo_search_recipe_hit_from_json(
+                            cast(SearchRecipeHitJSON, hit)
+                        )
+                        for hit in result["hits"]
+                    ]
+                    return CookidooSearchResult(
+                        total_hits=result["nbHits"],
+                        page=result["page"],
+                        total_pages=result["nbPages"],
+                        hits=hits,
+                    )
+                except (KeyError, IndexError) as e:
+                    _LOGGER.debug(
+                        "Exception: Cannot parse search response:\n%s",
+                        traceback.format_exc(),
+                    )
+                    raise CookidooParseException(
+                        "Loading search results failed during parsing of request response."
+                    ) from e
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute search:\n%s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Search failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot execute search:\n%s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Search failed due to request exception."
             ) from e

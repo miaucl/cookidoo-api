@@ -22,6 +22,7 @@ from cookidoo_api.types import (
     CookidooConfig,
     CookidooIngredientItem,
 )
+from cookidoo_api.types import CookidooSearchFilters, CookidooSearchSort
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
@@ -50,6 +51,9 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
+    COOKIDOO_TEST_RESPONSE_SEARCH_EMPTY,
+    COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+    COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
 )
 
@@ -2976,3 +2980,263 @@ class TestRemoveCustomRecipeFromCalendar:
                 datetime.fromisoformat("2025-08-11").date(),
                 "01K2CTJ9Y1BABRG5MXK44CFZS4",
             )
+
+
+class TestSearchRecipes:
+    """Tests for search_recipes method."""
+
+    async def _login(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Helper to mock login and search token."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
+            status=HTTPStatus.OK,
+            payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
+        )
+        await cookidoo.login()
+
+    async def test_search_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test basic keyword search."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+
+        result = await cookidoo.search_recipes(query="Pasta")
+
+        assert result.total_hits == 150
+        assert result.page == 0
+        assert result.total_pages == 8
+        assert len(result.hits) == 2
+        assert result.hits[0].id == "r130616"
+        assert result.hits[0].title == "Tomaten-Knoblauch-Pasta"
+        assert result.hits[0].rating == 4.1
+        assert result.hits[0].total_time == 1800
+        assert result.hits[0].image is not None
+        assert "assets.tmecosys.com" in result.hits[0].image
+
+    async def test_search_empty_results(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search with no results."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_EMPTY,
+            status=HTTPStatus.OK,
+        )
+
+        result = await cookidoo.search_recipes(query="xyznonexistent")
+
+        assert result.total_hits == 0
+        assert len(result.hits) == 0
+
+    async def test_search_with_filters(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search with filters applied."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+
+        filters = CookidooSearchFilters(
+            category="VrkNavCategory-RPF-003",
+            difficulty="easy",
+        )
+        result = await cookidoo.search_recipes(
+            query="Pasta",
+            filters=filters,
+        )
+
+        assert result.total_hits == 150
+
+    async def test_search_with_sort(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search with sort order."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+
+        result = await cookidoo.search_recipes(
+            query="Pasta",
+            sort=CookidooSearchSort.RATING,
+        )
+
+        assert result.total_hits == 150
+
+    async def test_search_pagination(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search with pagination."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+
+        result = await cookidoo.search_recipes(
+            query="Pasta",
+            page=2,
+            page_size=10,
+        )
+
+        assert result is not None
+
+    async def test_search_without_login(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search without login raises ConfigException."""
+        with pytest.raises(CookidooConfigException):
+            await cookidoo.search_recipes(query="Pasta")
+
+    async def test_search_token_unauthorized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search token unauthorized."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            status=HTTPStatus.UNAUTHORIZED,
+        )
+
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.search_recipes(query="Pasta")
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_search_token_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test search token request exceptions."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes(query="Pasta")
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_search_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test search request exceptions."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes(query="Pasta")
+
+    async def test_search_parse_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search parse exception."""
+        await self._login(mocked, cookidoo)
+
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload={"results": []},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes(query="Pasta")
+
+    async def test_search_token_cached(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test that search token is cached and reused."""
+        await self._login(mocked, cookidoo)
+
+        # Only one token request
+        mocked.get(
+            "https://cookidoo.ch/search/api/subscription/token",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_TOKEN,
+            status=HTTPStatus.OK,
+        )
+        # Two search requests
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+        mocked.post(
+            "https://3ta8nt85xj-dsn.algolia.net/1/indexes/*/queries",
+            payload=COOKIDOO_TEST_RESPONSE_SEARCH_RESULTS,
+            status=HTTPStatus.OK,
+        )
+
+        result1 = await cookidoo.search_recipes(query="Pasta")
+        result2 = await cookidoo.search_recipes(query="Rice")
+
+        assert result1.total_hits == 150
+        assert result2.total_hits == 150

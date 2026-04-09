@@ -1,6 +1,7 @@
 """Cookidoo API types."""
 
 from dataclasses import dataclass, field
+from enum import Enum
 
 
 @dataclass
@@ -445,3 +446,101 @@ class CookidooCalendarDay:
     title: str
     recipes: list[CookidooCalendarDayRecipe]
     customer_recipe_ids: list[str] = field(default_factory=list)
+
+
+class CookidooSearchSort(Enum):
+    """Sort order for recipe search results."""
+
+    RELEVANCE = "relevance"
+    NEWEST = "newest"
+    NAME_ASC = "name_asc"
+    RATING = "rating"
+    TOTAL_TIME = "total_time"
+    PREP_TIME = "prep_time"
+
+
+@dataclass
+class CookidooSearchFilters:
+    """Filters for recipe search.
+
+    Attributes
+    ----------
+    category
+        Category ID to filter by (e.g., "VrkNavCategory-RPF-003")
+    difficulty
+        Difficulty level ("easy", "medium", "advanced")
+    max_total_time
+        Maximum total time in seconds
+    max_prep_time
+        Maximum preparation time in seconds
+    tm_version
+        Thermomix version ("TM7", "TM6", "TM5", "TM31")
+    accessories
+        List of accessories ("cutter", "blade_cover", etc.)
+    portions
+        Number of portions
+    min_rating
+        Minimum rating (1-5)
+
+    """
+
+    category: str | None = None
+    difficulty: str | None = None
+    max_total_time: int | None = None
+    max_prep_time: int | None = None
+    tm_version: str | None = None
+    accessories: list[str] | None = None
+    portions: int | None = None
+    min_rating: int | None = None
+
+
+@dataclass
+class CookidooSearchRecipeHit:
+    """A recipe hit from search results.
+
+    Attributes
+    ----------
+    id
+        The recipe ID (e.g., "r130616")
+    title
+        The recipe title
+    rating
+        Average rating (0-5)
+    number_of_ratings
+        Number of ratings
+    total_time
+        Total time in seconds
+    image
+        Resolved image URL
+
+    """
+
+    id: str
+    title: str
+    rating: float
+    number_of_ratings: int
+    total_time: int
+    image: str | None
+
+
+@dataclass
+class CookidooSearchResult:
+    """Paginated recipe search result.
+
+    Attributes
+    ----------
+    total_hits
+        Total number of matching recipes
+    page
+        Current page number (0-based)
+    total_pages
+        Total number of pages
+    hits
+        List of recipe hits on this page
+
+    """
+
+    total_hits: int
+    page: int
+    total_pages: int
+    hits: list[CookidooSearchRecipeHit]

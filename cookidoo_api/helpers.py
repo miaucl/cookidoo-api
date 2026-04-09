@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import aiofiles
 import isodate
 
+from cookidoo_api.const import ALGOLIA_ASSET_HOST, ALGOLIA_IMAGE_TRANSFORMATION
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     AuthResponseJSON,
@@ -23,6 +24,7 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
     SubscriptionJSON,
     UserInfoJSON,
 )
@@ -43,6 +45,8 @@ from cookidoo_api.types import (
     CookidooNutritionGroup,
     CookidooRecipeCollection,
     CookidooRecipeNutrition,
+    CookidooSearchFilters,
+    CookidooSearchRecipeHit,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
@@ -466,3 +470,50 @@ async def get_country_options() -> list[str]:
 async def get_language_options() -> list[str]:
     """Get a list of possible language options."""
     return list({option.language for option in await get_localization_options()})
+
+
+def cookidoo_search_recipe_hit_from_json(
+    hit: SearchRecipeHitJSON,
+) -> CookidooSearchRecipeHit:
+    """Convert an Algolia search hit to a CookidooSearchRecipeHit."""
+    image_raw = hit.get("image")
+    image: str | None = None
+    if image_raw:
+        image = (
+            image_raw.replace("{assethost}", ALGOLIA_ASSET_HOST)
+            .replace("{transformation}", ALGOLIA_IMAGE_TRANSFORMATION)
+        )
+
+    return CookidooSearchRecipeHit(
+        id=hit["id"],
+        title=hit["title"],
+        rating=hit.get("rating", 0.0),
+        number_of_ratings=hit.get("numberOfRatings", 0),
+        total_time=hit.get("totalTime", 0),
+        image=image,
+    )
+
+
+def build_algolia_filter_string(filters: CookidooSearchFilters) -> str:
+    """Build an Algolia filter string from a CookidooSearchFilters instance."""
+    parts: list[str] = []
+
+    if filters.category:
+        parts.append(f"categories.id:{filters.category}")
+    if filters.difficulty:
+        parts.append(f'difficulty:"{filters.difficulty}"')
+    if filters.max_total_time is not None:
+        parts.append(f"totalTime <= {filters.max_total_time}")
+    if filters.max_prep_time is not None:
+        parts.append(f"preparationTime <= {filters.max_prep_time}")
+    if filters.tm_version:
+        parts.append(f'tmversion:"{filters.tm_version}"')
+    if filters.accessories:
+        for accessory in filters.accessories:
+            parts.append(f'accessories:"{accessory}"')
+    if filters.portions is not None:
+        parts.append(f"portions = {filters.portions}")
+    if filters.min_rating is not None:
+        parts.append(f'normalizedRating:"{filters.min_rating}"')
+
+    return " AND ".join(parts)

@@ -6,10 +6,12 @@ from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.helpers import (
+    build_algolia_filter_string,
     cookidoo_calendar_day_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
+    cookidoo_search_recipe_hit_from_json,
     get_country_options,
     get_language_options,
     get_localization_options,
@@ -20,8 +22,9 @@ from cookidoo_api.raw_types import (
     DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
 )
-from cookidoo_api.types import CookidooLocalizationConfig
+from cookidoo_api.types import CookidooLocalizationConfig, CookidooSearchFilters
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
@@ -289,3 +292,139 @@ class TestRecipeImagesAndUrls:
         assert len(result.recipes) == 2
         assert result.recipes[0].id == "r214846"
         assert result.recipes[1].id == "r214846"
+
+
+class TestSearchRecipeHitFromJson:
+    """Tests for cookidoo_search_recipe_hit_from_json."""
+
+    def test_parse_hit_with_image(self) -> None:
+        """Test parsing a search hit with image template."""
+        hit = cast(
+            SearchRecipeHitJSON,
+            {
+                "id": "r130616",
+                "objectID": "r130616",
+                "title": "Tomaten-Knoblauch-Pasta",
+                "rating": 4.1,
+                "numberOfRatings": 5258,
+                "totalTime": 1800,
+                "image": "https://{assethost}/image/upload/{transformation}/img/recipe.jpg",
+            },
+        )
+
+        result = cookidoo_search_recipe_hit_from_json(hit)
+
+        assert result.id == "r130616"
+        assert result.title == "Tomaten-Knoblauch-Pasta"
+        assert result.rating == 4.1
+        assert result.number_of_ratings == 5258
+        assert result.total_time == 1800
+        assert result.image is not None
+        assert "{assethost}" not in result.image
+        assert "{transformation}" not in result.image
+        assert "assets.tmecosys.com" in result.image
+        assert "t_web_search_380x286" in result.image
+
+    def test_parse_hit_without_image(self) -> None:
+        """Test parsing a search hit without image."""
+        hit = cast(
+            SearchRecipeHitJSON,
+            {
+                "id": "r999",
+                "objectID": "r999",
+                "title": "No Image Recipe",
+            },
+        )
+
+        result = cookidoo_search_recipe_hit_from_json(hit)
+
+        assert result.id == "r999"
+        assert result.title == "No Image Recipe"
+        assert result.rating == 0.0
+        assert result.number_of_ratings == 0
+        assert result.total_time == 0
+        assert result.image is None
+
+    def test_parse_hit_with_null_image(self) -> None:
+        """Test parsing a search hit with null image."""
+        hit = cast(
+            SearchRecipeHitJSON,
+            {
+                "id": "r888",
+                "objectID": "r888",
+                "title": "Null Image Recipe",
+                "rating": 3.0,
+                "numberOfRatings": 10,
+                "totalTime": 600,
+                "image": None,
+            },
+        )
+
+        result = cookidoo_search_recipe_hit_from_json(hit)
+
+        assert result.image is None
+
+
+class TestBuildAlgoliaFilterString:
+    """Tests for build_algolia_filter_string."""
+
+    def test_empty_filters(self) -> None:
+        """Test with no filters set."""
+        filters = CookidooSearchFilters()
+        assert build_algolia_filter_string(filters) == ""
+
+    def test_category_filter(self) -> None:
+        """Test category filter."""
+        filters = CookidooSearchFilters(category="VrkNavCategory-RPF-003")
+        assert build_algolia_filter_string(filters) == "categories.id:VrkNavCategory-RPF-003"
+
+    def test_difficulty_filter(self) -> None:
+        """Test difficulty filter."""
+        filters = CookidooSearchFilters(difficulty="easy")
+        assert build_algolia_filter_string(filters) == 'difficulty:"easy"'
+
+    def test_max_total_time_filter(self) -> None:
+        """Test max total time filter."""
+        filters = CookidooSearchFilters(max_total_time=1800)
+        assert build_algolia_filter_string(filters) == "totalTime <= 1800"
+
+    def test_max_prep_time_filter(self) -> None:
+        """Test max prep time filter."""
+        filters = CookidooSearchFilters(max_prep_time=900)
+        assert build_algolia_filter_string(filters) == "preparationTime <= 900"
+
+    def test_tm_version_filter(self) -> None:
+        """Test TM version filter."""
+        filters = CookidooSearchFilters(tm_version="TM6")
+        assert build_algolia_filter_string(filters) == 'tmversion:"TM6"'
+
+    def test_accessories_filter(self) -> None:
+        """Test accessories filter."""
+        filters = CookidooSearchFilters(accessories=["cutter", "blade_cover"])
+        result = build_algolia_filter_string(filters)
+        assert 'accessories:"cutter"' in result
+        assert 'accessories:"blade_cover"' in result
+        assert " AND " in result
+
+    def test_portions_filter(self) -> None:
+        """Test portions filter."""
+        filters = CookidooSearchFilters(portions=4)
+        assert build_algolia_filter_string(filters) == "portions = 4"
+
+    def test_min_rating_filter(self) -> None:
+        """Test min rating filter."""
+        filters = CookidooSearchFilters(min_rating=4)
+        assert build_algolia_filter_string(filters) == 'normalizedRating:"4"'
+
+    def test_combined_filters(self) -> None:
+        """Test multiple filters combined."""
+        filters = CookidooSearchFilters(
+            category="VrkNavCategory-RPF-003",
+            difficulty="easy",
+            max_total_time=1800,
+        )
+        result = build_algolia_filter_string(filters)
+        assert "categories.id:VrkNavCategory-RPF-003" in result
+        assert 'difficulty:"easy"' in result
+        assert "totalTime <= 1800" in result
+        assert result.count(" AND ") == 2

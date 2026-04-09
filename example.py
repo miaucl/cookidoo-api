@@ -20,6 +20,8 @@ from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooConfig,
     CookidooIngredientItem,
+    CookidooSearchFilters,
+    CookidooSearchSort,
 )
 
 load_dotenv()
@@ -84,6 +86,17 @@ async def main():
         _added_managed_collection = await cookidoo.add_managed_collection("col500401")
         _managed_collections = await cookidoo.get_managed_collections()
         await cookidoo.remove_managed_collection("col500401")
+
+        # Search for recipes
+        _search_results = await cookidoo.search_recipes(query="Pasta")
+        _search_filtered = await cookidoo.search_recipes(
+            query="Pasta",
+            sort=CookidooSearchSort.RATING,
+            filters=CookidooSearchFilters(
+                difficulty="easy",
+                max_total_time=1800,
+            ),
+        )
 
         # Recipe details
         _recipe_details = await cookidoo.get_recipe_details("r59322")

@@ -75,3 +75,25 @@ REMOVE_RECIPE_FROM_CALENDER_PATH: Final = (
 )
 
 DEFAULT_SITE = "eu"
+
+# Algolia search constants
+ALGOLIA_APPLICATION_ID: Final = "3TA8NT85XJ"
+ALGOLIA_ENDPOINT: Final = (
+    "https://{app_id}-dsn.algolia.net/1/indexes/*/queries"
+)
+ALGOLIA_INDEX_PATTERN: Final = "recipes-production-{market}"
+ALGOLIA_EMPTY_SEARCH_INDEX_PATTERN: Final = (
+    "recipes-production-{market}-by-emptySearchScore"
+)
+ALGOLIA_SORT_INDEX_SUFFIXES: Final = {
+    "relevance": "",
+    "newest": "-by-publishedAt-desc",
+    "name_asc": "-by-title-asc",
+    "rating": "-by-rating-desc",
+    "total_time": "-by-totalTime-asc",
+    "prep_time": "-by-preparationTime-asc",
+}
+SEARCH_TOKEN_PATH: Final = "search/api/subscription/token"
+ALGOLIA_DEFAULT_PAGE_SIZE: Final = 20
+ALGOLIA_ASSET_HOST: Final = "assets.tmecosys.com"
+ALGOLIA_IMAGE_TRANSFORMATION: Final = "t_web_search_380x286"
