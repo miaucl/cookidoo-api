@@ -27,7 +27,7 @@ jobs:
       - name: Test with pytest
         run: pytest -v --cov-config=pyproject.toml --cov=cookidoo_api --cov-report=xml
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
