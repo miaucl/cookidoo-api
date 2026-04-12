@@ -9,11 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file first to cache it
-COPY requirements_dev.txt .
+COPY requirements_dev.txt requirements_test.txt ./
 
 # Upgrade pip and install dependencies
 RUN pip install --upgrade pip && \
-    pip install -r requirements_dev.txt
+    pip install -r requirements_dev.txt && \
+    pip install -r requirements_test.txt
 
 # Do not copy project files here, we will mount them via docker-compose
 # Keep the container running for dev usage
