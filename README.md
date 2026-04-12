@@ -96,7 +96,14 @@ pre-commit run --all-files
 
 ### Docker Setup
 
-Alternatively, you can run the development environment using Docker:
+Alternatively, you can run the development environment using Docker. First, set up your configuration:
+
+```bash
+cp .env.example .env
+```
+*(Update `.env` with your Cookidoo credentials.)*
+
+Then, run the container:
 
 ```bash
 docker-compose up -d
