@@ -75,6 +75,8 @@ asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 ## Dev
 
+### Local Setup
+
 Setup the dev environment using VSCode, it is highly recommended.
 
 ```bash
@@ -90,6 +92,23 @@ pre-commit install
 
 # Run the commit hooks manually
 pre-commit run --all-files
+```
+
+### Docker Setup
+
+Alternatively, you can run the development environment using Docker:
+
+```bash
+docker-compose up -d
+docker-compose exec dev bash
+```
+
+Inside the container, you can run the same hooks and commands as locally:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+pytest tests/
 ```
 
 Following VSCode integrations may be helpful:
