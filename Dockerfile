@@ -9,10 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the requirements file first to cache it
-COPY requirements_dev.txt requirements_test.txt ./
+COPY requirements.txt requirements_dev.txt requirements_test.txt ./
 
 # Upgrade pip and install dependencies
 RUN pip install --upgrade pip && \
+    pip install -r requirements.txt && \
     pip install -r requirements_dev.txt && \
     pip install -r requirements_test.txt
 

@@ -101,6 +101,7 @@ Alternatively, you can run the development environment using Docker. First, set 
 ```bash
 cp .env.example .env
 ```
+
 *(Update `.env` with your Cookidoo credentials.)*
 
 Then, run the container:
@@ -142,7 +143,7 @@ The smoke tests implements a series of request querying the server. It tries to 
 
 ### Releasing
 
-A _final version_ can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
+A *final version* can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
 
 To release a prerelease version, it must be done from a feature branch (**not** `master`). Prerelease versions are explicitly marked as such on the GitHub release page.
 
