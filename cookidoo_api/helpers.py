@@ -21,6 +21,7 @@ from cookidoo_api.raw_types import (
     DescriptiveAssetJSON,
     EditCustomRecipeRequestJSON,
     IngredientJSON,
+    InstructionJSON,
     ItemJSON,
     ManagedCollectionJSON,
     QuantityJSON,
@@ -460,6 +461,36 @@ def cookidoo_create_custom_recipe_to_json(
     return {"recipeName": recipe.name}
 
 
+def _format_instructions(
+    instructions: list[str | CookidooInstruction],
+) -> list[InstructionJSON]:
+    formatted = []
+    for step in instructions:
+        if isinstance(step, CookidooInstruction):
+            settings_parts = []
+            if step.settings:
+                if step.settings.time is not None:
+                    if step.settings.time < 60:
+                        settings_parts.append(f"{step.settings.time} sec")
+                    else:
+                        mins = step.settings.time // 60
+                        settings_parts.append(f"{mins} min")
+                if step.settings.temperature is not None:
+                    settings_parts.append(str(step.settings.temperature))
+                if step.settings.speed is not None:
+                    settings_parts.append(f"speed {step.settings.speed}")
+
+            if settings_parts:
+                settings_text = "/".join(settings_parts)
+                text = f"{step.text}. {settings_text}"
+            else:
+                text = step.text
+            formatted.append(cast(InstructionJSON, {"type": "STEP", "text": text}))
+        else:
+            formatted.append(cast(InstructionJSON, {"type": "STEP", "text": step}))
+    return formatted
+
+
 def cookidoo_edit_custom_recipe_to_json(
     recipe: CookidooEditCustomRecipe,
     existing: CookidooCustomRecipe,
@@ -473,10 +504,11 @@ def cookidoo_edit_custom_recipe_to_json(
     ingredients = (
         recipe.ingredients if recipe.ingredients is not None else existing.ingredients
     )
-    instructions = (
+    instructions = cast(
+        list[str | CookidooInstruction],
         recipe.instructions
         if recipe.instructions is not None
-        else existing.instructions
+        else existing.instructions,
     )
     serving_size = (
         recipe.serving_size
@@ -504,7 +536,7 @@ def cookidoo_edit_custom_recipe_to_json(
         "cookTime": cook_time,
         "totalTime": total_time,
         "ingredients": [{"type": "INGREDIENT", "text": ing} for ing in ingredients],
-        "instructions": [{"type": "STEP", "text": step} for step in instructions],
+        "instructions": _format_instructions(instructions),
         "hints": None,
         "workStatus": "PRIVATE",
         "recipeMetadata": {"requiresAnnotationsCheck": False},
@@ -520,41 +552,6 @@ def cookidoo_create_custom_recipe_edit_to_json(
     """
     cook_time = max(0, recipe.total_time - recipe.active_time)
 
-    # Convert instructions - handle both strings and CookidooInstruction objects
-    instructions = []
-    for step in recipe.instructions:
-        if isinstance(step, CookidooInstruction):
-            # Build settings text for presets (duplicated format)
-            settings_parts = []
-            if step.settings:
-                if step.settings.time is not None:
-                    if step.settings.time < 60:
-                        settings_parts.append(f"{step.settings.time} sec")
-                        time_str = str(step.settings.time)
-                    else:
-                        mins = step.settings.time // 60
-                        settings_parts.append(f"{mins} min")
-                        time_str = str(mins)
-                else:
-                    time_str = ""
-                if step.settings.temperature is not None:
-                    settings_parts.append(str(step.settings.temperature))
-                if step.settings.speed is not None:
-                    settings_parts.append(f"speed {step.settings.speed}")
-
-            if settings_parts:
-                settings_text = "/".join(settings_parts)
-                # Simple format - show settings once
-                # Example: "Chop. 5 sec/speed 5"
-                text = f"{step.text}. {settings_text}"
-            else:
-                text = step.text
-
-            step_dict: dict = {"type": "STEP", "text": text}
-            instructions.append(step_dict)
-        else:
-            instructions.append({"type": "STEP", "text": step})
-
     return {
         "name": recipe.name,
         "image": recipe.image,
@@ -567,7 +564,7 @@ def cookidoo_create_custom_recipe_edit_to_json(
         "ingredients": [
             {"type": "INGREDIENT", "text": ing} for ing in recipe.ingredients
         ],
-        "instructions": instructions,
+        "instructions": _format_instructions(recipe.instructions),
         "hints": None,
         "workStatus": "PRIVATE",
         "recipeMetadata": {"requiresAnnotationsCheck": False},

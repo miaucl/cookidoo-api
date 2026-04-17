@@ -20,6 +20,8 @@ from cookidoo_api.helpers import get_localization_options
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooConfig,
+    CookidooCreateCustomRecipe,
+    CookidooEditCustomRecipe,
     CookidooIngredientItem,
 )
 from tests.responses import (
@@ -2976,3 +2978,108 @@ class TestRemoveCustomRecipeFromCalendar:
                 datetime.fromisoformat("2025-08-11").date(),
                 "01K2CTJ9Y1BABRG5MXK44CFZS4",
             )
+
+
+class TestRecipeOperations:
+    """Tests for custom recipe creation and editing."""
+
+    async def test_create_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test creating a custom recipe."""
+        mocked.post(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            status=HTTPStatus.OK,
+            payload={"recipeId": "test-id"},
+        )
+        mocked.patch(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/test-id",
+            status=HTTPStatus.OK,
+            payload=[],
+        )
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/test-id",
+            status=HTTPStatus.OK,
+            payload={
+                "recipeId": "test-id",
+                "recipeContent": {
+                    "name": "My Recipe",
+                    "recipeIngredient": [{"type": "INGREDIENT", "text": "100g flour"}],
+                    "recipeInstructions": [{"type": "STEP", "text": "Mix"}],
+                    "recipeYield": {"value": 4},
+                    "prepTime": "PT10M",
+                    "totalTime": "PT30M",
+                    "tool": ["TM6"],
+                },
+            },
+        )
+
+        recipe = CookidooCreateCustomRecipe(
+            name="My Recipe",
+            ingredients=["100g flour"],
+            instructions=["Mix"],
+            serving_size=4,
+            total_time=1800,
+            active_time=600,
+            tools=["TM6"],
+        )
+        result = await cookidoo.create_custom_recipe(recipe)
+        assert result.id == "test-id"
+        assert result.name == "My Recipe"
+
+    async def test_edit_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test editing a custom recipe."""
+        # Mock GET existing request
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/test-id",
+            status=HTTPStatus.OK,
+            payload={
+                "recipeId": "test-id",
+                "recipeContent": {
+                    "name": "My Recipe",
+                    "recipeIngredient": [],
+                    "recipeInstructions": [],
+                    "recipeYield": {"value": 4},
+                    "prepTime": "PT10M",
+                    "totalTime": "PT30M",
+                    "tool": ["TM6"],
+                },
+            },
+        )
+        # Mock PATCH request
+        mocked.patch(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/test-id",
+            status=HTTPStatus.OK,
+            payload=[],
+        )
+        # Mock GET returning the edited recipe
+        mocked.get(
+            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/test-id",
+            status=HTTPStatus.OK,
+            payload={
+                "recipeId": "test-id",
+                "recipeContent": {
+                    "name": "New Name",
+                    "recipeIngredient": [],
+                    "recipeInstructions": [],
+                    "recipeYield": {"value": 4},
+                    "prepTime": "PT10M",
+                    "totalTime": "PT30M",
+                    "tool": ["TM6"],
+                },
+            },
+        )
+
+        updates = CookidooEditCustomRecipe(
+            name="New Name",
+            ingredients=[],
+            instructions=[],
+            serving_size=4,
+            total_time=1800,
+            active_time=600,
+            tools=["TM6"],
+        )
+        result = await cookidoo.edit_custom_recipe("test-id", updates)
+        assert result.name == "New Name"

@@ -1,5 +1,7 @@
 """Cookidoo API types."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 
@@ -476,7 +478,7 @@ class CookidooCreateCustomRecipe:
 
     name: str
     ingredients: list[str]
-    instructions: list[str | "CookidooInstruction"]
+    instructions: list[str | CookidooInstruction]
     serving_size: int
     total_time: int
     active_time: int
@@ -551,7 +553,7 @@ class CookidooEditCustomRecipe:
 
     name: str | None = None
     ingredients: list[str] | None = None
-    instructions: list[str | "CookidooInstruction"] | None = None
+    instructions: list[str | CookidooInstruction] | None = None
     serving_size: int | None = None
     total_time: int | None = None
     active_time: int | None = None
