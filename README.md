@@ -94,9 +94,11 @@ pre-commit install
 pre-commit run --all-files
 ```
 
-### Docker Setup
+### Devcontainer & Docker Setup
 
-Alternatively, you can run the development environment using Docker. First, set up your configuration:
+For developers using **VS Code**, the repository includes a fully configured `.devcontainer`. Simply open the project in VS Code and click **"Reopen in Container"**. All Python requirements, linters, and hooks will initialize automatically!
+
+Alternatively, you can manually run the development environment using standard Docker Compose. First, set up your configuration:
 
 ```bash
 cp .env.example .env
@@ -118,6 +120,8 @@ pre-commit install
 pre-commit run --all-files
 pytest tests/
 ```
+
+*(Note: If using the Devcontainer, these VS Code extensions are automatically installed for you)*
 
 Following VSCode integrations may be helpful:
 
