@@ -75,6 +75,8 @@ asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 ## Dev
 
+### Local Setup
+
 Setup the dev environment using VSCode, it is highly recommended.
 
 ```bash
@@ -91,6 +93,35 @@ pre-commit install
 # Run the commit hooks manually
 pre-commit run --all-files
 ```
+
+### Devcontainer & Docker Setup
+
+For developers using **VS Code**, the repository includes a fully configured `.devcontainer`. Simply open the project in VS Code and click **"Reopen in Container"**. All Python requirements, linters, and hooks will initialize automatically!
+
+Alternatively, you can manually run the development environment using standard Docker Compose. First, set up your configuration:
+
+```bash
+cp .env.example .env
+```
+
+*(Update `.env` with your Cookidoo credentials.)*
+
+Then, run the container:
+
+```bash
+docker-compose up -d
+docker-compose exec dev bash
+```
+
+Inside the container, you can run the same hooks and commands as locally:
+
+```bash
+pre-commit install
+pre-commit run --all-files
+pytest tests/
+```
+
+*(Note: If using the Devcontainer, these VS Code extensions are automatically installed for you)*
 
 Following VSCode integrations may be helpful:
 
@@ -116,7 +147,7 @@ The smoke tests implements a series of request querying the server. It tries to 
 
 ### Releasing
 
-A _final version_ can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
+A *final version* can only be released from the `master` branch. To pass the gates of the `publish` workflow, the version must match in both the `tag` and `cookidoo_api/__init__.py`.
 
 To release a prerelease version, it must be done from a feature branch (**not** `master`). Prerelease versions are explicitly marked as such on the GitHub release page.
 
