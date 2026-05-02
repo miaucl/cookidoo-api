@@ -467,25 +467,15 @@ def _format_instructions(
     formatted = []
     for step in instructions:
         if isinstance(step, CookidooInstruction):
-            settings_parts = []
+            instruction: dict[str, object] = {"type": "STEP", "text": step.text}
             if step.settings:
                 if step.settings.time is not None:
-                    if step.settings.time < 60:
-                        settings_parts.append(f"{step.settings.time} sec")
-                    else:
-                        mins = step.settings.time // 60
-                        settings_parts.append(f"{mins} min")
+                    instruction["time"] = step.settings.time
                 if step.settings.temperature is not None:
-                    settings_parts.append(str(step.settings.temperature))
+                    instruction["temperature"] = step.settings.temperature
                 if step.settings.speed is not None:
-                    settings_parts.append(f"speed {step.settings.speed}")
-
-            if settings_parts:
-                settings_text = "/".join(settings_parts)
-                text = f"{step.text}. {settings_text}"
-            else:
-                text = step.text
-            formatted.append(cast(InstructionJSON, {"type": "STEP", "text": text}))
+                    instruction["speed"] = step.settings.speed
+            formatted.append(cast(InstructionJSON, instruction))
         else:
             formatted.append(cast(InstructionJSON, {"type": "STEP", "text": step}))
     return formatted
