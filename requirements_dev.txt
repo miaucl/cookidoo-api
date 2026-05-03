@@ -9,7 +9,7 @@ mkdocs-material==9.7.6
 mkdocstrings[python]==1.0.3
 pytest-asyncio>=0.23.6
 pytest-cov>=5.0.0
-pytest>=8.1.1
+pytest>=9.0.3
 python-dotenv>=1.0.1
 beautifulsoup4~=4.14.3
 isodate~=0.7.2
