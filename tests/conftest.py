@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncGenerator, Generator
 
-from aiohttp import ClientSession
+from aiohttp import ClientSession, CookieJar
 from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
@@ -17,7 +17,8 @@ UUID = "00000000-00000000-00000000-00000000"
 @pytest.fixture(name="session")
 async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
     """Create  a client session."""
-    async with ClientSession() as session:
+    jar = CookieJar(unsafe=True)
+    async with ClientSession(cookie_jar=jar) as session:
         yield session
 
 

@@ -14,6 +14,6 @@ jobs:
           config: '.markdownlint.yaml'
           globs: |
             **/*.md
-            !docs/changelog.md
+            !docs/breaking-changes.md
             !docs/index.md
             !docs/license.md

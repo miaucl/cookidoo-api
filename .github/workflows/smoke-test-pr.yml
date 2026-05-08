@@ -62,8 +62,6 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements.txt
             pip install -r requirements_test.txt
-      - name: Prepare empty token
-        run: touch .token
       - name: Prepare cookies with pytest
         run: pytest smoke_test/test_1_setup_token.py -v -x
         env:
@@ -75,13 +73,17 @@ jobs:
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: ${{ secrets.PASSWORD }}
       # !!!!!!!!!!!!!!!!!!!!
-      # From here on, we run new code which does not have access to the password, only the token
+      # From here on, we run new code which does not have access to the password, only the cookies
       # !!!!!!!!!!!!!!!!!!!!
+      - name: Preserve cookies
+        run: cp .cookies /tmp/.cookies
       - name: Checkout new code
         uses: actions/checkout@v6
         with:
           ref: "${{ github.event.pull_request.merge_commit_sha }}"
           clean: false
+      - name: Restore cookies
+        run: cp /tmp/.cookies .cookies
       - name: Test with pytest
         run: pytest smoke_test/test_2_methods.py -v -x
         env:

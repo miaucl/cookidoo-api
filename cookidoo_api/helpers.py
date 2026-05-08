@@ -11,7 +11,6 @@ import isodate
 
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
-    AuthResponseJSON,
     CalendarDayJSON,
     CalenderDayRecipeJSON,
     CustomCollectionJSON,
@@ -28,7 +27,6 @@ from cookidoo_api.raw_types import (
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
-    CookidooAuthResponse,
     CookidooCalendarDay,
     CookidooCalendarDayRecipe,
     CookidooCategory,
@@ -52,19 +50,6 @@ from cookidoo_api.types import (
 _LOGGER = logging.getLogger(__name__)
 
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
-
-
-def cookidoo_auth_data_from_json(
-    auth_data: AuthResponseJSON,
-) -> CookidooAuthResponse:
-    """Convert a auth data received from the API to a cookidoo auth data."""
-    return CookidooAuthResponse(
-        sub=auth_data["sub"],
-        access_token=auth_data["access_token"],
-        refresh_token=auth_data["refresh_token"],
-        token_type=auth_data["token_type"],
-        expires_in=auth_data["expires_in"],
-    )
 
 
 def cookidoo_user_info_from_json(

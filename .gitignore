@@ -10,10 +10,12 @@ __pycache__
 .env*
 .coverage
 build/
+tmp/
 site
 out
 scratch*
 .token
+.cookies
 diff-summary.txt
 diff-summary.json
 pr-body.md

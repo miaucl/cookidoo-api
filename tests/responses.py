@@ -4,17 +4,17 @@ from typing import Final
 
 from tests.conftest import UUID
 
-COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE: Final = {
-    "access_token": "eyJhbGciOiJ<redacted>",
-    "expires_in": 43199,
-    "id_token": "eyJhbGciOiJSUzI1Ni<redacted>",
-    "iss": "https://eu.login.vorwerk.com/",
-    "jti": "9f97a234-3f80-4e35-bf48-2e3e9e7e8720",
-    "refresh_token": "eyJhbGciOiJSUzI1Ni<redacted>",
-    "scope": "marcossapi openid profile email Online offline_access",
-    "token_type": "bearer",
-    "sub": "sub_uuid",
-}
+COOKIDOO_TEST_LOGIN_PAGE_HTML: Final = """
+<html>
+<body>
+<form action="https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login" method="POST">
+<input type="hidden" name="requestId" value="test-request-id-1234" />
+<input type="text" name="username" />
+<input type="password" name="password" />
+</form>
+</body>
+</html>
+"""
 
 COOKIDOO_TEST_RESPONSE_USER_INFO: Final = {
     "id": UUID,

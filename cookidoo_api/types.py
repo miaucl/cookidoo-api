@@ -35,17 +35,6 @@ class CookidooConfig:
 
 
 @dataclass
-class CookidooAuthResponse:
-    """An auth response class."""
-
-    access_token: str
-    refresh_token: str
-    token_type: str
-    expires_in: int
-    sub: str
-
-
-@dataclass
 class CookidooUserInfo:
     """A user info class."""
 
