@@ -2,7 +2,7 @@ aiohttp~=3.13
 aiofiles~=25.1.0
 mypy>=2.1.0
 pydantic>=2.13.4
-pre-commit>=3.6.1
+pre-commit>=4.6.0
 python-dotenv>=1.2.2
 ruff~=0.15
 mkdocs-material==9.7.6
