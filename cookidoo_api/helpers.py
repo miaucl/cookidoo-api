@@ -14,10 +14,14 @@ from cookidoo_api.raw_types import (
     AuthResponseJSON,
     CalendarDayJSON,
     CalenderDayRecipeJSON,
+    CreateCustomRecipeRequestJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
+    CustomRecipesResponseJSON,
     DescriptiveAssetJSON,
+    EditCustomRecipeRequestJSON,
     IngredientJSON,
+    InstructionJSON,
     ItemJSON,
     ManagedCollectionJSON,
     QuantityJSON,
@@ -35,9 +39,12 @@ from cookidoo_api.types import (
     CookidooChapter,
     CookidooChapterRecipe,
     CookidooCollection,
+    CookidooCreateCustomRecipe,
     CookidooCustomRecipe,
+    CookidooEditCustomRecipe,
     CookidooIngredient,
     CookidooIngredientItem,
+    CookidooInstruction,
     CookidooLocalizationConfig,
     CookidooNutrition,
     CookidooNutritionGroup,
@@ -314,32 +321,42 @@ def cookidoo_custom_recipe_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCustomRecipe:
     """Convert a custom recipe received from the API to a cookidoo custom recipe."""
-    total_time = isodate.parse_duration(
-        recipe["recipeContent"]["totalTime"]
-    ).total_seconds()
-    active_time = isodate.parse_duration(
-        recipe["recipeContent"]["prepTime"]
-    ).total_seconds()
+    recipe_content = recipe["recipeContent"]
+
+    total_time_raw = recipe_content.get("totalTime")
+    active_time_raw = recipe_content.get("prepTime")
+    total_time = (
+        int(isodate.parse_duration(total_time_raw).total_seconds())
+        if total_time_raw
+        else 0
+    )
+    active_time = (
+        int(isodate.parse_duration(active_time_raw).total_seconds())
+        if active_time_raw
+        else 0
+    )
 
     thumbnail: str | None = None
     image: str | None = None
 
-    recipe_content = recipe["recipeContent"]
     image = recipe_content.get("image", None)
     if image:
         thumbnail, image = _process_image_url(image)
 
     url = _construct_recipe_url(localization, recipe["recipeId"], "created-recipes")
 
+    recipe_yield = recipe_content.get("recipeYield")
+    serving_size = recipe_yield["value"] if recipe_yield else 0
+
     return CookidooCustomRecipe(
         id=recipe["recipeId"],
-        name=recipe["recipeContent"]["name"],
-        ingredients=recipe["recipeContent"]["recipeIngredient"],
-        instructions=recipe["recipeContent"]["recipeInstructions"],
-        serving_size=recipe["recipeContent"]["recipeYield"]["value"],
-        total_time=int(total_time) if isinstance(total_time, float) else 0,
-        active_time=int(active_time) if isinstance(active_time, float) else 0,
-        tools=recipe["recipeContent"]["tool"],
+        name=recipe_content["name"],
+        ingredients=recipe_content.get("recipeIngredient", []),
+        instructions=recipe_content.get("recipeInstructions", []),
+        serving_size=serving_size,
+        total_time=total_time,
+        active_time=active_time,
+        tools=recipe_content.get("tool", []),
         thumbnail=thumbnail,
         image=image,
         url=url,
@@ -431,6 +448,127 @@ def cookidoo_calendar_day_from_json(
         recipes=[*regular_recipes, *custom_recipes],
         customer_recipe_ids=list(calendar_day.get("customerRecipeIds", [])),
     )
+
+
+def cookidoo_create_custom_recipe_to_json(
+    recipe: CookidooCreateCustomRecipe,
+) -> CreateCustomRecipeRequestJSON:
+    """Convert a create custom recipe input to a JSON payload for the API.
+
+    The Cookidoo API creates a blank recipe with just a name.
+    The recipe details are then set via a separate PATCH call.
+    """
+    return {"recipeName": recipe.name}
+
+
+def _format_instructions(
+    instructions: list[str | CookidooInstruction],
+) -> list[InstructionJSON]:
+    formatted = []
+    for step in instructions:
+        if isinstance(step, CookidooInstruction):
+            instruction: dict[str, object] = {"type": "STEP", "text": step.text}
+            if step.settings:
+                if step.settings.time is not None:
+                    instruction["time"] = step.settings.time
+                if step.settings.temperature is not None:
+                    instruction["temperature"] = step.settings.temperature
+                if step.settings.speed is not None:
+                    instruction["speed"] = step.settings.speed
+            formatted.append(cast(InstructionJSON, instruction))
+        else:
+            formatted.append(cast(InstructionJSON, {"type": "STEP", "text": step}))
+    return formatted
+
+
+def cookidoo_edit_custom_recipe_to_json(
+    recipe: CookidooEditCustomRecipe,
+    existing: CookidooCustomRecipe,
+) -> EditCustomRecipeRequestJSON:
+    """Convert an edit custom recipe input to a JSON payload for the API.
+
+    Merges the edit fields with the existing recipe, keeping existing values
+    for any fields not specified in the edit.
+    """
+    name = recipe.name if recipe.name is not None else existing.name
+    ingredients = (
+        recipe.ingredients if recipe.ingredients is not None else existing.ingredients
+    )
+    instructions = cast(
+        list[str | CookidooInstruction],
+        recipe.instructions
+        if recipe.instructions is not None
+        else existing.instructions,
+    )
+    serving_size = (
+        recipe.serving_size
+        if recipe.serving_size is not None
+        else existing.serving_size
+    )
+    total_time = (
+        recipe.total_time if recipe.total_time is not None else existing.total_time
+    )
+    active_time = (
+        recipe.active_time if recipe.active_time is not None else existing.active_time
+    )
+    tools = recipe.tools if recipe.tools is not None else existing.tools
+    unit_text = recipe.unit_text or "portion"
+
+    cook_time = max(0, total_time - active_time)
+
+    return {
+        "name": name,
+        "image": recipe.image,
+        "isImageOwnedByUser": recipe.image is not None,
+        "tools": tools,
+        "yield": {"value": serving_size, "unitText": unit_text},
+        "prepTime": active_time,
+        "cookTime": cook_time,
+        "totalTime": total_time,
+        "ingredients": [{"type": "INGREDIENT", "text": ing} for ing in ingredients],
+        "instructions": _format_instructions(instructions),
+        "hints": None,
+        "workStatus": "PRIVATE",
+        "recipeMetadata": {"requiresAnnotationsCheck": False},
+    }
+
+
+def cookidoo_create_custom_recipe_edit_to_json(
+    recipe: CookidooCreateCustomRecipe,
+) -> EditCustomRecipeRequestJSON:
+    """Convert a create custom recipe input to an edit JSON payload.
+
+    Used after creating a blank recipe to set its full details via PATCH.
+    """
+    cook_time = max(0, recipe.total_time - recipe.active_time)
+
+    return {
+        "name": recipe.name,
+        "image": recipe.image,
+        "isImageOwnedByUser": recipe.image is not None,
+        "tools": recipe.tools,
+        "yield": {"value": recipe.serving_size, "unitText": recipe.unit_text},
+        "prepTime": recipe.active_time,
+        "cookTime": cook_time,
+        "totalTime": recipe.total_time,
+        "ingredients": [
+            {"type": "INGREDIENT", "text": ing} for ing in recipe.ingredients
+        ],
+        "instructions": _format_instructions(recipe.instructions),
+        "hints": None,
+        "workStatus": "PRIVATE",
+        "recipeMetadata": {"requiresAnnotationsCheck": False},
+    }
+
+
+def cookidoo_custom_recipes_from_json(
+    data: CustomRecipesResponseJSON,
+    localization: CookidooLocalizationConfig | None = None,
+) -> list[CookidooCustomRecipe]:
+    """Convert a custom recipes list response from the API to a list of custom recipes."""
+    return [
+        cookidoo_custom_recipe_from_json(item, localization) for item in data["items"]
+    ]
 
 
 async def __get_localization_options(

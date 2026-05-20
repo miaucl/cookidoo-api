@@ -179,6 +179,7 @@ split-on-trailing-comma = false
 "cookidoo_api/__main__.py" = ["T201"]
 "cookidoo_api/scripts/*" = ["T201"]
 "scripts/*" = ["T20"]
+"examples/*" = ["T20"]
 "tests/*" = ["T20"]
 "smoke_test/*" = ["T20"]
 
