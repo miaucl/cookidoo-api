@@ -38,6 +38,7 @@ class CookidooConfig:
 class CookidooUserInfo:
     """A user info class."""
 
+    id: str
     username: str
     description: str | None
     picture: str | None

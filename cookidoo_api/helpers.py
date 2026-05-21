@@ -13,6 +13,7 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
     CalenderDayRecipeJSON,
+    CommunityProfileJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     DescriptiveAssetJSON,
@@ -23,7 +24,6 @@ from cookidoo_api.raw_types import (
     RecipeDetailsJSON,
     RecipeJSON,
     SubscriptionJSON,
-    UserInfoJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
@@ -53,10 +53,12 @@ localization_file_path = os.path.join(os.path.dirname(__file__), "localization.j
 
 
 def cookidoo_user_info_from_json(
-    user_info: UserInfoJSON,
+    profile: CommunityProfileJSON,
 ) -> CookidooUserInfo:
-    """Convert a user info received from the API to a cookidoo user info."""
+    """Convert a community profile received from the API to a cookidoo user info."""
+    user_info = profile["userInfo"]
     return CookidooUserInfo(
+        id=profile["id"],
         username=user_info["username"],
         description=user_info.get("description"),
         picture=user_info["picture"],

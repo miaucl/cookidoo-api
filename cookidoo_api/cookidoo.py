@@ -355,7 +355,7 @@ class Cookidoo:
                 r.raise_for_status()
 
                 try:
-                    return cookidoo_user_info_from_json((await r.json())["userInfo"])
+                    return cookidoo_user_info_from_json(await r.json())
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
                         "Exception: Cannot get user info:\n%s",
