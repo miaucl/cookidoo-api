@@ -11,7 +11,6 @@ import pytest
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.exceptions import (
     CookidooAuthException,
-    CookidooConfigException,
     CookidooException,
     CookidooParseException,
     CookidooRequestException,
@@ -23,6 +22,7 @@ from cookidoo_api.types import (
     CookidooIngredientItem,
 )
 from tests.responses import (
+    COOKIDOO_TEST_LOGIN_PAGE_HTML,
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION,
@@ -33,7 +33,6 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION,
-    COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
@@ -60,13 +59,13 @@ class TestGetterSetter:
     """Tests for getter and setter."""
 
     @pytest.mark.parametrize(
-        ("country", "language", "prefix"),
+        ("country", "language", "expected_domain"),
         [
-            ("ch", "de-CH", "ch"),
-            ("de", "de-DE", "de"),
-            ("ma", "en", "xp"),
-            ("ie", "en-GB", "gb"),
-            ("gb", "en-GB", "gb"),
+            ("ch", "de-CH", "https://cookidoo.ch"),
+            ("de", "de-DE", "https://cookidoo.de"),
+            ("ma", "en", "https://cookidoo.international"),
+            ("ie", "en-GB", "https://cookidoo.co.uk"),
+            ("gb", "en-GB", "https://cookidoo.co.uk"),
         ],
     )
     async def test_api_endpoint(
@@ -75,7 +74,7 @@ class TestGetterSetter:
         session: ClientSession,
         country: str,
         language: str,
-        prefix: str,
+        expected_domain: str,
     ) -> None:
         """Test api endpoint for different localizations."""
         cookidoo = Cookidoo(
@@ -87,71 +86,93 @@ class TestGetterSetter:
             ),
         )
 
-        assert (
-            str(cookidoo.api_endpoint)
-            == f"https://{prefix}.tmmobile.vorwerk-digital.com"
-        )
+        assert str(cookidoo.api_endpoint) == expected_domain
+
+    async def test_localization(self, cookidoo: Cookidoo) -> None:
+        """Test localization property."""
+        loc = cookidoo.localization
+        assert loc.language == "de-CH"
+        assert loc.country_code == "ch"
 
 
 class TestLogin:
     """Tests for login method."""
 
-    async def test_refresh_before_login(
+    async def test_login_success(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test refresh before login."""
-        mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
-            status=400,
-        )
-        expected = "No auth data available, please log in first"
-        with pytest.raises(CookidooConfigException, match=expected):
-            await cookidoo.refresh_token()
+        """Test successful login via browser OAuth2 flow."""
+        import re
 
-    async def test_mail_invalid(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
-        """Test login with invalid e-mail."""
-        mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
-            status=400,
+        # Mock the login page (GET follows redirects to CIAM login page)
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
         )
-        expected = "Access token request failed due to bad request, please check your email or refresh token."
-        with pytest.raises(CookidooAuthException, match=expected):
-            await cookidoo.login()
 
-    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
-        """Test login with unauthorized user."""
+        # Mock the CIAM login POST (returns redirect with auth cookies)
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
-            status=HTTPStatus.UNAUTHORIZED,
-            payload={"error_description": ""},
+            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
+            status=HTTPStatus.OK,
         )
-        expected = "Access token request failed due to authorization failure, please check your email and password or refresh token."
-        with pytest.raises(CookidooAuthException, match=expected):
-            await cookidoo.login()
 
-    @pytest.mark.parametrize(
-        ("status", "exception"),
-        [
-            (HTTPStatus.OK, CookidooParseException),
-            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
-        ],
-    )
-    async def test_parse_exception(
-        self,
-        mocked: aioresponses,
-        cookidoo: Cookidoo,
-        status: HTTPStatus,
-        exception: type[CookidooException],
+        # Manually set cookies since aioresponses doesn't handle Set-Cookie
+        cookidoo._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "test-proxy-value", "v-authenticated": "test-auth-value"}
+        )
+
+        await cookidoo.login()
+        assert cookidoo._logged_in
+
+    async def test_login_page_unreachable(
+        self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test parse exceptions."""
-        mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
-            status=status,
-            body="not json",
-            content_type="application/json",
+        """Test login when login page returns error."""
+        import re
+
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
         )
 
-        with pytest.raises(exception):
+        with pytest.raises(CookidooAuthException, match="could not reach login page"):
+            await cookidoo.login()
+
+    async def test_login_page_parse_error(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test login when requestId cannot be extracted."""
+        import re
+
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body="<html><body>No form here</body></html>",
+        )
+
+        with pytest.raises(CookidooParseException, match="could not extract requestId"):
+            await cookidoo.login()
+
+    async def test_login_invalid_credentials(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test login with invalid credentials (no auth cookies set)."""
+        import re
+
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        )
+        mocked.post(
+            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(
+            CookidooAuthException, match="authentication cookies were not set"
+        ):
             await cookidoo.login()
 
     @pytest.mark.parametrize(
@@ -165,47 +186,133 @@ class TestLogin:
         self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
     ) -> None:
         """Test exceptions."""
-        mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
+        import re
+
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
             exception=exception,
         )
         with pytest.raises(CookidooRequestException):
             await cookidoo.login()
 
-    async def test_login_and_refresh(
-        self, mocked: aioresponses, cookidoo: Cookidoo
+
+class TestCookiePersistence:
+    """Tests for cookie save/load methods."""
+
+    async def test_save_and_load_cookies(
+        self, cookidoo: Cookidoo, tmp_path: object
     ) -> None:
-        """Test login and refresh with valid user."""
+        """Test saving and loading cookies."""
+        import pathlib
 
-        mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
+        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
+
+        # Set some cookies on the session
+        cookidoo._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "proxy-val", "v-authenticated": "auth-val"}
+        )
+
+        # Save
+        cookidoo.save_cookies(cookie_file)
+        assert cookie_file.exists()
+
+        # Load into a fresh Cookidoo instance on same session
+        # (clear cookies first)
+        cookidoo._session.cookie_jar.clear()
+        assert not cookidoo._logged_in or True  # reset
+        cookidoo._logged_in = False
+
+        cookidoo.load_cookies(cookie_file)
+        assert cookidoo._logged_in
+
+        cookie_names = {c.key for c in cookidoo._session.cookie_jar}
+        assert "_oauth2_proxy" in cookie_names
+        assert "v-authenticated" in cookie_names
+
+    async def test_load_cookies_missing_file(self, cookidoo: Cookidoo) -> None:
+        """Test loading cookies from nonexistent file."""
+        from cookidoo_api.exceptions import CookidooConfigException
+
+        with pytest.raises(CookidooConfigException, match="Cannot load cookies"):
+            cookidoo.load_cookies("/nonexistent/path/cookies.json")
+
+    async def test_load_cookies_without_auth_cookies(
+        self, cookidoo: Cookidoo, tmp_path: object
+    ) -> None:
+        """Test that loading cookies without required auth cookies does not set logged_in."""
+        import json
+        import pathlib
+
+        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
+        cookie_file.write_text(
+            json.dumps(
+                [{"key": "some_other", "value": "val", "domain": "", "path": "/"}]
+            )
+        )
+        cookidoo._logged_in = False
+        cookidoo.load_cookies(cookie_file)
+        assert not cookidoo._logged_in
+
+    async def test_corrupted_cookies_recovery(
+        self, mocked: aioresponses, cookidoo: Cookidoo, tmp_path: object
+    ) -> None:
+        """Test recovery flow: load expired/corrupted cookies, API fails, re-login succeeds."""
+        import pathlib
+        import re
+
+        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
+
+        # Set corrupted/expired auth cookies
+        cookidoo._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "corrupted-value", "v-authenticated": "expired"}
+        )
+        cookidoo.save_cookies(cookie_file)
+
+        # Clear and reload the corrupted cookies
+        cookidoo._session.cookie_jar.clear()
+        cookidoo._logged_in = False
+        cookidoo.load_cookies(cookie_file)
+        assert cookidoo._logged_in  # Cookies are present, so flag is set
+
+        # API call fails with 401 because cookies are invalid
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error": "Unauthorized", "error_description": "Token expired"},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_user_info()
+
+        # Recovery: re-login
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
             status=HTTPStatus.OK,
-            payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
         )
-
-        assert cookidoo.auth_data is None
-        data = await cookidoo.login()
-        assert data.access_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["access_token"]
-        assert (
-            data.refresh_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["refresh_token"]
-        )
-        assert data.expires_in == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["expires_in"]
-        assert cookidoo.expires_in > 0
-        assert cookidoo.localization is not None
-
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/ciam/auth/token",
+            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
             status=HTTPStatus.OK,
-            payload=COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE,
         )
+        cookidoo._session.cookie_jar.update_cookies(
+            {
+                "_oauth2_proxy": "fresh-proxy-value",
+                "v-authenticated": "fresh-auth-value",
+            }
+        )
+        await cookidoo.login()
+        assert cookidoo._logged_in
 
-        data = await cookidoo.refresh_token()
-        assert data.access_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["access_token"]
-        assert (
-            data.refresh_token == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["refresh_token"]
+        # API call now succeeds
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
         )
-        assert data.expires_in == COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE["expires_in"]
-        assert cookidoo.expires_in > 0
+        data = await cookidoo.get_user_info()
+        assert data.username == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["username"]  # type: ignore[index]
+
+        # Save fresh cookies for next run
+        cookidoo.save_cookies(cookie_file)
 
 
 class TestGetUserInfo:
@@ -217,7 +324,7 @@ class TestGetUserInfo:
         """Test for get_user_info."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/community/profile",
+            "https://cookidoo.ch/community/profile",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -247,7 +354,7 @@ class TestGetUserInfo:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/community/profile",
+            "https://cookidoo.ch/community/profile",
             exception=exception,
         )
 
@@ -257,7 +364,7 @@ class TestGetUserInfo:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/community/profile",
+            "https://cookidoo.ch/community/profile",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -280,7 +387,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/community/profile",
+            "https://cookidoo.ch/community/profile",
             status=status,
             body="not json",
             content_type="application/json",
@@ -299,7 +406,7 @@ class TestGetActiveSubscription:
         """Test for get_active_subscription."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions",
+            "https://cookidoo.ch/ownership/subscriptions",
             payload=COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
             status=HTTPStatus.OK,
         )
@@ -315,7 +422,7 @@ class TestGetActiveSubscription:
         """Test for get_active_subscription."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions",
+            "https://cookidoo.ch/ownership/subscriptions",
             payload=COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
             status=HTTPStatus.OK,
         )
@@ -336,7 +443,7 @@ class TestGetActiveSubscription:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions",
+            "https://cookidoo.ch/ownership/subscriptions",
             exception=exception,
         )
 
@@ -346,7 +453,7 @@ class TestGetActiveSubscription:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions",
+            "https://cookidoo.ch/ownership/subscriptions",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -369,7 +476,7 @@ class TestGetActiveSubscription:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/ownership/subscriptions",
+            "https://cookidoo.ch/ownership/subscriptions",
             status=status,
             body="not json",
             content_type="application/json",
@@ -388,7 +495,7 @@ class TestGetRecipeDetails:
         """Test for get_recipe_details."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
             payload=COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
             status=HTTPStatus.OK,
         )
@@ -420,7 +527,7 @@ class TestGetRecipeDetails:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
             exception=exception,
         )
 
@@ -430,7 +537,7 @@ class TestGetRecipeDetails:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -453,7 +560,7 @@ class TestGetRecipeDetails:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/recipes/recipe/de-CH/r907015",
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
             status=status,
             body="not json",
             content_type="application/json",
@@ -472,7 +579,7 @@ class TestGetCustomRecipe:
         """Test for get_custom_recipe."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
             payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
             status=HTTPStatus.OK,
         )
@@ -502,7 +609,7 @@ class TestGetCustomRecipe:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
             exception=exception,
         )
 
@@ -512,7 +619,7 @@ class TestGetCustomRecipe:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -535,7 +642,7 @@ class TestGetCustomRecipe:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW",
             status=status,
             body="not json",
             content_type="application/json",
@@ -554,7 +661,7 @@ class TestAddCustomRecipe:
         """Test for add_custom_recipe."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            "https://cookidoo.ch/created-recipes/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPE,
             status=HTTPStatus.OK,
         )
@@ -577,7 +684,7 @@ class TestAddCustomRecipe:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            "https://cookidoo.ch/created-recipes/de-CH",
             exception=exception,
         )
 
@@ -587,7 +694,7 @@ class TestAddCustomRecipe:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            "https://cookidoo.ch/created-recipes/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -610,7 +717,7 @@ class TestAddCustomRecipe:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH",
+            "https://cookidoo.ch/created-recipes/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -629,7 +736,7 @@ class TestRemoveCustomRecipe:
         """Test for remove_custom_recipe."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -649,7 +756,7 @@ class TestRemoveCustomRecipe:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
             exception=exception,
         )
 
@@ -659,7 +766,7 @@ class TestRemoveCustomRecipe:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -682,7 +789,7 @@ class TestRemoveCustomRecipe:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4",
             status=status,
             body="not json",
             content_type="application/json",
@@ -701,7 +808,7 @@ class TestGetShoppingListRecipes:
         """Test for get_shopping_list_recipes."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -724,7 +831,7 @@ class TestGetShoppingListRecipes:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             exception=exception,
         )
 
@@ -734,7 +841,7 @@ class TestGetShoppingListRecipes:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -757,7 +864,7 @@ class TestGetShoppingListRecipes:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -776,7 +883,7 @@ class TestGetIngredients:
         """Test for get_ingredient_items."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -792,7 +899,7 @@ class TestGetIngredients:
         """Test for get_ingredient_items."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_CUSTOM_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -815,7 +922,7 @@ class TestGetIngredients:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             exception=exception,
         )
 
@@ -825,7 +932,7 @@ class TestGetIngredients:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -848,7 +955,7 @@ class TestGetIngredients:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -867,7 +974,7 @@ class TestAddIngredientsForRecipes:
         """Test for add_ingredient_items_for_recipes."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             payload=COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -890,7 +997,7 @@ class TestAddIngredientsForRecipes:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             exception=exception,
         )
 
@@ -900,7 +1007,7 @@ class TestAddIngredientsForRecipes:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -923,7 +1030,7 @@ class TestAddIngredientsForRecipes:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             status=status,
             body="not json",
             content_type="application/json",
@@ -942,7 +1049,7 @@ class TestRemoveIngredientsForRecipes:
         """Test for remove_ingredient_items_for_recipes."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -962,7 +1069,7 @@ class TestRemoveIngredientsForRecipes:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             exception=exception,
         )
 
@@ -972,7 +1079,7 @@ class TestRemoveIngredientsForRecipes:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -995,7 +1102,7 @@ class TestRemoveIngredientsForRecipes:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1014,7 +1121,7 @@ class TestEditIngredientsOwnership:
         """Test for edit_ingredient_items_ownership."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/owned-ingredients/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/owned-ingredients/ownership/edit",
             payload=COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
             status=HTTPStatus.OK,
         )
@@ -1047,7 +1154,7 @@ class TestEditIngredientsOwnership:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/owned-ingredients/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/owned-ingredients/ownership/edit",
             exception=exception,
         )
 
@@ -1066,7 +1173,7 @@ class TestEditIngredientsOwnership:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/owned-ingredients/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/owned-ingredients/ownership/edit",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1098,7 +1205,7 @@ class TestEditIngredientsOwnership:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/owned-ingredients/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/owned-ingredients/ownership/edit",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1126,7 +1233,7 @@ class TestAddIngredientsForCustomRecipes:
         """Test for add_ingredient_items_for_custom_recipes."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             payload=COOKIDOO_TEST_RESPONSE_ADD_INGREDIENTS_FOR_CUSTOM_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -1151,7 +1258,7 @@ class TestAddIngredientsForCustomRecipes:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             exception=exception,
         )
 
@@ -1163,7 +1270,7 @@ class TestAddIngredientsForCustomRecipes:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1188,7 +1295,7 @@ class TestAddIngredientsForCustomRecipes:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/add",
+            "https://cookidoo.ch/shopping/de-CH/recipes/add",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1209,7 +1316,7 @@ class TestRemoveIngredientsForCustomRecipes:
         """Test for remove_ingredient_items_for_custom_recipes."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -1231,7 +1338,7 @@ class TestRemoveIngredientsForCustomRecipes:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             exception=exception,
         )
 
@@ -1243,7 +1350,7 @@ class TestRemoveIngredientsForCustomRecipes:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1268,7 +1375,7 @@ class TestRemoveIngredientsForCustomRecipes:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/recipes/remove",
+            "https://cookidoo.ch/shopping/de-CH/recipes/remove",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1289,7 +1396,7 @@ class TestGetAdditionalItems:
         """Test for get_additional_items."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
             status=HTTPStatus.OK,
         )
@@ -1312,7 +1419,7 @@ class TestGetAdditionalItems:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             exception=exception,
         )
 
@@ -1322,7 +1429,7 @@ class TestGetAdditionalItems:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1345,7 +1452,7 @@ class TestGetAdditionalItems:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1364,7 +1471,7 @@ class TestAddAdditionalItems:
         """Test for add_additional_items."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/add",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/add",
             payload=COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
             status=HTTPStatus.OK,
         )
@@ -1387,7 +1494,7 @@ class TestAddAdditionalItems:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/add",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/add",
             exception=exception,
         )
 
@@ -1397,7 +1504,7 @@ class TestAddAdditionalItems:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/add",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/add",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1420,7 +1527,7 @@ class TestAddAdditionalItems:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/add",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/add",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1439,7 +1546,7 @@ class TestRemoveAdditionalItems:
         """Test for remove_ingredient_items_for_recipes."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/remove",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/remove",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -1461,7 +1568,7 @@ class TestRemoveAdditionalItems:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/remove",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/remove",
             exception=exception,
         )
 
@@ -1473,7 +1580,7 @@ class TestRemoveAdditionalItems:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/remove",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/remove",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1498,7 +1605,7 @@ class TestRemoveAdditionalItems:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/remove",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/remove",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1519,7 +1626,7 @@ class TestEditAdditionalItemsOwnership:
         """Test for edit_additional_items_ownership."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/ownership/edit",
             payload=COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
             status=HTTPStatus.OK,
         )
@@ -1551,7 +1658,7 @@ class TestEditAdditionalItemsOwnership:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/ownership/edit",
             exception=exception,
         )
 
@@ -1569,7 +1676,7 @@ class TestEditAdditionalItemsOwnership:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/ownership/edit",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1600,7 +1707,7 @@ class TestEditAdditionalItemsOwnership:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/ownership/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/ownership/edit",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1627,7 +1734,7 @@ class TestEditAdditionalItems:
         """Test for edit_additional_items."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/edit",
             payload=COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS,
             status=HTTPStatus.OK,
         )
@@ -1659,7 +1766,7 @@ class TestEditAdditionalItems:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/edit",
             exception=exception,
         )
 
@@ -1677,7 +1784,7 @@ class TestEditAdditionalItems:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/edit",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1708,7 +1815,7 @@ class TestEditAdditionalItems:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH/additional-items/edit",
+            "https://cookidoo.ch/shopping/de-CH/additional-items/edit",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1735,7 +1842,7 @@ class TestClearShoppingList:
         """Test for clear_shopping_list."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -1755,7 +1862,7 @@ class TestClearShoppingList:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             exception=exception,
         )
 
@@ -1765,7 +1872,7 @@ class TestClearShoppingList:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1788,7 +1895,7 @@ class TestClearShoppingList:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/shopping/de-CH",
+            "https://cookidoo.ch/shopping/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1807,7 +1914,7 @@ class TestCountManagedLists:
         """Test for count_managed_lists."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             payload=COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
             status=HTTPStatus.OK,
         )
@@ -1829,7 +1936,7 @@ class TestCountManagedLists:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             exception=exception,
         )
 
@@ -1839,7 +1946,7 @@ class TestCountManagedLists:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1862,7 +1969,7 @@ class TestCountManagedLists:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1881,7 +1988,7 @@ class TestGetManagedLists:
         """Test for get_managed_lists."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list?page=0",
             payload=COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
             status=HTTPStatus.OK,
         )
@@ -1904,7 +2011,7 @@ class TestGetManagedLists:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list?page=0",
             exception=exception,
         )
 
@@ -1914,7 +2021,7 @@ class TestGetManagedLists:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list?page=0",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -1937,7 +2044,7 @@ class TestGetManagedLists:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list?page=0",
             status=status,
             body="not json",
             content_type="application/json",
@@ -1956,7 +2063,7 @@ class TestAddManagedCollection:
         """Test for add_managed_collection."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             payload=COOKIDOO_TEST_RESPONSE_ADD_MANAGED_COLLECTION,
             status=HTTPStatus.OK,
         )
@@ -1978,7 +2085,7 @@ class TestAddManagedCollection:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             exception=exception,
         )
 
@@ -1988,7 +2095,7 @@ class TestAddManagedCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2011,7 +2118,7 @@ class TestAddManagedCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2030,7 +2137,7 @@ class TestRemoveManagedCollection:
         """Test for remove_managed_collection."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list/col500561",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -2050,7 +2157,7 @@ class TestRemoveManagedCollection:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list/col500561",
             exception=exception,
         )
 
@@ -2060,7 +2167,7 @@ class TestRemoveManagedCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list/col500561",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2083,7 +2190,7 @@ class TestRemoveManagedCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/managed-list/col500561",
+            "https://cookidoo.ch/organize/de-CH/api/managed-list/col500561",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2102,7 +2209,7 @@ class TestCountCustomLists:
         """Test for count_custom_lists."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS,
             status=HTTPStatus.OK,
         )
@@ -2124,7 +2231,7 @@ class TestCountCustomLists:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             exception=exception,
         )
 
@@ -2134,7 +2241,7 @@ class TestCountCustomLists:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2157,7 +2264,7 @@ class TestCountCustomLists:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2176,7 +2283,7 @@ class TestGetCustomLists:
         """Test for get_custom_lists."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list?page=0",
             payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS,
             status=HTTPStatus.OK,
         )
@@ -2199,7 +2306,7 @@ class TestGetCustomLists:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list?page=0",
             exception=exception,
         )
 
@@ -2209,7 +2316,7 @@ class TestGetCustomLists:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list?page=0",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2232,7 +2339,7 @@ class TestGetCustomLists:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list?page=0",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list?page=0",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2251,7 +2358,7 @@ class TestAddCustomCollection:
         """Test for add_custom_collection."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             payload=COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION,
             status=HTTPStatus.OK,
         )
@@ -2274,7 +2381,7 @@ class TestAddCustomCollection:
         """Test request exceptions."""
 
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             exception=exception,
         )
 
@@ -2284,7 +2391,7 @@ class TestAddCustomCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2307,7 +2414,7 @@ class TestAddCustomCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.post(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2326,7 +2433,7 @@ class TestRemoveCustomCollection:
         """Test for remove_custom_collection."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             payload=None,
             status=HTTPStatus.OK,
         )
@@ -2346,7 +2453,7 @@ class TestRemoveCustomCollection:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             exception=exception,
         )
 
@@ -2356,7 +2463,7 @@ class TestRemoveCustomCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2379,7 +2486,7 @@ class TestRemoveCustomCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2398,7 +2505,7 @@ class TestAddRecipesToCustomCollection:
         """Test for add_recipes_to_custom_collection."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             payload=COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION,
             status=HTTPStatus.OK,
         )
@@ -2423,7 +2530,7 @@ class TestAddRecipesToCustomCollection:
         """Test request exceptions."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             exception=exception,
         )
 
@@ -2435,7 +2542,7 @@ class TestAddRecipesToCustomCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2460,7 +2567,7 @@ class TestAddRecipesToCustomCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2481,7 +2588,7 @@ class TestRemoveRecipeFromCustomCollection:
         """Test for remove_recipe_from_custom_collection."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
             payload=COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
             status=HTTPStatus.OK,
         )
@@ -2506,7 +2613,7 @@ class TestRemoveRecipeFromCustomCollection:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
             exception=exception,
         )
 
@@ -2518,7 +2625,7 @@ class TestRemoveRecipeFromCustomCollection:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2543,7 +2650,7 @@ class TestRemoveRecipeFromCustomCollection:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
+            "https://cookidoo.ch/organize/de-CH/api/custom-list/01JC1SRPRSW0SHE0AK8GCASABX/recipes/r907015",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2564,7 +2671,7 @@ class TestGetCalendarWeek:
         """Test for get_calendar_week."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-week/2025-03-03",
+            "https://cookidoo.ch/planning/de-CH/api/my-week/2025-03-03",
             payload=COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
             status=HTTPStatus.OK,
         )
@@ -2593,7 +2700,7 @@ class TestGetCalendarWeek:
         """Test request exceptions."""
 
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-week/2025-03-03",
+            "https://cookidoo.ch/planning/de-CH/api/my-week/2025-03-03",
             exception=exception,
         )
 
@@ -2605,7 +2712,7 @@ class TestGetCalendarWeek:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-week/2025-03-03",
+            "https://cookidoo.ch/planning/de-CH/api/my-week/2025-03-03",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2630,7 +2737,7 @@ class TestGetCalendarWeek:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-week/2025-03-03",
+            "https://cookidoo.ch/planning/de-CH/api/my-week/2025-03-03",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2651,7 +2758,7 @@ class TestAddRecipesToCalendar:
         """Test for add_recipes_to_calendar."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             payload=COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
             status=HTTPStatus.OK,
         )
@@ -2676,7 +2783,7 @@ class TestAddRecipesToCalendar:
         """Test request exceptions."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             exception=exception,
         )
 
@@ -2688,7 +2795,7 @@ class TestAddRecipesToCalendar:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2713,7 +2820,7 @@ class TestAddRecipesToCalendar:
     ) -> None:
         """Test parse exceptions."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2734,7 +2841,7 @@ class TestRemoveRecipeFromCalendar:
         """Test for remove_recipe_from_calendar."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
             payload=COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
             status=HTTPStatus.OK,
         )
@@ -2759,7 +2866,7 @@ class TestRemoveRecipeFromCalendar:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
             exception=exception,
         )
 
@@ -2771,7 +2878,7 @@ class TestRemoveRecipeFromCalendar:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2796,7 +2903,7 @@ class TestRemoveRecipeFromCalendar:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2817,7 +2924,7 @@ class TestAddCustomRecipesToCalendar:
         """Test for add_custom_recipes_to_calendar."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             payload=COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPES_TO_CALENDAR,
             status=HTTPStatus.OK,
         )
@@ -2841,7 +2948,7 @@ class TestAddCustomRecipesToCalendar:
         """Test request exceptions."""
 
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             exception=exception,
         )
 
@@ -2854,7 +2961,7 @@ class TestAddCustomRecipesToCalendar:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2880,7 +2987,7 @@ class TestAddCustomRecipesToCalendar:
     ) -> None:
         """Test parse exceptions."""
         mocked.put(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day",
+            "https://cookidoo.ch/planning/de-CH/api/my-day",
             status=status,
             body="not json",
             content_type="application/json",
@@ -2902,7 +3009,7 @@ class TestRemoveCustomRecipeFromCalendar:
         """Test for remove_custom_recipe_from_calendar."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/r214846?recipeSource=CUSTOMER",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-08-11/recipes/r214846?recipeSource=CUSTOMER",
             payload=COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
             status=HTTPStatus.OK,
         )
@@ -2926,7 +3033,7 @@ class TestRemoveCustomRecipeFromCalendar:
         """Test request exceptions."""
 
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
             exception=exception,
         )
 
@@ -2939,7 +3046,7 @@ class TestRemoveCustomRecipeFromCalendar:
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -2965,7 +3072,7 @@ class TestRemoveCustomRecipeFromCalendar:
     ) -> None:
         """Test parse exceptions."""
         mocked.delete(
-            "https://ch.tmmobile.vorwerk-digital.com/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-08-11/recipes/01K2CTJ9Y1BABRG5MXK44CFZS4?recipeSource=CUSTOMER",
             status=status,
             body="not json",
             content_type="application/json",

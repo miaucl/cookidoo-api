@@ -30,7 +30,7 @@ See below for usage examples.
 
 ## Usage Example
 
-The API is based on the `aiohttp` library.
+The API is based on the `aiohttp` library. A `CookieJar(unsafe=True)` is required for the session to support cross-domain cookies during the OAuth2 login flow.
 
 Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 

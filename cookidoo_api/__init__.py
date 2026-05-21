@@ -15,7 +15,6 @@ from .exceptions import (
 from .helpers import get_country_options, get_language_options, get_localization_options
 from .types import (
     CookidooAdditionalItem,
-    CookidooAuthResponse,
     CookidooCategory,
     CookidooChapter,
     CookidooChapterRecipe,
@@ -39,7 +38,6 @@ __all__ = [
     "get_localization_options",
     "CookidooLocalizationConfig",
     "CookidooConfig",
-    "CookidooAuthResponse",
     "CookidooUserInfo",
     "CookidooSubscription",
     "CookidooItem",

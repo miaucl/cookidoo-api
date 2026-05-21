@@ -3,16 +3,6 @@
 from typing import Literal, NotRequired, TypedDict
 
 
-class AuthResponseJSON(TypedDict):
-    """An auth response class."""
-
-    sub: str
-    access_token: str
-    refresh_token: str
-    token_type: str
-    expires_in: int
-
-
 class UserInfoJSON(TypedDict):
     """The json for a user info in the API."""
 
