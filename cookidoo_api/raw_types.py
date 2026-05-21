@@ -11,6 +11,13 @@ class UserInfoJSON(TypedDict):
     picture: str | None
 
 
+class CommunityProfileJSON(TypedDict):
+    """The json for the community profile response."""
+
+    id: str
+    userInfo: UserInfoJSON
+
+
 class SubscriptionJSON(TypedDict):
     """The json for a subscription in the API."""
 

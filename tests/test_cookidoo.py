@@ -330,6 +330,7 @@ class TestGetUserInfo:
         )
 
         data = await cookidoo.get_user_info()
+        assert data.id == COOKIDOO_TEST_RESPONSE_USER_INFO["id"]
         assert (
             data.username == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["username"]  # type: ignore[index]
         )
