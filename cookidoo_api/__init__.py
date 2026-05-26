@@ -31,13 +31,13 @@ from .types import (
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
-    ThermomixMachineType,
-    ThermomixSpeed,
-    ThermomixDirection,
-    ThermomixTemperature,
-    ThermomixMode,
     ThermomixBrowningPower,
+    ThermomixDirection,
+    ThermomixMachineType,
+    ThermomixMode,
+    ThermomixSpeed,
     ThermomixSteamingAccessory,
+    ThermomixTemperature,
 )
 
 __all__ = [

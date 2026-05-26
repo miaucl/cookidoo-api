@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from http import HTTPStatus
+from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from aiohttp import ClientError, ClientSession
@@ -3513,10 +3514,7 @@ class TestRemoveCustomRecipeFromCalendar:
 # ======================================================================
 
 CREATE_URL = "https://cookidoo.ch/created-recipes/de-CH"
-UPDATE_URL = (
-    "https://cookidoo.ch/created-recipes/de-CH/"
-    "01K2CTJ9Y1BABRG5MXK44CFZS4"
-)
+UPDATE_URL = "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4"
 
 
 def _mock_create_and_update(mocked: aioresponses) -> None:
@@ -3755,7 +3753,9 @@ class TestProcessRecipeSteps:
                 ],
             }
         ]
-        with pytest.raises(ValueError, match="not found in the recipe's ingredient list"):
+        with pytest.raises(
+            ValueError, match="not found in the recipe's ingredient list"
+        ):
             Cookidoo._process_recipe_steps(steps, ingredients=["sugar", "butter"])
 
     def test_slot_not_found_in_text(self) -> None:
@@ -3847,7 +3847,7 @@ class TestProcessRecipeSteps:
 
     def test_mixed_string_and_dict_steps(self) -> None:
         """Test a mix of plain strings and annotated dict steps."""
-        steps = [
+        steps: list[dict[str, Any] | str] = [
             "Preheat oven",
             {
                 "text": "Mix 1 min/speed 5",

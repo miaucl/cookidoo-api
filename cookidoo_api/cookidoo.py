@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 from http import HTTPStatus
@@ -11,7 +12,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -2092,9 +2093,9 @@ class Cookidoo:
 
     @staticmethod
     def _process_recipe_steps(
-        steps: list[dict | str],
+        steps: Sequence[Mapping[str, Any] | str],
         ingredients: list[str],
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Convert raw step data into the instruction format expected by the API.
 
         Parameters
@@ -2123,21 +2124,23 @@ class Cookidoo:
             ingredient annotation references an ingredient not in the list.
 
         """
-        processed: list[dict] = []
+        processed: list[dict[str, Any]] = []
         for step_index, step in enumerate(steps):
             if isinstance(step, str):
                 processed.append({"type": "STEP", "text": step})
                 continue
 
             # dict-based step with optional annotations
-            step_text: str = step.get("text", "")
-            raw_annotations = step.get("annotations", [])
-            annotations: list[dict] = []
+            step_text = str(step.get("text", ""))
+            raw_annotations = cast(
+                Sequence[Mapping[str, Any]], step.get("annotations", [])
+            )
+            annotations: list[dict[str, Any]] = []
 
             for ann in raw_annotations:
-                ann_type = ann.get("type", "")
-                slot = ann.get("slot", "")
-                ann_data = dict(ann.get("data", {}))
+                ann_type = str(ann.get("type", ""))
+                slot = str(ann.get("slot", ""))
+                ann_data = dict(cast(Mapping[str, Any], ann.get("data", {})))
 
                 # Validate ingredient annotations
                 if ann_type == "INGREDIENT":
@@ -2154,19 +2157,19 @@ class Cookidoo:
                 try:
                     offset = step_text.index(slot)
                     length = len(slot)
-                except ValueError:
+                except ValueError as e:
                     raise ValueError(
                         f"Step {step_index + 1}: Annotation slot "
                         f"'{slot}' not found in step text: "
                         f"'{step_text}'"
-                    )
+                    ) from e
 
                 # Fix Varoma temperature: remove unit when value is "varoma"
                 temp = ann_data.get("temperature")
                 if isinstance(temp, dict) and temp.get("value", "").lower() == "varoma":
                     temp.pop("unit", None)
 
-                ann_dict: dict = {
+                ann_dict: dict[str, Any] = {
                     "type": ann_type,
                     "data": ann_data,
                     "position": {"offset": offset, "length": length},
@@ -2175,7 +2178,7 @@ class Cookidoo:
                     ann_dict["name"] = ann["name"]
                 annotations.append(ann_dict)
 
-            step_dict: dict = {"type": "STEP", "text": step_text}
+            step_dict: dict[str, Any] = {"type": "STEP", "text": step_text}
             if annotations:
                 step_dict["annotations"] = annotations
             processed.append(step_dict)
@@ -2186,7 +2189,7 @@ class Cookidoo:
         self,
         name: str,
         ingredients: list[str],
-        steps: list[dict | str],
+        steps: Sequence[Mapping[str, Any] | str],
         servings: int = 4,
         prep_time: int = 30,
         total_time: int = 60,
@@ -2237,8 +2240,6 @@ class Cookidoo:
             If the response cannot be parsed.
 
         """
-        import asyncio
-
         if machine_types is None or len(machine_types) == 0:
             machine_types = [ThermomixMachineType.TM7]
 
@@ -2257,7 +2258,7 @@ class Cookidoo:
         )
 
         recipe_id = (data or {}).get("recipeId")
-        if not recipe_id:
+        if not isinstance(recipe_id, str) or not recipe_id:
             raise CookidooParseException("No recipe ID returned from creation.")
 
         # Process steps / annotations
@@ -2267,7 +2268,7 @@ class Cookidoo:
         url_update = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
             **self._cfg.localization.__dict__, id=recipe_id
         )
-        json_update = {
+        json_update: dict[str, Any] = {
             "name": name,
             "image": None,
             "isImageOwnedByUser": False,
