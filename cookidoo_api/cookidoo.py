@@ -145,7 +145,7 @@ class Cookidoo:
         parsed = urlparse(self._cfg.localization.url)
         return URL(f"{parsed.scheme}://{parsed.netloc}")
 
-    async def _request(
+    async def _request_json(
         self,
         method: str,
         url: URL,
@@ -154,8 +154,8 @@ class Cookidoo:
         json: dict[str, Any] | list[Any] | None = None,
         headers: dict[str, str] | None = None,
         accepted_statuses: tuple[HTTPStatus, ...] = (HTTPStatus.OK,),
-    ) -> dict[str, Any] | None:
-        """Execute an HTTP request with standard error handling."""
+    ) -> Any | None:
+        """Execute an HTTP request and parse its JSON response."""
         merged_headers = {**self._api_headers, **(headers or {})}
 
         try:
@@ -188,7 +188,7 @@ class Cookidoo:
                 if r.status == HTTPStatus.NO_CONTENT:
                     return None
                 try:
-                    return cast(dict[str, Any], await r.json())
+                    return await r.json()
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
                         "Exception: Cannot parse %s response:\n%s",
@@ -767,11 +767,15 @@ class Cookidoo:
         if tmv is not None and (normalized := normalize_tmv_param(tmv)):
             params["tmv"] = normalized
         url = url.with_query(params)
-        result = await self._request(
+        result = await self._request_json(
             "get", url, "search recipes", accepted_statuses=(HTTPStatus.OK,)
         )
         if result is None:
             return CookidooSearchResult(recipes=[], total=0)
+        if not isinstance(result, dict):
+            raise CookidooParseException(
+                "Search recipes failed during parsing of request response."
+            )
         return cookidoo_search_result_from_json(result, self._cfg.localization)
 
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
