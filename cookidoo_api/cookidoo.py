@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -58,8 +58,6 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import (
-    normalize_list_param,
-    normalize_tmv_param,
     cookidoo_additional_item_from_json,
     cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
@@ -70,6 +68,8 @@ from cookidoo_api.helpers import (
     cookidoo_search_result_from_json,
     cookidoo_subscription_from_json,
     cookidoo_user_info_from_json,
+    normalize_list_param,
+    normalize_tmv_param,
 )
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
@@ -151,10 +151,10 @@ class Cookidoo:
         url: URL,
         operation: str,
         *,
-        json: dict | list | None = None,
+        json: dict[str, Any] | list[Any] | None = None,
         headers: dict[str, str] | None = None,
         accepted_statuses: tuple[HTTPStatus, ...] = (HTTPStatus.OK,),
-    ) -> dict | None:
+    ) -> dict[str, Any] | None:
         """Execute an HTTP request with standard error handling."""
         merged_headers = {**self._api_headers, **(headers or {})}
 
@@ -180,10 +180,7 @@ class Cookidoo:
                             operation,
                             errmsg.get("error_description", ""),
                         )
-                    raise CookidooAuthException(
-                        f"{operation.capitalize()} failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
+                    self._raise_auth_exception(operation)
 
                 if r.status not in accepted_statuses:
                     r.raise_for_status()
@@ -191,7 +188,7 @@ class Cookidoo:
                 if r.status == HTTPStatus.NO_CONTENT:
                     return None
                 try:
-                    return await r.json()  # type: ignore[return-value]
+                    return cast(dict[str, Any], await r.json())
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
                         "Exception: Cannot parse %s response:\n%s",
@@ -202,7 +199,11 @@ class Cookidoo:
                         f"{operation.capitalize()} failed during parsing of request response."
                     ) from e
 
-        except (CookidooAuthException, CookidooRequestException, CookidooParseException):
+        except (
+            CookidooAuthException,
+            CookidooRequestException,
+            CookidooParseException,
+        ):
             raise
         except TimeoutError as e:
             _LOGGER.debug(
@@ -218,6 +219,14 @@ class Cookidoo:
             raise CookidooRequestException(
                 f"{operation.capitalize()} failed due to request exception."
             ) from e
+
+    @staticmethod
+    def _raise_auth_exception(operation: str) -> None:
+        """Raise the standard auth exception for request helpers."""
+        raise CookidooAuthException(
+            f"{operation.capitalize()} failed due to authorization failure, "
+            "the authorization token is invalid or expired."
+        )
 
     async def login(self) -> None:
         """Perform browser-based OAuth2 login.
@@ -650,7 +659,10 @@ class Cookidoo:
         portions: int | None = None,
         page: int | None = None,
         page_size: int | None = None,
-        tmv: ThermomixMachineType | str | list[ThermomixMachineType | str] | None = None,
+        tmv: ThermomixMachineType
+        | str
+        | list[ThermomixMachineType | str]
+        | None = None,
     ) -> CookidooSearchResult:
         """Search recipes in Cookidoo (GET).
 
@@ -718,22 +730,28 @@ class Cookidoo:
         params: dict[str, str] = {}
         if query is not None:
             params["query"] = query
-        if accessories is not None:
-            params["accessories"] = normalize_list_param(accessories)
-        if languages is not None:
-            params["languages"] = normalize_list_param(languages)
-        if categories is not None:
-            params["categories"] = normalize_list_param(categories)
-        if countries is not None:
-            params["countries"] = normalize_list_param(countries)
-        if ingredients is not None:
-            params["ingredients"] = normalize_list_param(ingredients)
-        if exclude_ingredients is not None:
-            params["excludeIngredients"] = normalize_list_param(exclude_ingredients)
-        if tags is not None:
-            params["tags"] = normalize_list_param(tags)
-        if ratings is not None:
-            params["ratings"] = normalize_list_param(ratings)
+        if accessories is not None and (
+            normalized := normalize_list_param(accessories)
+        ):
+            params["accessories"] = normalized
+        if languages is not None and (normalized := normalize_list_param(languages)):
+            params["languages"] = normalized
+        if categories is not None and (normalized := normalize_list_param(categories)):
+            params["categories"] = normalized
+        if countries is not None and (normalized := normalize_list_param(countries)):
+            params["countries"] = normalized
+        if ingredients is not None and (
+            normalized := normalize_list_param(ingredients)
+        ):
+            params["ingredients"] = normalized
+        if exclude_ingredients is not None and (
+            normalized := normalize_list_param(exclude_ingredients)
+        ):
+            params["excludeIngredients"] = normalized
+        if tags is not None and (normalized := normalize_list_param(tags)):
+            params["tags"] = normalized
+        if ratings is not None and (normalized := normalize_list_param(ratings)):
+            params["ratings"] = normalized
         if difficulty is not None:
             params["difficulty"] = difficulty
         if preparation_time is not None:
@@ -746,8 +764,8 @@ class Cookidoo:
             params["page"] = str(page)
         if page_size is not None:
             params["pageSize"] = str(page_size)
-        if tmv is not None:
-            params["tmv"] = normalize_tmv_param(tmv)
+        if tmv is not None and (normalized := normalize_tmv_param(tmv)):
+            params["tmv"] = normalized
         url = url.with_query(params)
         result = await self._request(
             "get", url, "search recipes", accepted_statuses=(HTTPStatus.OK,)
@@ -3407,4 +3425,3 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Remove custom recipe from calendar failed due to request exception."
             ) from e
-

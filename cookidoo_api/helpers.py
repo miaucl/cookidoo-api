@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from typing import cast
+from typing import Any, cast
 from urllib.parse import urlparse
 
 import aiofiles
@@ -234,7 +234,7 @@ def cookidoo_recipe_from_json(
 
 
 def cookidoo_search_result_from_json(
-    data: dict,
+    data: dict[str, Any],
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooSearchResult:
     """Convert a search result received from the API to a CookidooSearchResult.

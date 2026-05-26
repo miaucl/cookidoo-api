@@ -47,11 +47,11 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS,
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
-    COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
+    COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
 )
 
@@ -582,7 +582,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test for search_recipes."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
             status=HTTPStatus.OK,
         )
@@ -609,7 +609,7 @@ class TestSearchRecipes:
             "VrkNavCategory-RPF-003",
         ]
         url = (
-            "https://ch.tmmobile.vorwerk-digital.com/search/es?"
+            "https://cookidoo.ch/search/es?"
             "query=chicken"
             "&accessories=includingFriend,includingBladeCover,includingBladeCoverWithPeeler,includingCutter,includingSensor"
             "&languages=en,es"
@@ -668,7 +668,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes request exceptions."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             exception=exception,
         )
 
@@ -680,7 +680,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes unauthorized exception."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -692,7 +692,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes 401 with non-JSON body still raises CookidooAuthException."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             status=HTTPStatus.UNAUTHORIZED,
             body="not json",
             content_type="text/plain",
@@ -705,7 +705,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes raises CookidooParseException when response is not valid JSON."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             status=HTTPStatus.OK,
             body="not valid json",
             content_type="application/json",
@@ -718,7 +718,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes when API returns 204 No Content."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?query=chicken",
+            "https://cookidoo.ch/search/de?query=chicken",
             status=HTTPStatus.NO_CONTENT,
         )
 
@@ -732,7 +732,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes with string (non-list) filter params."""
         url = (
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
+            "https://cookidoo.ch/search/de?"
             "query=pasta&accessories=includingFriend&difficulty=easy"
         )
         mocked.get(
@@ -753,10 +753,7 @@ class TestSearchRecipes:
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """Test search_recipes with single ThermomixMachineType (not list)."""
-        url = (
-            "https://ch.tmmobile.vorwerk-digital.com/search/de?"
-            "query=soup&tmv=TM7"
-        )
+        url = "https://cookidoo.ch/search/de?query=soup&tmv=TM7"
         mocked.get(
             url,
             payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
@@ -772,7 +769,7 @@ class TestSearchRecipes:
     ) -> None:
         """Test search_recipes with optional query omitted (params without query)."""
         mocked.get(
-            "https://ch.tmmobile.vorwerk-digital.com/search/de",
+            "https://cookidoo.ch/search/de",
             payload=COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
             status=HTTPStatus.OK,
         )

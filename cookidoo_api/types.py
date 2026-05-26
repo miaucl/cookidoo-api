@@ -1,10 +1,10 @@
 """Cookidoo API types."""
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class ThermomixMachineType(str, Enum):
+class ThermomixMachineType(StrEnum):
     """Thermomix machine types."""
 
     TM5 = "TM5"

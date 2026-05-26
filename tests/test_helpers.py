@@ -1,13 +1,11 @@
 """Unit tests for cookidoo-api."""
 
-from typing import cast
+from typing import Any, cast
 
 from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.helpers import (
-    normalize_list_param,
-    normalize_tmv_param,
     cookidoo_calendar_day_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_recipe_details_from_json,
@@ -16,6 +14,8 @@ from cookidoo_api.helpers import (
     get_country_options,
     get_language_options,
     get_localization_options,
+    normalize_list_param,
+    normalize_tmv_param,
 )
 from cookidoo_api.raw_types import (
     CalendarDayJSON,
@@ -367,7 +367,7 @@ class TestCookidooSearchResultFromJson:
 
     def test_search_result_total_invalid_defaults_to_length(self) -> None:
         """When total is missing or not int, it defaults to len(recipes)."""
-        data = {"recipes": [{"id": "r1", "title": "X"}]}
+        data: dict[str, Any] = {"recipes": [{"id": "r1", "title": "X"}]}
         result = cookidoo_search_result_from_json(data, None)
         assert result.total == 1
 
