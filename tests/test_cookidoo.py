@@ -779,6 +779,29 @@ class TestSearchRecipes:
         assert data.recipes == []
         assert data.total == 0
 
+    async def test_search_recipes_unexpected_status(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes raises CookidooRequestException on unexpected status."""
+        mocked.get(
+            "https://cookidoo.ch/search/de?query=chicken",
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_non_dict_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test search_recipes raises CookidooParseException when response is not a dict."""
+        mocked.get(
+            "https://cookidoo.ch/search/de?query=chicken",
+            payload=["not", "a", "dict"],
+            status=HTTPStatus.OK,
+        )
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes("chicken")
+
 
 class TestGetCustomRecipe:
     """Tests for get_custom_recipe method."""
