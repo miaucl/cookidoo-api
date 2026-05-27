@@ -242,7 +242,20 @@ def cookidoo_search_result_from_json(
     """Convert a search result received from the API to a CookidooSearchResult.
 
     The API may return recipes in ``data`` (search endpoint) or ``recipes``;
-    total is optional and defaults to len(recipes).
+    total is optional and defaults to the number of valid parsed hits.
+
+    Parameters
+    ----------
+    data
+        The raw JSON response from the search API.
+    localization
+        Optional localization config used to construct recipe URLs.
+
+    Returns
+    -------
+    CookidooSearchResult
+        The parsed search result with recipe hits and total count.
+
     """
     raw_recipes: list[SearchRecipeHitJSON] = (
         data.get("data") or data.get("recipes") or []

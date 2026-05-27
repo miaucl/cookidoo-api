@@ -180,6 +180,20 @@ class Cookidoo:
             HTTP status codes considered successful. Defaults to 200 and 204.
             A 204 response always returns ``None`` (no body).
 
+        Returns
+        -------
+        object | None
+            The parsed JSON response, or ``None`` for 204 No Content.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the server responds with 401 Unauthorized.
+        CookidooRequestException
+            On connection timeout or other client errors.
+        CookidooParseException
+            When the response body cannot be parsed as JSON.
+
         """
         merged_headers = {**self._api_headers, **(headers or {})}
 
