@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, cast
+from typing import cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -80,6 +80,7 @@ from cookidoo_api.raw_types import (
     ManagedCollectionJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchResultJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
@@ -151,16 +152,40 @@ class Cookidoo:
         url: URL,
         operation: str,
         *,
-        json: dict[str, Any] | list[Any] | None = None,
+        params: dict[str, str] | None = None,
+        json: object | None = None,
         headers: dict[str, str] | None = None,
-        accepted_statuses: tuple[HTTPStatus, ...] = (HTTPStatus.OK,),
-    ) -> Any | None:
-        """Execute an HTTP request and parse its JSON response."""
+        accepted_statuses: tuple[HTTPStatus, ...] = (
+            HTTPStatus.OK,
+            HTTPStatus.NO_CONTENT,
+        ),
+    ) -> object | None:
+        """Execute an HTTP request and parse its JSON response.
+
+        Parameters
+        ----------
+        method
+            HTTP method (e.g. "get", "post").
+        url
+            The target URL (without query params when using ``params``).
+        operation
+            Human-readable operation name for error messages.
+        params
+            Optional query parameters passed to aiohttp.
+        json
+            Optional JSON body for the request.
+        headers
+            Optional extra headers (merged with default API headers).
+        accepted_statuses
+            HTTP status codes considered successful. Defaults to 200 and 204.
+            A 204 response always returns ``None`` (no body).
+
+        """
         merged_headers = {**self._api_headers, **(headers or {})}
 
         try:
             async with self._session.request(
-                method, url, headers=merged_headers, json=json
+                method, url, headers=merged_headers, json=json, params=params
             ) as r:
                 _LOGGER.debug(
                     "Response from %s [%s]: %s", url, r.status, await r.text()
@@ -188,7 +213,7 @@ class Cookidoo:
                 if r.status == HTTPStatus.NO_CONTENT:
                     return None
                 try:
-                    return await r.json()
+                    result: object = await r.json()
                 except (JSONDecodeError, KeyError) as e:
                     _LOGGER.debug(
                         "Exception: Cannot parse %s response:\n%s",
@@ -198,6 +223,8 @@ class Cookidoo:
                     raise CookidooParseException(
                         f"{operation.capitalize()} failed during parsing of request response."
                     ) from e
+                else:
+                    return result
 
         except (
             CookidooAuthException,
@@ -766,17 +793,16 @@ class Cookidoo:
             params["pageSize"] = str(page_size)
         if tmv is not None and (normalized := normalize_tmv_param(tmv)):
             params["tmv"] = normalized
-        url = url.with_query(params)
-        result = await self._request_json(
-            "get", url, "search recipes", accepted_statuses=(HTTPStatus.OK,)
-        )
+        result = await self._request_json("get", url, "search recipes", params=params)
         if result is None:
             return CookidooSearchResult(recipes=[], total=0)
         if not isinstance(result, dict):
             raise CookidooParseException(
                 "Search recipes failed during parsing of request response."
             )
-        return cookidoo_search_result_from_json(result, self._cfg.localization)
+        return cookidoo_search_result_from_json(
+            cast(SearchResultJSON, result), self._cfg.localization
+        )
 
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
         """Get custom recipe.

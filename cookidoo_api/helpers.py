@@ -3,7 +3,7 @@
 import json
 import logging
 import os
-from typing import Any, cast
+from typing import cast
 from urllib.parse import urlparse
 
 import aiofiles
@@ -23,6 +23,8 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
+    SearchResultJSON,
     SubscriptionJSON,
 )
 from cookidoo_api.types import (
@@ -234,7 +236,7 @@ def cookidoo_recipe_from_json(
 
 
 def cookidoo_search_result_from_json(
-    data: dict[str, Any],
+    data: SearchResultJSON,
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooSearchResult:
     """Convert a search result received from the API to a CookidooSearchResult.
@@ -242,10 +244,11 @@ def cookidoo_search_result_from_json(
     The API may return recipes in ``data`` (search endpoint) or ``recipes``;
     total is optional and defaults to len(recipes).
     """
-    recipes_data = data.get("data") or data.get("recipes") or []
-    total = data.get("total")
-    if total is None or not isinstance(total, int):
-        total = len(recipes_data) if isinstance(recipes_data, list) else 0
+    raw_recipes: list[SearchRecipeHitJSON] = (
+        data.get("data") or data.get("recipes") or []
+    )
+    recipes_data: list[object] = list(raw_recipes)
+    total_raw = data.get("total")
     hits: list[CookidooSearchRecipeHit] = []
     for item in recipes_data:
         if not isinstance(item, dict):
@@ -256,7 +259,7 @@ def cookidoo_search_result_from_json(
         descriptive_assets = item.get("descriptiveAssets")
         if descriptive_assets and isinstance(descriptive_assets, list):
             thumbnail, image = _extract_images_from_descriptive_assets(
-                cast(list[DescriptiveAssetJSON], descriptive_assets)
+                descriptive_assets
             )
         url = _construct_recipe_url(localization, recipe_id)
         hits.append(
@@ -268,6 +271,7 @@ def cookidoo_search_result_from_json(
                 url=url,
             )
         )
+    total = total_raw if isinstance(total_raw, int) else len(hits)
     return CookidooSearchResult(recipes=hits, total=total)
 
 

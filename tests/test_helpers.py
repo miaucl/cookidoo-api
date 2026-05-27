@@ -1,6 +1,6 @@
 """Unit tests for cookidoo-api."""
 
-from typing import Any, cast
+from typing import cast
 
 from dotenv import load_dotenv
 import pytest
@@ -23,6 +23,7 @@ from cookidoo_api.raw_types import (
     DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchResultJSON,
 )
 from cookidoo_api.types import CookidooLocalizationConfig, ThermomixMachineType
 from tests.responses import (
@@ -333,13 +334,16 @@ class TestCookidooSearchResultFromJson:
 
     def test_search_result_uses_data_key(self) -> None:
         """Search result reads from 'data' key when 'recipes' is missing."""
-        data = {
-            "data": [
-                {"id": "r1", "title": "Recipe One"},
-                {"id": "r2", "name": "Recipe Two"},
-            ],
-            "total": 2,
-        }
+        data = cast(
+            SearchResultJSON,
+            {
+                "data": [
+                    {"id": "r1", "title": "Recipe One"},
+                    {"id": "r2", "name": "Recipe Two"},
+                ],
+                "total": 2,
+            },
+        )
         result = cookidoo_search_result_from_json(data, None)
         assert len(result.recipes) == 2
         assert result.recipes[0].id == "r1"
@@ -350,29 +354,34 @@ class TestCookidooSearchResultFromJson:
 
     def test_search_result_skips_non_dict_items(self) -> None:
         """Non-dict items in recipes list are skipped; only dicts become hits."""
-        data = {
-            "recipes": [
-                {"id": "r1", "title": "A"},
-                "not-a-dict",
-                None,
-                {"id": "r2", "name": "B"},
-            ],
-        }
+        data = cast(
+            SearchResultJSON,
+            {
+                "recipes": [
+                    {"id": "r1", "title": "A"},
+                    "not-a-dict",
+                    None,
+                    {"id": "r2", "name": "B"},
+                ],
+            },
+        )
         result = cookidoo_search_result_from_json(data, None)
         assert len(result.recipes) == 2
         assert result.recipes[0].id == "r1"
         assert result.recipes[1].id == "r2"
-        # When total is missing, helper uses len(recipes_data)
-        assert result.total == 4
+        # When total is missing, helper uses len(hits) (filtered valid items)
+        assert result.total == 2
 
     def test_search_result_total_invalid_defaults_to_length(self) -> None:
         """When total is missing or not int, it defaults to len(recipes)."""
-        data: dict[str, Any] = {"recipes": [{"id": "r1", "title": "X"}]}
+        data = cast(SearchResultJSON, {"recipes": [{"id": "r1", "title": "X"}]})
         result = cookidoo_search_result_from_json(data, None)
         assert result.total == 1
 
-        data["total"] = "nope"
-        result = cookidoo_search_result_from_json(data, None)
+        data_invalid = cast(
+            SearchResultJSON, {"recipes": [{"id": "r1", "title": "X"}], "total": "nope"}
+        )
+        result = cookidoo_search_result_from_json(data_invalid, None)
         assert result.total == 1
 
     def test_search_result_with_descriptive_assets(self) -> None:
@@ -380,22 +389,25 @@ class TestCookidooSearchResultFromJson:
         localization = CookidooLocalizationConfig(
             country_code="ch", language="de-CH", url="https://cookidoo.ch"
         )
-        data = {
-            "recipes": [
-                {
-                    "id": "r123",
-                    "title": "Test",
-                    "descriptiveAssets": [
-                        {
-                            "square": "https://example.com/square.png",
-                            "portrait": "https://example.com/portrait.png",
-                            "landscape": "https://example.com/landscape.png",
-                        }
-                    ],
-                }
-            ],
-            "total": 1,
-        }
+        data = cast(
+            SearchResultJSON,
+            {
+                "recipes": [
+                    {
+                        "id": "r123",
+                        "title": "Test",
+                        "descriptiveAssets": [
+                            {
+                                "square": "https://example.com/square.png",
+                                "portrait": "https://example.com/portrait.png",
+                                "landscape": "https://example.com/landscape.png",
+                            }
+                        ],
+                    }
+                ],
+                "total": 1,
+            },
+        )
         result = cookidoo_search_result_from_json(data, localization)
         assert len(result.recipes) == 1
         assert result.recipes[0].thumbnail is not None

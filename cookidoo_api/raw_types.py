@@ -289,4 +289,21 @@ class CalendarDayJSON(TypedDict):
     customerRecipeIds: NotRequired[list[str]]
 
 
+class SearchRecipeHitJSON(TypedDict, total=False):
+    """The json for a single recipe hit in search results."""
+
+    id: str
+    title: str
+    name: str
+    descriptiveAssets: list[DescriptiveAssetJSON] | None
+
+
+class SearchResultJSON(TypedDict, total=False):
+    """The json for a search result from the API."""
+
+    data: list[SearchRecipeHitJSON]
+    recipes: list[SearchRecipeHitJSON]
+    total: int
+
+
 __all__ = ["QuantityJSON"]
