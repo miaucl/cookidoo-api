@@ -589,8 +589,42 @@ class TestSearchRecipes:
 
         data = await cookidoo.search_recipes("chicken")
         assert isinstance(data, CookidooSearchResult)
-        assert data.recipes == []
-        assert data.total == 0
+        assert data.total == 2
+        assert len(data.recipes) == 2
+        assert data.recipes[0].id == "r123456"
+        assert data.recipes[0].name == "Chicken Soup"
+        assert data.recipes[0].thumbnail == (
+            "https://assets.tmecosys.com/image/upload/"
+            "t_web_shared_recipe_221x240/img/recipe/ras/Assets/"
+            "a1b2c3d4-1111-2222-3333-444455556666/Derivates/"
+            "abcdef01-2345-6789-abcd-ef0123456789.jpg"
+        )
+        assert data.recipes[0].image == (
+            "https://assets.tmecosys.com/image/upload/"
+            "t_web_rdp_recipe_584x480_1_5x/img/recipe/ras/Assets/"
+            "a1b2c3d4-1111-2222-3333-444455556666/Derivates/"
+            "abcdef01-2345-6789-abcd-ef0123456789.jpg"
+        )
+        assert data.recipes[0].url == (
+            "https://cookidoo.ch/recipes/recipe/de-CH/r123456"
+        )
+        assert data.recipes[1].id == "r654321"
+        assert data.recipes[1].name == "Chicken Salad"
+        assert data.recipes[1].thumbnail == (
+            "https://assets.tmecosys.com/image/upload/"
+            "t_web_shared_recipe_221x240/img/recipe/ras/Assets/"
+            "f1e2d3c4-9999-8888-7777-666655554444/Derivates/"
+            "98765432-10fe-dcba-9876-543210fedcba.jpg"
+        )
+        assert data.recipes[1].image == (
+            "https://assets.tmecosys.com/image/upload/"
+            "t_web_rdp_recipe_584x480_1_5x/img/recipe/ras/Assets/"
+            "f1e2d3c4-9999-8888-7777-666655554444/Derivates/"
+            "98765432-10fe-dcba-9876-543210fedcba.jpg"
+        )
+        assert data.recipes[1].url == (
+            "https://cookidoo.ch/recipes/recipe/de-CH/r654321"
+        )
 
     async def test_search_recipes_with_options(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -653,8 +687,8 @@ class TestSearchRecipes:
             tmv=["TM7", "TM6", "TM5", "TM31"],
         )
         assert isinstance(data, CookidooSearchResult)
-        assert data.recipes == []
-        assert data.total == 0
+        assert len(data.recipes) == 2
+        assert data.total == 2
 
     @pytest.mark.parametrize(
         "exception",
@@ -747,7 +781,7 @@ class TestSearchRecipes:
             difficulty="easy",
         )
         assert isinstance(data, CookidooSearchResult)
-        assert data.total == 0
+        assert data.total == 2
 
     async def test_search_recipes_with_tmv_single_enum(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -762,7 +796,7 @@ class TestSearchRecipes:
 
         data = await cookidoo.search_recipes("soup", tmv=ThermomixMachineType.TM7)
         assert isinstance(data, CookidooSearchResult)
-        assert data.total == 0
+        assert data.total == 2
 
     async def test_search_recipes_without_query(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -776,8 +810,8 @@ class TestSearchRecipes:
 
         data = await cookidoo.search_recipes()
         assert isinstance(data, CookidooSearchResult)
-        assert data.recipes == []
-        assert data.total == 0
+        assert len(data.recipes) == 2
+        assert data.total == 2
 
     async def test_search_recipes_unexpected_status(
         self, mocked: aioresponses, cookidoo: Cookidoo
