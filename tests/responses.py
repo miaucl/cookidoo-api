@@ -86,6 +86,40 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
     }
 ]
 
+COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES: Final = {
+    "recipes": [
+        {
+            "id": "r123456",
+            "title": "Chicken Soup",
+            "descriptiveAssets": [
+                {
+                    "square": (
+                        "https://assets.tmecosys.com/image/upload/"
+                        "{transformation}/img/recipe/ras/Assets/"
+                        "a1b2c3d4-1111-2222-3333-444455556666/Derivates/"
+                        "abcdef01-2345-6789-abcd-ef0123456789.jpg"
+                    ),
+                }
+            ],
+        },
+        {
+            "id": "r654321",
+            "name": "Chicken Salad",
+            "descriptiveAssets": [
+                {
+                    "landscape": (
+                        "https://assets.tmecosys.com/image/upload/"
+                        "{transformation}/img/recipe/ras/Assets/"
+                        "f1e2d3c4-9999-8888-7777-666655554444/Derivates/"
+                        "98765432-10fe-dcba-9876-543210fedcba.jpg"
+                    ),
+                }
+            ],
+        },
+    ],
+    "total": 2,
+}
+
 COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
     "id": "r907015",
     "tags": [

@@ -23,6 +23,8 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
+    SearchResultJSON,
     SubscriptionJSON,
 )
 from cookidoo_api.types import (
@@ -41,15 +43,43 @@ from cookidoo_api.types import (
     CookidooNutritionGroup,
     CookidooRecipeCollection,
     CookidooRecipeNutrition,
+    CookidooSearchRecipeHit,
+    CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
+    ThermomixMachineType,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
+
+
+def normalize_list_param(value: str | list[str] | None) -> str | None:
+    """Normalize list/string params to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join([v for v in value if v])
+    return value
+
+
+def normalize_tmv_param(
+    value: ThermomixMachineType | str | list[ThermomixMachineType | str] | None,
+) -> str | None:
+    """Normalize TMV param to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        normalized: list[str] = []
+        for item in value:
+            normalized.append(
+                item.value if isinstance(item, ThermomixMachineType) else str(item)
+            )
+        return ",".join([v for v in normalized if v])
+    return value.value if isinstance(value, ThermomixMachineType) else value
 
 
 def cookidoo_user_info_from_json(
@@ -203,6 +233,59 @@ def cookidoo_recipe_from_json(
         image=image,
         url=url,
     )
+
+
+def cookidoo_search_result_from_json(
+    data: SearchResultJSON,
+    localization: CookidooLocalizationConfig | None = None,
+) -> CookidooSearchResult:
+    """Convert a search result received from the API to a CookidooSearchResult.
+
+    The API may return recipes in ``data`` (search endpoint) or ``recipes``;
+    total is optional and defaults to the number of valid parsed hits.
+
+    Parameters
+    ----------
+    data
+        The raw JSON response from the search API.
+    localization
+        Optional localization config used to construct recipe URLs.
+
+    Returns
+    -------
+    CookidooSearchResult
+        The parsed search result with recipe hits and total count.
+
+    """
+    raw_recipes: list[SearchRecipeHitJSON] = (
+        data.get("data") or data.get("recipes") or []
+    )
+    recipes_data: list[object] = list(raw_recipes)
+    total_raw = data.get("total")
+    hits: list[CookidooSearchRecipeHit] = []
+    for item in recipes_data:
+        if not isinstance(item, dict):
+            continue
+        recipe_id = item.get("id", "")
+        name = item.get("title") or item.get("name", "")
+        thumbnail, image = None, None
+        descriptive_assets = item.get("descriptiveAssets")
+        if descriptive_assets and isinstance(descriptive_assets, list):
+            thumbnail, image = _extract_images_from_descriptive_assets(
+                descriptive_assets
+            )
+        url = _construct_recipe_url(localization, recipe_id)
+        hits.append(
+            CookidooSearchRecipeHit(
+                id=recipe_id,
+                name=name,
+                thumbnail=thumbnail,
+                image=image,
+                url=url,
+            )
+        )
+    total = total_raw if isinstance(total_raw, int) else len(hits)
+    return CookidooSearchResult(recipes=hits, total=total)
 
 
 def cookidoo_quantity_from_json(
