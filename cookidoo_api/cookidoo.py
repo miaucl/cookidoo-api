@@ -31,6 +31,8 @@ from cookidoo_api.const import (
     CUSTOM_COLLECTIONS_PATH,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
     CUSTOM_RECIPE_PATH,
+    CUSTOM_RECIPES_PATH,
+    CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
@@ -78,6 +80,7 @@ from cookidoo_api.raw_types import (
     CommunityProfileJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
+    CustomRecipesJSON,
     ItemJSON,
     ManagedCollectionJSON,
     PaginationJSON,
@@ -765,6 +768,34 @@ class Cookidoo:
                 cast(CustomRecipeJSON, result),
                 self._cfg.localization,
             ),
+        )
+
+    async def list_custom_recipes(self) -> list[CookidooCustomRecipe]:
+        """List custom recipes."""
+        url = self.api_endpoint / CUSTOM_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "listing custom recipes",
+                headers={"ACCEPT": CUSTOM_RECIPES_PATH_ACCEPT},
+            ),
+            "listing custom recipes",
+        )
+        if not isinstance(result.get("items"), list):
+            raise CookidooParseException(
+                "Listing custom recipes failed during parsing of request response."
+            )
+
+        custom_recipes = cast(CustomRecipesJSON, result)
+        return self._parse_result(
+            "listing custom recipes",
+            lambda: [
+                cookidoo_custom_recipe_from_json(recipe, self._cfg.localization)
+                for recipe in custom_recipes["items"]
+            ],
         )
 
     async def add_custom_recipe_from(
