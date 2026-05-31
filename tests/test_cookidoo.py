@@ -375,6 +375,32 @@ class TestGetUserInfo:
         with pytest.raises(CookidooAuthException):
             await cookidoo.get_user_info()
 
+    async def test_non_mapping_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test response shape validation."""
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            status=HTTPStatus.OK,
+            payload=[],
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_user_info()
+
+    async def test_invalid_mapping_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test converter parse exception for missing keys."""
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            status=HTTPStatus.OK,
+            payload={},
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_user_info()
+
     @pytest.mark.parametrize(
         ("status", "exception"),
         [
@@ -433,6 +459,32 @@ class TestGetActiveSubscription:
 
         data = await cookidoo.get_active_subscription()
         assert data is None
+
+    async def test_non_sequence_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test response shape validation."""
+        mocked.get(
+            "https://cookidoo.ch/ownership/subscriptions",
+            payload={},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_active_subscription()
+
+    async def test_subscription_missing_active(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test malformed subscription items."""
+        mocked.get(
+            "https://cookidoo.ch/ownership/subscriptions",
+            payload=[{"status": "RUNNING"}],
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_active_subscription()
 
     @pytest.mark.parametrize(
         "exception",

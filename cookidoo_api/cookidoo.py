@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 from http import HTTPStatus
 from http.cookies import SimpleCookie
@@ -10,7 +11,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import cast
+from typing import Any, TypeVar, cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -74,6 +75,7 @@ from cookidoo_api.helpers import (
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
+    CommunityProfileJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     ItemJSON,
@@ -81,6 +83,7 @@ from cookidoo_api.raw_types import (
     RecipeDetailsJSON,
     RecipeJSON,
     SearchResultJSON,
+    SubscriptionJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
@@ -99,6 +102,7 @@ from cookidoo_api.types import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+_T = TypeVar("_T")
 
 
 class Cookidoo:
@@ -159,6 +163,7 @@ class Cookidoo:
             HTTPStatus.OK,
             HTTPStatus.NO_CONTENT,
         ),
+        parse_response: bool = True,
     ) -> object | None:
         """Execute an HTTP request and parse its JSON response.
 
@@ -179,6 +184,8 @@ class Cookidoo:
         accepted_statuses
             HTTP status codes considered successful. Defaults to 200 and 204.
             A 204 response always returns ``None`` (no body).
+        parse_response
+            Whether to parse a successful non-204 response as JSON.
 
         Returns
         -------
@@ -226,6 +233,8 @@ class Cookidoo:
 
                 if r.status == HTTPStatus.NO_CONTENT:
                     return None
+                if not parse_response:
+                    return None
                 try:
                     result: object = await r.json()
                 except (JSONDecodeError, KeyError) as e:
@@ -268,6 +277,34 @@ class Cookidoo:
             f"{operation.capitalize()} failed due to authorization failure, "
             "the authorization token is invalid or expired."
         )
+
+    @staticmethod
+    def _ensure_mapping(result: object | None, operation: str) -> Mapping[str, object]:
+        """Return a mapping response or raise the standard parse exception."""
+        if not isinstance(result, Mapping):
+            raise CookidooParseException(
+                f"{operation.capitalize()} failed during parsing of request response."
+            )
+        return result
+
+    @staticmethod
+    def _ensure_sequence(result: object | None, operation: str) -> Sequence[object]:
+        """Return a sequence response or raise the standard parse exception."""
+        if isinstance(result, str) or not isinstance(result, Sequence):
+            raise CookidooParseException(
+                f"{operation.capitalize()} failed during parsing of request response."
+            )
+        return result
+
+    @staticmethod
+    def _parse_result(operation: str, parser: Callable[[], _T]) -> _T:
+        """Convert a validated JSON response into public types."""
+        try:
+            return parser()
+        except (KeyError, TypeError, ValueError) as e:
+            raise CookidooParseException(
+                f"{operation.capitalize()} failed during parsing of request response."
+            ) from e
 
     async def login(self) -> None:
         """Perform browser-based OAuth2 login.
@@ -454,61 +491,17 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get user info: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading user info failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return cookidoo_user_info_from_json(await r.json())
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get user info:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading user info failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get user info:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading user info failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot user info:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading user info failed due to request exception."
-            ) from e
+        url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading user info"),
+            "loading user info",
+        )
+        return self._parse_result(
+            "loading user info",
+            lambda: cookidoo_user_info_from_json(cast(CommunityProfileJSON, result)),
+        )
 
     async def get_active_subscription(
         self,
@@ -531,72 +524,33 @@ class Cookidoo:
 
         """
 
+        url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        subscriptions = self._ensure_sequence(
+            await self._request_json("get", url, "loading active subscription"),
+            "loading active subscription",
+        )
         try:
-            url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+            if subscription := next(
+                (
+                    subscription
+                    for subscription in subscriptions
+                    if isinstance(subscription, Mapping) and subscription["active"]
+                ),
+                None,
+            ):
+                return self._parse_result(
+                    "loading active subscription",
+                    lambda: cookidoo_subscription_from_json(
+                        cast(SubscriptionJSON, subscription)
+                    ),
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get active subscription: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading active subscription failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    if subscription := next(
-                        (
-                            subscription
-                            for subscription in (await r.json())
-                            if subscription["active"]
-                        ),
-                        None,
-                    ):
-                        return cookidoo_subscription_from_json(subscription)
-                    else:
-                        return None
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get active subscription:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading active subscription failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get active subscription:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading user info failed due to connection timeout."
+        except KeyError as e:
+            raise CookidooParseException(
+                "Loading active subscription failed during parsing of request response."
             ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot active subscription:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading active subscription failed due to request exception."
-            ) from e
+        return None
 
     async def get_recipe_details(self, id: str) -> CookidooShoppingRecipeDetails:
         """Get recipe details.
@@ -622,65 +576,20 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / RECIPE_PATH.format(
-                **self._cfg.localization.__dict__, id=id
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get recipe details: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading recipe details failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return cookidoo_recipe_details_from_json(
-                        cast(RecipeDetailsJSON, await r.json()),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get recipe details:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading recipe details failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get recipe details:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipe details failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot recipe details:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipe details failed due to request exception."
-            ) from e
+        url = self.api_endpoint / RECIPE_PATH.format(
+            **self._cfg.localization.__dict__, id=id
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading recipe details"),
+            "loading recipe details",
+        )
+        return self._parse_result(
+            "loading recipe details",
+            lambda: cookidoo_recipe_details_from_json(
+                cast(RecipeDetailsJSON, result),
+                self._cfg.localization,
+            ),
+        )
 
     async def search_recipes(
         self,
@@ -842,65 +751,20 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / CUSTOM_RECIPE_PATH.format(
-                **self._cfg.localization.__dict__, id=id
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get custom recipe: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading custom recipe failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json()),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get custom recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading custom recipe failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom recipe failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom recipe failed due to request exception."
-            ) from e
+        url = self.api_endpoint / CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__, id=id
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading custom recipe"),
+            "loading custom recipe",
+        )
+        return self._parse_result(
+            "loading custom recipe",
+            lambda: cookidoo_custom_recipe_from_json(
+                cast(CustomRecipeJSON, result),
+                self._cfg.localization,
+            ),
+        )
 
     async def add_custom_recipe_from(
         self, recipeId: str, servingSize: int
@@ -936,70 +800,20 @@ class Cookidoo:
             ),
             "servingSize": servingSize,
         }
-        try:
-            url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url,
-                headers={
-                    **self._api_headers,
-                },
-                json=json_data,
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add custom recipe: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add custom recipe failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_custom_recipe_from_json(
-                        cast(CustomRecipeJSON, await r.json()),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added custom recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added custom recipe failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom recipe failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom recipe failed due to request exception."
-            ) from e
+        url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("post", url, "add custom recipe", json=json_data),
+            "add custom recipe",
+        )
+        return self._parse_result(
+            "add custom recipe",
+            lambda: cookidoo_custom_recipe_from_json(
+                cast(CustomRecipeJSON, result),
+                self._cfg.localization,
+            ),
+        )
 
     async def remove_custom_recipe(
         self,
@@ -1022,55 +836,12 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_CUSTOM_RECIPE_PATH.format(
-                **self._cfg.localization.__dict__, id=custom_recipe_id
-            )
-            async with self._session.delete(
-                url,
-                headers={
-                    **self._api_headers,
-                },
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove custom recipe: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove custom recipe failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom recipe failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom recipe:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom recipe failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__, id=custom_recipe_id
+        )
+        await self._request_json(
+            "delete", url, "remove custom recipe", parse_response=False
+        )
 
     async def get_shopping_list_recipes(
         self,
@@ -1093,68 +864,25 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / SHOPPING_LIST_RECIPES_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / SHOPPING_LIST_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading recipes"),
+            "loading recipes",
+        )
+        return self._parse_result(
+            "loading recipes",
+            lambda: [
+                cookidoo_recipe_from_json(
+                    cast(RecipeJSON, recipe), self._cfg.localization
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get recipes: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading recipes failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    _d = await r.json()
-                    return [
-                        cookidoo_recipe_from_json(
-                            cast(RecipeJSON, recipe), self._cfg.localization
-                        )
-                        for recipe in [*_d["recipes"], *_d["customerRecipes"]]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get recipes:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading recipes failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipes failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipes failed due to request exception."
-            ) from e
+                for recipe in [
+                    *cast(Sequence[object], result["recipes"]),
+                    *cast(Sequence[object], result["customerRecipes"]),
+                ]
+            ],
+        )
 
     async def get_ingredient_items(
         self,
@@ -1177,67 +905,26 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading ingredient items"),
+            "loading ingredient items",
+        )
+        return self._parse_result(
+            "loading ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in [
+                    *cast(Sequence[Mapping[str, object]], result["recipes"]),
+                    *cast(Sequence[Mapping[str, object]], result["customerRecipes"]),
+                ]
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get ingredient items: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading ingredient items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    _d = await r.json()
-                    return [
-                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                        for recipe in [*_d["recipes"], *_d["customerRecipes"]]
-                        for ingredient in recipe["recipeIngredientGroups"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get ingredient items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading ingredient items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get ingredient items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading ingredient items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot ingredient items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading ingredient items failed due to request exception."
-            ) from e
+            ],
+        )
 
     async def add_ingredient_items_for_recipes(
         self,
@@ -1266,66 +953,25 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        try:
-            url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add ingredient items for recipes", json=json_data
+            ),
+            "add ingredient items for recipes",
+        )
+        return self._parse_result(
+            "loading added ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add ingredient items for recipes: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add ingredient items for recipes failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                        for recipe in (await r.json())["data"]
-                        for ingredient in recipe["recipeIngredientGroups"]
-                    ]
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added ingredient items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added ingredient items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add ingredient items for recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add ingredient items for recipes failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add ingredient items for recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add ingredient items for recipes failed due to request exception."
-            ) from e
+            ],
+        )
 
     async def remove_ingredient_items_for_recipes(
         self,
@@ -1349,52 +995,16 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        try:
-            url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove ingredient items for recipes: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove ingredient items for recipes failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove ingredient items for recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove ingredient items for recipes failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove ingredient items for recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove ingredient items for recipes failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove ingredient items for recipes",
+            json=json_data,
+            parse_response=False,
+        )
 
     async def edit_ingredient_items_ownership(
         self,
@@ -1432,66 +1042,22 @@ class Cookidoo:
                 for ingredient_item in ingredient_items
             ]
         }
-        try:
-            url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot edit recipe ingredient items ownership: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Edit ingredient items ownership failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                        for ingredient in (await r.json())["data"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get edited ingredient items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading edited ingredient items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit ingredient items ownership:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit ingredient items ownership failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit ingredient items ownership:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit ingredient items ownership failed due to request exception."
-            ) from e
+        url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit ingredient items ownership", json=json_data
+            ),
+            "edit ingredient items ownership",
+        )
+        return self._parse_result(
+            "loading edited ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for ingredient in cast(Sequence[object], result["data"])
+            ],
+        )
 
     async def add_ingredient_items_for_custom_recipes(
         self,
@@ -1524,66 +1090,25 @@ class Cookidoo:
                 {"id": recipe_id, "source": "CUSTOMER"} for recipe_id in recipe_ids
             ]
         }
-        try:
-            url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add ingredient items for custom recipes", json=json_data
+            ),
+            "add ingredient items for custom recipes",
+        )
+        return self._parse_result(
+            "loading added ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add ingredient items for custom recipes: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add ingredient items for custom recipes failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                        for recipe in (await r.json())["data"]
-                        for ingredient in recipe["recipeIngredientGroups"]
-                    ]
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added ingredient items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added ingredient items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add ingredient items for custom recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add ingredient items for custom recipes failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add ingredient items for custom recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add ingredient items for custom recipes failed due to request exception."
-            ) from e
+            ],
+        )
 
     async def remove_ingredient_items_for_custom_recipes(
         self,
@@ -1607,52 +1132,16 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        try:
-            url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove ingredient items for custom recipes: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove ingredient items for custom recipes failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove ingredient items for custom recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove ingredient items for custom recipes failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove ingredient items for custom recipes:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove ingredient items for custom recipes failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove ingredient items for custom recipes",
+            json=json_data,
+            parse_response=False,
+        )
 
     async def get_additional_items(
         self,
@@ -1675,67 +1164,22 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading additional items"),
+            "loading additional items",
+        )
+        return self._parse_result(
+            "loading additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get additional items: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading additional items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return [
-                        cookidoo_additional_item_from_json(
-                            cast(AdditionalItemJSON, additional_item)
-                        )
-                        for additional_item in (await r.json())["additionalItems"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get additional items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading additional items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading additional items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading additional items failed due to request exception."
-            ) from e
+                for additional_item in cast(Sequence[object], result["additionalItems"])
+            ],
+        )
 
     async def add_additional_items(
         self,
@@ -1764,68 +1208,24 @@ class Cookidoo:
 
         """
         json_data = {"itemsValue": additional_item_names}
-        try:
-            url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add additional items", json=json_data
+            ),
+            "add additional items",
+        )
+        return self._parse_result(
+            "loading added additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add additional items: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add additional items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_additional_item_from_json(
-                            cast(AdditionalItemJSON, additional_item)
-                        )
-                        for additional_item in (await r.json())["data"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added additional items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added additional items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add additional items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add additional items failed due to request exception."
-            ) from e
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
 
     async def edit_additional_items(
         self,
@@ -1862,68 +1262,24 @@ class Cookidoo:
                 for additional_item in additional_items
             ]
         }
-        try:
-            url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit additional items", json=json_data
+            ),
+            "edit additional items",
+        )
+        return self._parse_result(
+            "loading edited additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot edit additional items: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Edit additional items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_additional_item_from_json(
-                            cast(AdditionalItemJSON, additional_item)
-                        )
-                        for additional_item in (await r.json())["data"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get edited additional items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading edited additional items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit additional items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit additional items failed due to request exception."
-            ) from e
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
 
     async def edit_additional_items_ownership(
         self,
@@ -1961,68 +1317,24 @@ class Cookidoo:
                 for additional_item in additional_items
             ]
         }
-        try:
-            url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit additional items ownership", json=json_data
+            ),
+            "edit additional items ownership",
+        )
+        return self._parse_result(
+            "loading edited additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot edit additional items ownership: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Edit additional items ownership failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return [
-                        cookidoo_additional_item_from_json(
-                            cast(AdditionalItemJSON, additional_item)
-                        )
-                        for additional_item in (await r.json())["data"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get edited additional items:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading edited additional items failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit additional items ownership:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit additional items ownership failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute edit additional items ownership:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Edit additional items ownership failed due to request exception."
-            ) from e
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
 
     async def remove_additional_items(
         self,
@@ -2046,52 +1358,16 @@ class Cookidoo:
 
         """
         json_data = {"additionalItemIDs": additional_item_ids}
-        try:
-            url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove additional items: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove additional items failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove additional items failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove additional items:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove additional items failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove additional items",
+            json=json_data,
+            parse_response=False,
+        )
 
     async def clear_shopping_list(
         self,
@@ -2108,50 +1384,12 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.delete(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot clear shopping list: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Clear shopping list failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute clear shopping list:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Clear shopping list failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute clear shopping list:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Clear shopping list failed due to request exception."
-            ) from e
+        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "delete", url, "clear shopping list", parse_response=False
+        )
 
     async def count_managed_collections(self) -> tuple[int, int]:
         """Get managed collections.
@@ -2172,72 +1410,31 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(
+        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
-                },
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot count managed collections: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading managed collections failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
+                "loading managed collections",
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading managed collections",
+        )
+        return self._parse_result(
+            "loading managed collections",
+            lambda: (
+                int(
+                    cast(
+                        Any, cast(Mapping[str, object], result["page"])["totalElements"]
                     )
-
-                r.raise_for_status()
-
-                try:
-                    json = await r.json()
-                    return (
-                        int(json["page"]["totalElements"]),
-                        int(json["page"]["totalPages"]),
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot count managed collections%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading managed collections during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot count managed collections:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading managed collections due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot count managed collections%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading managed collections due to request exception."
-            ) from e
+                ),
+                int(
+                    cast(Any, cast(Mapping[str, object], result["page"])["totalPages"])
+                ),
+            ),
+        )
 
     async def get_managed_collections(self, page: int = 0) -> list[CookidooCollection]:
         """Get managed collections.
@@ -2263,72 +1460,26 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(
+        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
-                },
-                params={"page": page},
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get managed collections: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading managed collections failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return [
-                        cookidoo_collection_from_json(cast(ManagedCollectionJSON, list))
-                        for list in (await r.json())["managedlists"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get managed collections%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading managed collections during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get managed collections:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading managed collections due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get managed collections%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading managed collections due to request exception."
-            ) from e
+                "loading managed collections",
+                params={"page": str(page)},
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading managed collections",
+        )
+        return self._parse_result(
+            "loading managed collections",
+            lambda: [
+                cookidoo_collection_from_json(cast(ManagedCollectionJSON, item))
+                for item in cast(Sequence[object], result["managedlists"])
+            ],
+        )
 
     async def add_managed_collection(
         self,
@@ -2357,70 +1508,25 @@ class Cookidoo:
 
         """
         json_data = {"collectionId": managed_collection_id}
-        try:
-            url = self.api_endpoint / ADD_MANAGED_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
+        url = self.api_endpoint / ADD_MANAGED_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
-                },
+                "add managed collection",
                 json=json_data,
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add managed collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add managed collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_collection_from_json(
-                        cast(ManagedCollectionJSON, (await r.json())["content"])
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added managed collection:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added managed collection failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add managed collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add managed collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add managed collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add managed collection failed due to request exception."
-            ) from e
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "add managed collection",
+        )
+        return self._parse_result(
+            "loading added managed collection",
+            lambda: cookidoo_collection_from_json(
+                cast(ManagedCollectionJSON, result["content"])
+            ),
+        )
 
     async def remove_managed_collection(
         self,
@@ -2443,56 +1549,16 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__, id=managed_collection_id
-            )
-            async with self._session.delete(
-                url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT,
-                },
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove managed collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove managed collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove managed collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove managed collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove managed collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove managed collection failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__, id=managed_collection_id
+        )
+        await self._request_json(
+            "delete",
+            url,
+            "remove managed collection",
+            headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            parse_response=False,
+        )
 
     async def count_custom_collections(self) -> tuple[int, int]:
         """Get custom collections.
@@ -2513,72 +1579,31 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(
+        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
-                },
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot count custom collections: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading custom collections failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
+                "loading custom collections",
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading custom collections",
+        )
+        return self._parse_result(
+            "loading custom collections",
+            lambda: (
+                int(
+                    cast(
+                        Any, cast(Mapping[str, object], result["page"])["totalElements"]
                     )
-
-                r.raise_for_status()
-
-                try:
-                    json = await r.json()
-                    return (
-                        int(json["page"]["totalElements"]),
-                        int(json["page"]["totalPages"]),
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot count custom collections%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading custom collections during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot count custom collections:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom collections due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot count custom collections%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom collections due to request exception."
-            ) from e
+                ),
+                int(
+                    cast(Any, cast(Mapping[str, object], result["page"])["totalPages"])
+                ),
+            ),
+        )
 
     async def get_custom_collections(self, page: int = 0) -> list[CookidooCollection]:
         """Get custom collections.
@@ -2604,72 +1629,26 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.get(
+        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
-                },
-                params={"page": page},
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get custom collections: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading custom collections failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return [
-                        cookidoo_collection_from_json(cast(CustomCollectionJSON, list))
-                        for list in (await r.json())["customlists"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get custom collections%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading custom collections during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get custom collections:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom collections due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get custom collections%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading custom collections due to request exception."
-            ) from e
+                "loading custom collections",
+                params={"page": str(page)},
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading custom collections",
+        )
+        return self._parse_result(
+            "loading custom collections",
+            lambda: [
+                cookidoo_collection_from_json(cast(CustomCollectionJSON, item))
+                for item in cast(Sequence[object], result["customlists"])
+            ],
+        )
 
     async def add_custom_collection(
         self,
@@ -2698,70 +1677,25 @@ class Cookidoo:
 
         """
         json_data = {"title": custom_collection_name}
-        try:
-            url = self.api_endpoint / ADD_CUSTOM_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.post(
+        url = self.api_endpoint / ADD_CUSTOM_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post",
                 url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
-                },
+                "add custom collection",
                 json=json_data,
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add custom collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add custom collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_collection_from_json(
-                        cast(CustomCollectionJSON, (await r.json())["content"])
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added custom collection:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added custom collection failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom collection failed due to request exception."
-            ) from e
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "add custom collection",
+        )
+        return self._parse_result(
+            "loading added custom collection",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
 
     async def remove_custom_collection(
         self,
@@ -2784,56 +1718,16 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_CUSTOM_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__, id=custom_collection_id
-            )
-            async with self._session.delete(
-                url,
-                headers={
-                    **self._api_headers,
-                    "ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT,
-                },
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove custom collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove custom collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom collection failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_CUSTOM_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__, id=custom_collection_id
+        )
+        await self._request_json(
+            "delete",
+            url,
+            "remove custom collection",
+            headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            parse_response=False,
+        )
 
     async def add_recipes_to_custom_collection(
         self,
@@ -2865,65 +1759,21 @@ class Cookidoo:
 
         """
         json_data = {"recipeIds": recipe_ids}
-        try:
-            url = self.api_endpoint / ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__, id=custom_collection_id
-            )
-            async with self._session.put(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add recipes to custom collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add recipes to custom collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_collection_from_json(
-                        cast(CustomCollectionJSON, (await r.json())["content"])
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added recipes:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added recipes failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add recipes to custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add recipes to custom collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add recipes to custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add recipes to custom collection failed due to request exception."
-            ) from e
+        url = self.api_endpoint / ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__, id=custom_collection_id
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add recipes to custom collection", json=json_data
+            ),
+            "add recipes to custom collection",
+        )
+        return self._parse_result(
+            "loading added recipes",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
 
     async def remove_recipe_from_custom_collection(
         self,
@@ -2954,65 +1804,23 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH.format(
-                **self._cfg.localization.__dict__,
-                id=custom_collection_id,
-                recipe=recipe_id,
-            )
-            async with self._session.delete(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove recipe from custom collection: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove recipe from custom collection failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_collection_from_json(
-                        cast(CustomCollectionJSON, (await r.json())["content"])
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get removed recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading removed recipe failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add recipe from custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove recipe from custom collection failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove recipe from custom collection:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove recipe from custom collection failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH.format(
+            **self._cfg.localization.__dict__,
+            id=custom_collection_id,
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "delete", url, "remove recipe from custom collection"
+            ),
+            "remove recipe from custom collection",
+        )
+        return self._parse_result(
+            "loading removed recipe",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
 
     async def get_recipes_in_calendar_week(
         self, day: date
@@ -3040,67 +1848,22 @@ class Cookidoo:
 
         """
 
-        try:
-            url = self.api_endpoint / RECIPES_IN_CALENDAR_WEEK_PATH.format(
-                **self._cfg.localization.__dict__, day=day.isoformat()
-            )
-            async with self._session.get(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
+        url = self.api_endpoint / RECIPES_IN_CALENDAR_WEEK_PATH.format(
+            **self._cfg.localization.__dict__, day=day.isoformat()
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading recipes in calendar week"),
+            "loading recipes in calendar week",
+        )
+        return self._parse_result(
+            "loading recipes in calendar week",
+            lambda: [
+                cookidoo_calendar_day_from_json(
+                    cast(CalendarDayJSON, calendar_day), self._cfg.localization
                 )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot get recipes in calendar week: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Loading recipes in calendar week failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-
-                try:
-                    return [
-                        cookidoo_calendar_day_from_json(
-                            cast(CalendarDayJSON, day), self._cfg.localization
-                        )
-                        for day in (await r.json())["myDays"]
-                    ]
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get recipes in calendar day%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading recipes in calendar day during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get recipes in calendar day:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipes in calendar day due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot get recipes in calendar day%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Loading recipes in calendar day due to request exception."
-            ) from e
+                for calendar_day in cast(Sequence[object], result["myDays"])
+            ],
+        )
 
     async def add_recipes_to_calendar(
         self,
@@ -3132,66 +1895,22 @@ class Cookidoo:
 
         """
         json_data = {"recipeIds": recipe_ids, "dayKey": day.isoformat()}
-        try:
-            url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.put(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add recipes to calendar: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add recipes to calendar failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"]),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added recipes:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added recipes failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add recipes to calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add recipes to calendar failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add recipes to calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add recipes to calendar failed due to request exception."
-            ) from e
+        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add recipes to calendar", json=json_data
+            ),
+            "add recipes to calendar",
+        )
+        return self._parse_result(
+            "loading added recipes",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
 
     async def remove_recipe_from_calendar(
         self,
@@ -3222,66 +1941,22 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
-                **self._cfg.localization.__dict__,
-                day=day.isoformat(),
-                recipe=recipe_id,
-            )
-            async with self._session.delete(url, headers=self._api_headers) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove recipe from calendar: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove recipe from calendar failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"]),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get removed recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading removed recipe failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove recipe from calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove recipe from calendar failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove recipe from calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove recipe from calendar failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+            **self._cfg.localization.__dict__,
+            day=day.isoformat(),
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json("delete", url, "remove recipe from calendar"),
+            "remove recipe from calendar",
+        )
+        return self._parse_result(
+            "loading removed recipe",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
 
     async def add_custom_recipes_to_calendar(
         self,
@@ -3317,66 +1992,22 @@ class Cookidoo:
             "dayKey": day.isoformat(),
             "recipeSource": "CUSTOMER",
         }
-        try:
-            url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
-                **self._cfg.localization.__dict__
-            )
-            async with self._session.put(
-                url, headers=self._api_headers, json=json_data
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot add custom recipes to calendar: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Add custom recipes to calendar failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"]),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get added custom recipes:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading added custom recipes failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom recipes to calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom recipes to calendar failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute add custom recipes to calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Add custom recipes to calendar failed due to request exception."
-            ) from e
+        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add custom recipes to calendar", json=json_data
+            ),
+            "add custom recipes to calendar",
+        )
+        return self._parse_result(
+            "loading added custom recipes",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
 
     async def remove_custom_recipe_from_calendar(
         self,
@@ -3407,65 +2038,24 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        try:
-            url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
-                **self._cfg.localization.__dict__,
-                day=day.isoformat(),
-                recipe=recipe_id,
-            )
-            async with self._session.delete(
-                url, headers=self._api_headers, params={"recipeSource": "CUSTOMER"}
-            ) as r:
-                _LOGGER.debug(
-                    "Response from %s [%s]: %s", url, r.status, await r.text()
-                )
-
-                if r.status == HTTPStatus.UNAUTHORIZED:
-                    try:
-                        errmsg = await r.json()
-                    except (JSONDecodeError, ClientError):
-                        _LOGGER.debug(
-                            "Exception: Cannot parse request response:\n %s",
-                            traceback.format_exc(),
-                        )
-                    else:
-                        _LOGGER.debug(
-                            "Exception: Cannot remove custom recipe from calendar: %s",
-                            errmsg["error_description"],
-                        )
-                    raise CookidooAuthException(
-                        "Remove custom recipe from calendar failed due to authorization failure, "
-                        "the authorization token is invalid or expired."
-                    )
-
-                r.raise_for_status()
-                try:
-                    return cookidoo_calendar_day_from_json(
-                        cast(CalendarDayJSON, (await r.json())["content"]),
-                        self._cfg.localization,
-                    )
-
-                except (JSONDecodeError, KeyError) as e:
-                    _LOGGER.debug(
-                        "Exception: Cannot get custom removed recipe:\n%s",
-                        traceback.format_exc(),
-                    )
-                    raise CookidooParseException(
-                        "Loading custom removed recipe failed during parsing of request response."
-                    ) from e
-        except TimeoutError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom recipe from calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom recipe from calendar failed due to connection timeout."
-            ) from e
-        except ClientError as e:
-            _LOGGER.debug(
-                "Exception: Cannot execute remove custom recipe from calendar:\n%s",
-                traceback.format_exc(),
-            )
-            raise CookidooRequestException(
-                "Remove custom recipe from calendar failed due to request exception."
-            ) from e
+        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+            **self._cfg.localization.__dict__,
+            day=day.isoformat(),
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "delete",
+                url,
+                "remove custom recipe from calendar",
+                params={"recipeSource": "CUSTOMER"},
+            ),
+            "remove custom recipe from calendar",
+        )
+        return self._parse_result(
+            "loading custom removed recipe",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
