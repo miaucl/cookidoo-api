@@ -384,6 +384,13 @@ class TestCookidooSearchResultFromJson:
         result = cookidoo_search_result_from_json(data_invalid, None)
         assert result.total == 1
 
+    def test_search_result_no_data_or_recipes_key(self) -> None:
+        """When neither 'data' nor 'recipes' key exists, returns empty list."""
+        data = cast(SearchResultJSON, {"total": 5})
+        result = cookidoo_search_result_from_json(data, None)
+        assert result.recipes == []
+        assert result.total == 5
+
     def test_search_result_with_descriptive_assets(self) -> None:
         """Search result extracts thumbnail and image from descriptiveAssets."""
         localization = CookidooLocalizationConfig(
