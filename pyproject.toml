@@ -10,9 +10,9 @@ authors = [
   { name = "Cyrill Raccaud", email = "cyrill.raccaud+pypi@gmail.com" },
 ]
 dependencies = [
-  "aiohttp",
-  "aiofiles",
-  "isodate",
+  "aiohttp~=3.13.0",
+  "aiofiles~=25.1.0",
+  "isodate~=0.7.2",
 ]
 requires-python = ">=3.12"
 
