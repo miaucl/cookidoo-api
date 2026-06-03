@@ -11,9 +11,9 @@ import isodate
 
 from cookidoo_api.raw_types import (
     AdditionalItemJSON,
-    AuthResponseJSON,
     CalendarDayJSON,
     CalenderDayRecipeJSON,
+    CommunityProfileJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     DescriptiveAssetJSON,
@@ -23,12 +23,12 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchRecipeHitJSON,
+    SearchResultJSON,
     SubscriptionJSON,
-    UserInfoJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
-    CookidooAuthResponse,
     CookidooCalendarDay,
     CookidooCalendarDayRecipe,
     CookidooCategory,
@@ -43,10 +43,13 @@ from cookidoo_api.types import (
     CookidooNutritionGroup,
     CookidooRecipeCollection,
     CookidooRecipeNutrition,
+    CookidooSearchRecipeHit,
+    CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
     CookidooUserInfo,
+    ThermomixMachineType,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,24 +57,38 @@ _LOGGER = logging.getLogger(__name__)
 localization_file_path = os.path.join(os.path.dirname(__file__), "localization.json")
 
 
-def cookidoo_auth_data_from_json(
-    auth_data: AuthResponseJSON,
-) -> CookidooAuthResponse:
-    """Convert a auth data received from the API to a cookidoo auth data."""
-    return CookidooAuthResponse(
-        sub=auth_data["sub"],
-        access_token=auth_data["access_token"],
-        refresh_token=auth_data["refresh_token"],
-        token_type=auth_data["token_type"],
-        expires_in=auth_data["expires_in"],
-    )
+def normalize_list_param(value: str | list[str] | None) -> str | None:
+    """Normalize list/string params to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return ",".join([v for v in value if v])
+    return value
+
+
+def normalize_tmv_param(
+    value: ThermomixMachineType | str | list[ThermomixMachineType | str] | None,
+) -> str | None:
+    """Normalize TMV param to comma-separated string."""
+    if value is None:
+        return None
+    if isinstance(value, list):
+        normalized: list[str] = []
+        for item in value:
+            normalized.append(
+                item.value if isinstance(item, ThermomixMachineType) else str(item)
+            )
+        return ",".join([v for v in normalized if v])
+    return value.value if isinstance(value, ThermomixMachineType) else value
 
 
 def cookidoo_user_info_from_json(
-    user_info: UserInfoJSON,
+    profile: CommunityProfileJSON,
 ) -> CookidooUserInfo:
-    """Convert a user info received from the API to a cookidoo user info."""
+    """Convert a community profile received from the API to a cookidoo user info."""
+    user_info = profile["userInfo"]
     return CookidooUserInfo(
+        id=profile["id"],
         username=user_info["username"],
         description=user_info.get("description"),
         picture=user_info["picture"],
@@ -216,6 +233,62 @@ def cookidoo_recipe_from_json(
         image=image,
         url=url,
     )
+
+
+def cookidoo_search_result_from_json(
+    data: SearchResultJSON,
+    localization: CookidooLocalizationConfig | None = None,
+) -> CookidooSearchResult:
+    """Convert a search result received from the API to a CookidooSearchResult.
+
+    The API may return recipes in ``data`` (search endpoint) or ``recipes``;
+    total is optional and defaults to the number of valid parsed hits.
+
+    Parameters
+    ----------
+    data
+        The raw JSON response from the search API.
+    localization
+        Optional localization config used to construct recipe URLs.
+
+    Returns
+    -------
+    CookidooSearchResult
+        The parsed search result with recipe hits and total count.
+
+    """
+    if "data" in data:
+        raw_recipes: list[SearchRecipeHitJSON] = data["data"] or []
+    elif "recipes" in data:
+        raw_recipes = data["recipes"] or []
+    else:
+        raw_recipes = []
+    recipes_data: list[object] = list(raw_recipes)
+    total_raw = data.get("total")
+    hits: list[CookidooSearchRecipeHit] = []
+    for item in recipes_data:
+        if not isinstance(item, dict):
+            continue
+        recipe_id = item.get("id", "")
+        name = item.get("title") or item.get("name", "")
+        thumbnail, image = None, None
+        descriptive_assets = item.get("descriptiveAssets")
+        if descriptive_assets and isinstance(descriptive_assets, list):
+            thumbnail, image = _extract_images_from_descriptive_assets(
+                descriptive_assets
+            )
+        url = _construct_recipe_url(localization, recipe_id)
+        hits.append(
+            CookidooSearchRecipeHit(
+                id=recipe_id,
+                name=name,
+                thumbnail=thumbnail,
+                image=image,
+                url=url,
+            )
+        )
+    total = total_raw if isinstance(total_raw, int) else len(hits)
+    return CookidooSearchResult(recipes=hits, total=total)
 
 
 def cookidoo_quantity_from_json(

@@ -151,7 +151,7 @@ jobs:
           ./dist/*.tar.gz
           ./dist/*.whl
     - name: Prerelease
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       if: ${{ steps.check_prerelease.outputs.prerelease == 'true' }}
       with:
         tag_name: ${{ github.ref }}

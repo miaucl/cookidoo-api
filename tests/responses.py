@@ -4,17 +4,17 @@ from typing import Final
 
 from tests.conftest import UUID
 
-COOKIDOO_TEST_RESPONSE_AUTH_RESPONSE: Final = {
-    "access_token": "eyJhbGciOiJ<redacted>",
-    "expires_in": 43199,
-    "id_token": "eyJhbGciOiJSUzI1Ni<redacted>",
-    "iss": "https://eu.login.vorwerk.com/",
-    "jti": "9f97a234-3f80-4e35-bf48-2e3e9e7e8720",
-    "refresh_token": "eyJhbGciOiJSUzI1Ni<redacted>",
-    "scope": "marcossapi openid profile email Online offline_access",
-    "token_type": "bearer",
-    "sub": "sub_uuid",
-}
+COOKIDOO_TEST_LOGIN_PAGE_HTML: Final = """
+<html>
+<body>
+<form action="https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login" method="POST">
+<input type="hidden" name="requestId" value="test-request-id-1234" />
+<input type="text" name="username" />
+<input type="password" name="password" />
+</form>
+</body>
+</html>
+"""
 
 COOKIDOO_TEST_RESPONSE_USER_INFO: Final = {
     "id": UUID,
@@ -85,6 +85,40 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
         "_modified": None,
     }
 ]
+
+COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES: Final = {
+    "recipes": [
+        {
+            "id": "r123456",
+            "title": "Chicken Soup",
+            "descriptiveAssets": [
+                {
+                    "square": (
+                        "https://assets.tmecosys.com/image/upload/"
+                        "{transformation}/img/recipe/ras/Assets/"
+                        "a1b2c3d4-1111-2222-3333-444455556666/Derivates/"
+                        "abcdef01-2345-6789-abcd-ef0123456789.jpg"
+                    ),
+                }
+            ],
+        },
+        {
+            "id": "r654321",
+            "name": "Chicken Salad",
+            "descriptiveAssets": [
+                {
+                    "landscape": (
+                        "https://assets.tmecosys.com/image/upload/"
+                        "{transformation}/img/recipe/ras/Assets/"
+                        "f1e2d3c4-9999-8888-7777-666655554444/Derivates/"
+                        "98765432-10fe-dcba-9876-543210fedcba.jpg"
+                    ),
+                }
+            ],
+        },
+    ],
+    "total": 2,
+}
 
 COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS = {
     "id": "r907015",

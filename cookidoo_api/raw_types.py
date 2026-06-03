@@ -3,22 +3,19 @@
 from typing import Literal, NotRequired, TypedDict
 
 
-class AuthResponseJSON(TypedDict):
-    """An auth response class."""
-
-    sub: str
-    access_token: str
-    refresh_token: str
-    token_type: str
-    expires_in: int
-
-
 class UserInfoJSON(TypedDict):
     """The json for a user info in the API."""
 
     username: str
     description: str | None
     picture: str | None
+
+
+class CommunityProfileJSON(TypedDict):
+    """The json for the community profile response."""
+
+    id: str
+    userInfo: UserInfoJSON
 
 
 class SubscriptionJSON(TypedDict):
@@ -290,6 +287,30 @@ class CalendarDayJSON(TypedDict):
     recipes: list[CalenderDayRecipeJSON]
     customerRecipes: NotRequired[list[CalenderDayRecipeJSON]]
     customerRecipeIds: NotRequired[list[str]]
+
+
+class SearchRecipeHitJSON(TypedDict, total=False):
+    """The json for a single recipe hit in search results."""
+
+    id: str
+    title: str
+    name: str
+    descriptiveAssets: list[DescriptiveAssetJSON] | None
+
+
+class SearchResultJSON(TypedDict, total=False):
+    """The json for a search result from the API."""
+
+    data: list[SearchRecipeHitJSON]
+    recipes: list[SearchRecipeHitJSON]
+    total: int
+
+
+class PaginationJSON(TypedDict):
+    """The json for pagination info in collection responses."""
+
+    totalElements: int
+    totalPages: int
 
 
 __all__ = ["QuantityJSON"]

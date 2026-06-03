@@ -36,7 +36,9 @@ logging.basicConfig(
 
 async def main():
     """Run main example function."""
-    async with aiohttp.ClientSession() as session:
+    # Use CookieJar(unsafe=True) to support cross-domain cookies during login
+    jar = aiohttp.CookieJar(unsafe=True)
+    async with aiohttp.ClientSession(cookie_jar=jar) as session:
         # Show all country_codes, languages and some localizations
         _country_codes = await get_country_options()
         _languages = await get_language_options()
@@ -54,9 +56,14 @@ async def main():
                 )[0],
             ),
         )
-        # Login
-        await cookidoo.login()
-        await cookidoo.refresh_token()
+
+        # Try to load saved cookies, otherwise login fresh
+        cookie_file = ".cookies"
+        try:
+            cookidoo.load_cookies(cookie_file)
+        except Exception:
+            await cookidoo.login()
+            cookidoo.save_cookies(cookie_file)
 
         # Info
         await cookidoo.get_user_info()

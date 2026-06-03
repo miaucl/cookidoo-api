@@ -10,9 +10,12 @@ from cookidoo_api.helpers import (
     cookidoo_custom_recipe_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
+    cookidoo_search_result_from_json,
     get_country_options,
     get_language_options,
     get_localization_options,
+    normalize_list_param,
+    normalize_tmv_param,
 )
 from cookidoo_api.raw_types import (
     CalendarDayJSON,
@@ -20,8 +23,9 @@ from cookidoo_api.raw_types import (
     DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    SearchResultJSON,
 )
-from cookidoo_api.types import CookidooLocalizationConfig
+from cookidoo_api.types import CookidooLocalizationConfig, ThermomixMachineType
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
@@ -56,6 +60,40 @@ class TestLocalization:
 
         with pytest.raises(StopIteration):
             cookidoo_recipe_details_from_json(JSON)
+
+
+class TestSearchRecipeNormalizeHelpers:
+    """Tests for normalize_list_param and normalize_tmv_param."""
+
+    def test_normalize_list_param_none(self) -> None:
+        """normalize_list_param returns None when value is None."""
+        assert normalize_list_param(None) is None
+
+    def test_normalize_list_param_string_unchanged(self) -> None:
+        """normalize_list_param returns string unchanged."""
+        assert normalize_list_param("a,b") == "a,b"
+
+    def test_normalize_list_param_joins_list(self) -> None:
+        """normalize_list_param joins list to comma-separated string."""
+        assert normalize_list_param(["a", "b"]) == "a,b"
+        assert normalize_list_param(["x"]) == "x"
+        assert normalize_list_param(["a", "", "b"]) == "a,b"
+
+    def test_normalize_tmv_param_none(self) -> None:
+        """normalize_tmv_param returns None when value is None."""
+        assert normalize_tmv_param(None) is None
+
+    def test_normalize_tmv_param_single_enum(self) -> None:
+        """normalize_tmv_param returns enum value for single ThermomixMachineType."""
+        assert normalize_tmv_param(ThermomixMachineType.TM7) == "TM7"
+
+    def test_normalize_tmv_param_single_str(self) -> None:
+        """normalize_tmv_param returns str unchanged for single string."""
+        assert normalize_tmv_param("TM6") == "TM6"
+
+    def test_normalize_tmv_param_list(self) -> None:
+        """normalize_tmv_param joins list of enum/str to comma-separated."""
+        assert normalize_tmv_param([ThermomixMachineType.TM5, "TM6"]) == "TM5,TM6"
 
 
 class TestRecipeImagesAndUrls:
@@ -289,3 +327,96 @@ class TestRecipeImagesAndUrls:
         assert len(result.recipes) == 2
         assert result.recipes[0].id == "r214846"
         assert result.recipes[1].id == "r214846"
+
+
+class TestCookidooSearchResultFromJson:
+    """Tests for cookidoo_search_result_from_json."""
+
+    def test_search_result_uses_data_key(self) -> None:
+        """Search result reads from 'data' key when 'recipes' is missing."""
+        data = cast(
+            SearchResultJSON,
+            {
+                "data": [
+                    {"id": "r1", "title": "Recipe One"},
+                    {"id": "r2", "name": "Recipe Two"},
+                ],
+                "total": 2,
+            },
+        )
+        result = cookidoo_search_result_from_json(data, None)
+        assert len(result.recipes) == 2
+        assert result.recipes[0].id == "r1"
+        assert result.recipes[0].name == "Recipe One"
+        assert result.recipes[1].id == "r2"
+        assert result.recipes[1].name == "Recipe Two"
+        assert result.total == 2
+
+    def test_search_result_skips_non_dict_items(self) -> None:
+        """Non-dict items in recipes list are skipped; only dicts become hits."""
+        data = cast(
+            SearchResultJSON,
+            {
+                "recipes": [
+                    {"id": "r1", "title": "A"},
+                    "not-a-dict",
+                    None,
+                    {"id": "r2", "name": "B"},
+                ],
+            },
+        )
+        result = cookidoo_search_result_from_json(data, None)
+        assert len(result.recipes) == 2
+        assert result.recipes[0].id == "r1"
+        assert result.recipes[1].id == "r2"
+        # When total is missing, helper uses len(hits) (filtered valid items)
+        assert result.total == 2
+
+    def test_search_result_total_invalid_defaults_to_length(self) -> None:
+        """When total is missing or not int, it defaults to len(recipes)."""
+        data = cast(SearchResultJSON, {"recipes": [{"id": "r1", "title": "X"}]})
+        result = cookidoo_search_result_from_json(data, None)
+        assert result.total == 1
+
+        data_invalid = cast(
+            SearchResultJSON, {"recipes": [{"id": "r1", "title": "X"}], "total": "nope"}
+        )
+        result = cookidoo_search_result_from_json(data_invalid, None)
+        assert result.total == 1
+
+    def test_search_result_no_data_or_recipes_key(self) -> None:
+        """When neither 'data' nor 'recipes' key exists, returns empty list."""
+        data = cast(SearchResultJSON, {"total": 5})
+        result = cookidoo_search_result_from_json(data, None)
+        assert result.recipes == []
+        assert result.total == 5
+
+    def test_search_result_with_descriptive_assets(self) -> None:
+        """Search result extracts thumbnail and image from descriptiveAssets."""
+        localization = CookidooLocalizationConfig(
+            country_code="ch", language="de-CH", url="https://cookidoo.ch"
+        )
+        data = cast(
+            SearchResultJSON,
+            {
+                "recipes": [
+                    {
+                        "id": "r123",
+                        "title": "Test",
+                        "descriptiveAssets": [
+                            {
+                                "square": "https://example.com/square.png",
+                                "portrait": "https://example.com/portrait.png",
+                                "landscape": "https://example.com/landscape.png",
+                            }
+                        ],
+                    }
+                ],
+                "total": 1,
+            },
+        )
+        result = cookidoo_search_result_from_json(data, localization)
+        assert len(result.recipes) == 1
+        assert result.recipes[0].thumbnail is not None
+        assert result.recipes[0].image is not None
+        assert result.recipes[0].url == "https://cookidoo.ch/recipes/recipe/de-CH/r123"
