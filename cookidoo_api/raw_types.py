@@ -306,4 +306,11 @@ class SearchResultJSON(TypedDict, total=False):
     total: int
 
 
+class PaginationJSON(TypedDict):
+    """The json for pagination info in collection responses."""
+
+    totalElements: int
+    totalPages: int
+
+
 __all__ = ["QuantityJSON"]

@@ -11,7 +11,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, TypeVar, cast
+from typing import TypeVar, cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -80,6 +80,7 @@ from cookidoo_api.raw_types import (
     CustomRecipeJSON,
     ItemJSON,
     ManagedCollectionJSON,
+    PaginationJSON,
     RecipeDetailsJSON,
     RecipeJSON,
     SearchResultJSON,
@@ -1425,14 +1426,8 @@ class Cookidoo:
         return self._parse_result(
             "loading managed collections",
             lambda: (
-                int(
-                    cast(
-                        Any, cast(Mapping[str, object], result["page"])["totalElements"]
-                    )
-                ),
-                int(
-                    cast(Any, cast(Mapping[str, object], result["page"])["totalPages"])
-                ),
+                cast(PaginationJSON, result["page"])["totalElements"],
+                cast(PaginationJSON, result["page"])["totalPages"],
             ),
         )
 
@@ -1594,14 +1589,8 @@ class Cookidoo:
         return self._parse_result(
             "loading custom collections",
             lambda: (
-                int(
-                    cast(
-                        Any, cast(Mapping[str, object], result["page"])["totalElements"]
-                    )
-                ),
-                int(
-                    cast(Any, cast(Mapping[str, object], result["page"])["totalPages"])
-                ),
+                cast(PaginationJSON, result["page"])["totalElements"],
+                cast(PaginationJSON, result["page"])["totalPages"],
             ),
         )
 
