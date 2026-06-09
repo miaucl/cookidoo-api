@@ -12,6 +12,10 @@ CIAM_LOGIN_SRV_URL: Final = (
 LOGIN_PATH: Final = "profile/{language}/login"
 LOGIN_REDIRECT: Final = "%2Ffoundation%2F{language}%2Ffor-you"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
+CUSTOM_RECIPES_PATH: Final = "created-recipes/{language}"
+CUSTOM_RECIPES_PATH_ACCEPT: Final = (
+    "application/vnd.vorwerk.customer-recipe.full+json"
+)
 CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 ADD_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}"
 REMOVE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
