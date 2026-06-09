@@ -20,6 +20,7 @@ from cookidoo_api.helpers import (
 from cookidoo_api.raw_types import (
     CalendarDayJSON,
     CustomRecipeJSON,
+    CustomRecipesJSON,
     DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
@@ -265,9 +266,8 @@ class TestRecipeImagesAndUrls:
     def test_cookidoo_custom_recipe_from_json_with_list_format(self) -> None:
         """Test cookidoo_custom_recipe_from_json handles list response format."""
         recipe_json = cast(
-            CustomRecipeJSON,
-            COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES["items"][0],  # type: ignore[index]
-        )
+            CustomRecipesJSON, COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES
+        )["items"][0]
         localization = CookidooLocalizationConfig(
             country_code="ch", language="de-CH", url="https://cookidoo.ch"
         )
@@ -311,6 +311,29 @@ class TestRecipeImagesAndUrls:
         assert result.active_time == 0
         assert result.serving_size == 0
         assert result.tools == []
+
+    def test_cookidoo_custom_recipe_from_json_with_empty_optional_values(self) -> None:
+        """Test empty times and missing text lists."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Minimal recipe",
+                    "totalTime": "",
+                    "prepTime": "",
+                    "yield": {"value": 1, "unitText": "portion"},
+                    "ingredients": [{"unexpected": "value"}],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.total_time == 0
+        assert result.active_time == 0
+        assert result.ingredients == []
+        assert result.instructions == []
 
     def test_cookidoo_calendar_day_from_json_with_images(self) -> None:
         """Test cookidoo_calendar_day_from_json extracts images correctly."""

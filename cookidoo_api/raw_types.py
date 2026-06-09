@@ -217,6 +217,7 @@ CustomRecipeContentJSON = TypedDict(
         "name": Required[str],
         "totalTime": str | int | float,
         "prepTime": str | int | float,
+        "activeTime": str | int | float,
         "tool": list[str],
         "tools": list[str],
         "recipeYield": CustomRecipeYieldJSON,
@@ -237,6 +238,62 @@ class CustomRecipeJSON(TypedDict):
     recipeId: str
     title: NotRequired[str]
     recipeContent: CustomRecipeContentJSON
+
+
+class RecipeAnnotationTemperatureJSON(TypedDict, total=False):
+    """Temperature data for a custom recipe annotation."""
+
+    value: str
+    unit: str
+
+
+class RecipeAnnotationDataJSON(TypedDict, total=False):
+    """Data for a custom recipe annotation."""
+
+    description: str
+    time: int
+    speed: str
+    temperature: RecipeAnnotationTemperatureJSON
+
+
+class RecipeAnnotationInputJSON(TypedDict):
+    """Input annotation for a custom recipe step."""
+
+    type: str
+    slot: str
+    data: RecipeAnnotationDataJSON
+    name: NotRequired[str]
+
+
+class RecipeStepInputJSON(TypedDict):
+    """Input step used when creating a custom recipe."""
+
+    text: str
+    annotations: NotRequired[list[RecipeAnnotationInputJSON]]
+
+
+class RecipeAnnotationPositionJSON(TypedDict):
+    """Position of an annotation within a recipe step."""
+
+    offset: int
+    length: int
+
+
+class RecipeAnnotationJSON(TypedDict):
+    """Processed annotation sent to the custom recipe API."""
+
+    type: str
+    data: RecipeAnnotationDataJSON
+    position: RecipeAnnotationPositionJSON
+    name: NotRequired[str]
+
+
+class RecipeStepJSON(TypedDict):
+    """Processed step sent to the custom recipe API."""
+
+    type: str
+    text: str
+    annotations: NotRequired[list[RecipeAnnotationJSON]]
 
 
 class CustomRecipesJSON(TypedDict):

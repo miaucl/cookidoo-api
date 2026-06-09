@@ -260,20 +260,17 @@ def cookidoo_search_result_from_json(
         The parsed search result with recipe hits and total count.
 
     """
-    if "data" in data:
-        raw_recipes: list[SearchRecipeHitJSON] = data["data"] or []
-    elif "recipes" in data:
-        raw_recipes = data["recipes"] or []
-    else:
-        raw_recipes = []
-    recipes_data: list[object] = list(raw_recipes)
+    raw_recipes = data.get("data") or data.get("recipes") or []
+    recipes_data = raw_recipes if isinstance(raw_recipes, list) else []
     total_raw = data.get("total")
     hits: list[CookidooSearchRecipeHit] = []
     for item in recipes_data:
         if not isinstance(item, dict):
             continue
-        recipe_id = item.get("id", "")
-        name = item.get("title") or item.get("name", "")
+        recipe_id_raw = item.get("id", "")
+        name_raw = item.get("title") or item.get("name", "")
+        recipe_id = recipe_id_raw if isinstance(recipe_id_raw, str) else ""
+        name = name_raw if isinstance(name_raw, str) else ""
         thumbnail, image = None, None
         descriptive_assets = item.get("descriptiveAssets")
         if descriptive_assets and isinstance(descriptive_assets, list):
@@ -401,10 +398,17 @@ def cookidoo_custom_recipe_from_json(
         return int(duration) if isinstance(duration, float) else 0
 
     def _extract_text_list(
-        value: Sequence[str | CustomRecipeTextJSON],
+        value: Sequence[str | CustomRecipeTextJSON] | None,
     ) -> list[str]:
-        return [item["text"] if isinstance(item, dict) else item for item in value]
+        if value is None:
+            return []
 
+        result: list[str] = []
+        for item in value:
+            text = item.get("text") if isinstance(item, dict) else item
+            if isinstance(text, str):
+                result.append(text)
+        return result
     recipe_content: CustomRecipeContentJSON = recipe["recipeContent"]
     total_time = _duration_to_seconds(recipe_content.get("totalTime"))
     active_time = _duration_to_seconds(recipe_content.get("prepTime"))

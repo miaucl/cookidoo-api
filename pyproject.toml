@@ -197,7 +197,7 @@ log_cli_date_format = "%Y%m%dT%H%M%S."
 
 [tool.coverage.run]
 branch = true
-source = ["tests"]
+source = ["cookidoo_api"]
 
 [tool.coverage.report]
 format="text"

@@ -12,7 +12,7 @@ from pathlib import Path
 import re
 import time
 import traceback
-from typing import Any, TypeVar, cast
+from typing import TypeVar, cast
 from urllib.parse import urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -86,8 +86,11 @@ from cookidoo_api.raw_types import (
     ItemJSON,
     ManagedCollectionJSON,
     PaginationJSON,
+    RecipeAnnotationJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    RecipeStepInputJSON,
+    RecipeStepJSON,
     SearchResultJSON,
     SubscriptionJSON,
 )
@@ -2093,58 +2096,27 @@ class Cookidoo:
 
     @staticmethod
     def _process_recipe_steps(
-        steps: Sequence[Mapping[str, Any] | str],
+        steps: Sequence[RecipeStepInputJSON | str],
         ingredients: list[str],
-    ) -> list[dict[str, Any]]:
-        """Convert raw step data into the instruction format expected by the API.
-
-        Parameters
-        ----------
-        steps
-            Each element is either a plain string (simple step) or a dict
-            with keys ``text`` and optionally ``annotations``.
-            Annotations are dicts where ``type`` can be ``"INGREDIENT"``,
-            ``"TTS"`` or ``"MODE"``. Depending on the type, ``data``
-            can contain ``speed`` (:class:`ThermomixSpeed`),
-            ``temperature`` (:class:`ThermomixTemperature`),
-            ``direction`` (:class:`ThermomixDirection`),
-            ``power`` (:class:`ThermomixBrowningPower`), etc.
-        ingredients
-            The full ingredient list, used to validate INGREDIENT annotations.
-
-        Returns
-        -------
-        list[dict]
-            Processed instructions ready for the API payload.
-
-        Raises
-        ------
-        ValueError
-            If an annotation slot is not found in the step text or an
-            ingredient annotation references an ingredient not in the list.
-
-        """
-        processed: list[dict[str, Any]] = []
+    ) -> list[RecipeStepJSON]:
+        """Convert raw steps into the instruction format expected by the API."""
+        processed: list[RecipeStepJSON] = []
         for step_index, step in enumerate(steps):
             if isinstance(step, str):
                 processed.append({"type": "STEP", "text": step})
                 continue
 
-            # dict-based step with optional annotations
-            step_text = str(step.get("text", ""))
-            raw_annotations = cast(
-                Sequence[Mapping[str, Any]], step.get("annotations", [])
-            )
-            annotations: list[dict[str, Any]] = []
+            step_text = step["text"]
+            annotations: list[RecipeAnnotationJSON] = []
 
-            for ann in raw_annotations:
-                ann_type = str(ann.get("type", ""))
-                slot = str(ann.get("slot", ""))
-                ann_data = dict(cast(Mapping[str, Any], ann.get("data", {})))
+            for annotation in step.get("annotations", []):
+                annotation_type = annotation["type"]
+                slot = annotation["slot"]
+                annotation_data = annotation["data"].copy()
 
                 # Validate ingredient annotations
-                if ann_type == "INGREDIENT":
-                    desc = ann_data.get("description", "")
+                if annotation_type == "INGREDIENT":
+                    desc = annotation_data.get("description", "")
                     if desc and desc not in ingredients:
                         raise ValueError(
                             f"Step {step_index + 1}: Ingredient "
@@ -2165,23 +2137,23 @@ class Cookidoo:
                     ) from e
 
                 # Fix Varoma temperature: remove unit when value is "varoma"
-                temp = ann_data.get("temperature")
+                temp = annotation_data.get("temperature")
                 if isinstance(temp, dict) and temp.get("value", "").lower() == "varoma":
                     temp.pop("unit", None)
 
-                ann_dict: dict[str, Any] = {
-                    "type": ann_type,
-                    "data": ann_data,
+                processed_annotation: RecipeAnnotationJSON = {
+                    "type": annotation_type,
+                    "data": annotation_data,
                     "position": {"offset": offset, "length": length},
                 }
-                if ann.get("name"):
-                    ann_dict["name"] = ann["name"]
-                annotations.append(ann_dict)
+                if annotation.get("name"):
+                    processed_annotation["name"] = annotation["name"]
+                annotations.append(processed_annotation)
 
-            step_dict: dict[str, Any] = {"type": "STEP", "text": step_text}
+            processed_step: RecipeStepJSON = {"type": "STEP", "text": step_text}
             if annotations:
-                step_dict["annotations"] = annotations
-            processed.append(step_dict)
+                processed_step["annotations"] = annotations
+            processed.append(processed_step)
 
         return processed
 
@@ -2189,7 +2161,7 @@ class Cookidoo:
         self,
         name: str,
         ingredients: list[str],
-        steps: Sequence[Mapping[str, Any] | str],
+        steps: Sequence[RecipeStepInputJSON | str],
         servings: int = 4,
         prep_time: int = 30,
         total_time: int = 60,
@@ -2268,7 +2240,7 @@ class Cookidoo:
         url_update = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
             **self._cfg.localization.__dict__, id=recipe_id
         )
-        json_update: dict[str, Any] = {
+        json_update = {
             "name": name,
             "image": None,
             "isImageOwnedByUser": False,

@@ -2,7 +2,6 @@
 
 from datetime import datetime
 from http import HTTPStatus
-from typing import Any
 from unittest.mock import AsyncMock, patch
 
 from aiohttp import ClientError, ClientSession
@@ -18,6 +17,7 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import get_localization_options
+from cookidoo_api.raw_types import RecipeStepInputJSON
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooConfig,
@@ -898,6 +898,31 @@ class TestSearchRecipes:
         )
         with pytest.raises(CookidooParseException):
             await cookidoo.search_recipes("chicken")
+
+    async def test_search_recipes_unexpected_status(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test an unexpected HTTP status."""
+        mocked.get(
+            "https://cookidoo.ch/search/de",
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes()
+
+    async def test_search_recipes_non_mapping_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test a valid JSON response with an unexpected shape."""
+        mocked.get(
+            "https://cookidoo.ch/search/de",
+            payload=[],
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes()
 
 
 class TestGetCustomRecipe:
@@ -3555,7 +3580,7 @@ class TestCreateCustomRecipe:
         """Test for create_custom_recipe with dict steps and annotations."""
         _mock_create_and_update(mocked)
 
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Add 200g flour and mix 1 min/speed 3",
                 "annotations": [
@@ -3693,9 +3718,17 @@ class TestProcessRecipeSteps:
         assert result[0]["text"] == "Mix well"
         assert "annotations" not in result[0]
 
+    def test_structured_step_without_annotations(self) -> None:
+        """Test a structured step without annotations."""
+        steps: list[RecipeStepInputJSON] = [{"text": "Mix well"}]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result == [{"type": "STEP", "text": "Mix well"}]
+
     def test_tts_annotation(self) -> None:
         """Test TTS annotation with offset and length calculation."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Mix 2 min/speed 4",
                 "annotations": [
@@ -3718,7 +3751,7 @@ class TestProcessRecipeSteps:
 
     def test_ingredient_annotation_valid(self) -> None:
         """Test valid INGREDIENT annotation passes validation."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Add 200g flour and mix",
                 "annotations": [
@@ -3741,7 +3774,7 @@ class TestProcessRecipeSteps:
 
     def test_ingredient_annotation_invalid(self) -> None:
         """Test INGREDIENT annotation with missing ingredient raises ValueError."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Add 200g flour and mix",
                 "annotations": [
@@ -3760,7 +3793,7 @@ class TestProcessRecipeSteps:
 
     def test_slot_not_found_in_text(self) -> None:
         """Test that a missing slot in step text raises ValueError."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Mix well",
                 "annotations": [
@@ -3777,7 +3810,7 @@ class TestProcessRecipeSteps:
 
     def test_varoma_temperature_removes_unit(self) -> None:
         """Test that varoma temperature has its unit removed."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Cook Varoma/speed 1",
                 "annotations": [
@@ -3801,7 +3834,7 @@ class TestProcessRecipeSteps:
 
     def test_normal_temperature_keeps_unit(self) -> None:
         """Test that a normal temperature keeps its unit intact."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Heat 100C/speed 2",
                 "annotations": [
@@ -3825,7 +3858,7 @@ class TestProcessRecipeSteps:
 
     def test_mode_annotation_with_name(self) -> None:
         """Test MODE annotation includes the name field."""
-        steps = [
+        steps: list[RecipeStepInputJSON] = [
             {
                 "text": "Knead dough 2 min",
                 "annotations": [
@@ -3847,7 +3880,7 @@ class TestProcessRecipeSteps:
 
     def test_mixed_string_and_dict_steps(self) -> None:
         """Test a mix of plain strings and annotated dict steps."""
-        steps: list[dict[str, Any] | str] = [
+        steps: list[RecipeStepInputJSON | str] = [
             "Preheat oven",
             {
                 "text": "Mix 1 min/speed 5",
