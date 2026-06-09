@@ -80,9 +80,11 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
     CommunityProfileJSON,
+    CreateCustomRecipeJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     CustomRecipesJSON,
+    CustomRecipeTextJSON,
     ItemJSON,
     ManagedCollectionJSON,
     PaginationJSON,
@@ -93,6 +95,7 @@ from cookidoo_api.raw_types import (
     RecipeStepJSON,
     SearchResultJSON,
     SubscriptionJSON,
+    UpdateCustomRecipeJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
@@ -2221,15 +2224,19 @@ class Cookidoo:
         url_create = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
             **self._cfg.localization.__dict__
         )
-        data = await self._request_json(
-            "post",
-            url_create,
+        create_json: CreateCustomRecipeJSON = {"recipeName": name}
+        created_recipe = self._ensure_mapping(
+            await self._request_json(
+                "post",
+                url_create,
+                "create custom recipe",
+                json=create_json,
+                headers=json_headers,
+            ),
             "create custom recipe",
-            json={"recipeName": name},
-            headers=json_headers,
         )
 
-        recipe_id = (data or {}).get("recipeId")
+        recipe_id = created_recipe.get("recipeId")
         if not isinstance(recipe_id, str) or not recipe_id:
             raise CookidooParseException("No recipe ID returned from creation.")
 
@@ -2240,7 +2247,10 @@ class Cookidoo:
         url_update = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
             **self._cfg.localization.__dict__, id=recipe_id
         )
-        json_update = {
+        ingredient_items: list[CustomRecipeTextJSON] = [
+            {"type": "INGREDIENT", "text": ingredient} for ingredient in ingredients
+        ]
+        json_update: UpdateCustomRecipeJSON = {
             "name": name,
             "image": None,
             "isImageOwnedByUser": False,
@@ -2251,15 +2261,9 @@ class Cookidoo:
             "prepTime": prep_time * 60,
             "cookTime": 0,
             "totalTime": total_time * 60,
-            "ingredients": [
-                {"type": "INGREDIENT", "text": ing} for ing in ingredients
-            ],
+            "ingredients": ingredient_items,
             "instructions": processed_instructions,
-            "hints": (
-                "\n".join(hints)
-                if hints and isinstance(hints, list)
-                else (hints if hints else "")
-            ),
+            "hints": "\n".join(hints) if hints else "",
             "workStatus": "PRIVATE",
             "recipeMetadata": {"requiresAnnotationsCheck": False},
         }

@@ -3571,7 +3571,32 @@ class TestCreateCustomRecipe:
             ingredients=["200g flour", "2 eggs"],
             steps=["Mix ingredients", "Bake at 180C"],
         )
+
         assert recipe_id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        requests = [call for calls in mocked.requests.values() for call in calls]
+        create_request, update_request = requests
+        assert create_request.kwargs["json"] == {"recipeName": "Test Recipe"}
+        assert update_request.kwargs["json"] == {
+            "name": "Test Recipe",
+            "image": None,
+            "isImageOwnedByUser": False,
+            "tools": ["TM7"],
+            "yield": {"value": 4, "unitText": "portion"},
+            "prepTime": 1800,
+            "cookTime": 0,
+            "totalTime": 3600,
+            "ingredients": [
+                {"type": "INGREDIENT", "text": "200g flour"},
+                {"type": "INGREDIENT", "text": "2 eggs"},
+            ],
+            "instructions": [
+                {"type": "STEP", "text": "Mix ingredients"},
+                {"type": "STEP", "text": "Bake at 180C"},
+            ],
+            "hints": "",
+            "workStatus": "PRIVATE",
+            "recipeMetadata": {"requiresAnnotationsCheck": False},
+        }
 
     @patch("asyncio.sleep", new_callable=AsyncMock)
     async def test_create_custom_recipe_with_annotations(
