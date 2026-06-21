@@ -11,6 +11,6 @@ pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 pytest>=9.0.3
 python-dotenv>=1.2.2
-beautifulsoup4~=4.14.3
+beautifulsoup4~=4.15.0
 isodate~=0.7.2
 requests~=2.34.2
