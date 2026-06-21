@@ -266,7 +266,7 @@ class TestRecipeImagesAndUrls:
         """Test cookidoo_custom_recipe_from_json handles list response format."""
         recipe_json = cast(
             CustomRecipeJSON,
-            COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES["items"][0],
+            COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES["items"][0],  # type: ignore[index]
         )
         localization = CookidooLocalizationConfig(
             country_code="ch", language="de-CH", url="https://cookidoo.ch"
