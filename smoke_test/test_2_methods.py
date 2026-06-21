@@ -59,6 +59,15 @@ class TestMethods:
             recipe = result.recipes[0]
             assert hasattr(recipe, "id") and hasattr(recipe, "name")
 
+    async def test_cookidoo_list_custom_recipes(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo list custom recipes."""
+        recipes = await cookidoo.list_custom_recipes()
+
+        assert isinstance(recipes, list)
+        for recipe in recipes:
+            assert recipe.id
+            assert recipe.name
+
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo
     ) -> None:

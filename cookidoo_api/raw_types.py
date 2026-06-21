@@ -1,6 +1,6 @@
 """Cookidoo API raw json types."""
 
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, NotRequired, Required, TypedDict
 
 
 class UserInfoJSON(TypedDict):
@@ -205,25 +205,44 @@ class CustomRecipeYieldJSON(TypedDict):
     unitText: str
 
 
-class CustomRecipeContentJSON(TypedDict):
-    """The json for a custom recipe content in the API."""
+class CustomRecipeTextJSON(TypedDict):
+    """A text item in a custom recipe list response."""
 
-    name: str
-    totalTime: str
-    prepTime: str
-    tool: list[str]
-    recipeYield: CustomRecipeYieldJSON
-    recipeIngredient: list[str]
-    recipeInstructions: list[str]
-    image: str | None
+    text: str
+
+
+CustomRecipeContentJSON = TypedDict(
+    "CustomRecipeContentJSON",
+    {
+        "name": Required[str],
+        "totalTime": str | int | float,
+        "prepTime": str | int | float,
+        "tool": list[str],
+        "tools": list[str],
+        "recipeYield": CustomRecipeYieldJSON,
+        "yield": CustomRecipeYieldJSON,
+        "recipeIngredient": list[str | CustomRecipeTextJSON],
+        "ingredients": list[str | CustomRecipeTextJSON],
+        "recipeInstructions": list[str | CustomRecipeTextJSON],
+        "instructions": list[str | CustomRecipeTextJSON],
+        "image": str | None,
+    },
+    total=False,
+)
 
 
 class CustomRecipeJSON(TypedDict):
     """The json for a custom recipe in the API."""
 
     recipeId: str
-    title: str
+    title: NotRequired[str]
     recipeContent: CustomRecipeContentJSON
+
+
+class CustomRecipesJSON(TypedDict):
+    """The json for a custom recipe list response."""
+
+    items: list[CustomRecipeJSON]
 
 
 class ChapterRecipeJSON(TypedDict):

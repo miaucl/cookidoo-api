@@ -31,6 +31,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
+    COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES,
 )
 
 load_dotenv()
@@ -260,6 +261,56 @@ class TestRecipeImagesAndUrls:
             result.url
             == "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
         )
+
+    def test_cookidoo_custom_recipe_from_json_with_list_format(self) -> None:
+        """Test cookidoo_custom_recipe_from_json handles list response format."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES["items"][0],  # type: ignore[index]
+        )
+        localization = CookidooLocalizationConfig(
+            country_code="ch", language="de-CH", url="https://cookidoo.ch"
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json, localization)
+
+        assert result.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        assert result.name == "Vongole alla marinara"
+        assert result.ingredients == [
+            "130 g di cipolla",
+            "65 g di olio extravergine di oliva",
+        ]
+        assert result.instructions == [
+            "Mettere nel boccale le cipolle.",
+            "Servire subito.",
+        ]
+        assert result.tools == ["TM7", "TM6", "TM5"]
+        assert result.active_time == 600
+        assert result.total_time == 1800
+        assert result.serving_size == 6
+
+    def test_cookidoo_custom_recipe_from_json_with_missing_optional_values(
+        self,
+    ) -> None:
+        """Test list response parsing when optional values are missing."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "empty-recipe",
+                "recipeContent": {
+                    "name": "Empty recipe",
+                    "ingredients": [],
+                    "instructions": [],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.total_time == 0
+        assert result.active_time == 0
+        assert result.serving_size == 0
+        assert result.tools == []
 
     def test_cookidoo_calendar_day_from_json_with_images(self) -> None:
         """Test cookidoo_calendar_day_from_json extracts images correctly."""
