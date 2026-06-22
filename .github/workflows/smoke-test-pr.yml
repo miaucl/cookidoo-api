@@ -44,7 +44,7 @@ jobs:
           echo "Job originally triggered by ${{ github.actor }}"
           exit 1
       - name: Checkout current code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Set up Python ${{ env.python-version }}
         uses: actions/setup-python@v6
         with:
@@ -78,7 +78,7 @@ jobs:
       - name: Preserve cookies
         run: cp .cookies /tmp/.cookies
       - name: Checkout new code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: "${{ github.event.pull_request.merge_commit_sha }}"
           clean: false
