@@ -1,6 +1,6 @@
 """Cookidoo API helpers."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import json
 import logging
 import os
@@ -26,8 +26,6 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
-    SearchRecipeHitJSON,
-    SearchResultJSON,
     SubscriptionJSON,
 )
 from cookidoo_api.types import (
@@ -239,7 +237,7 @@ def cookidoo_recipe_from_json(
 
 
 def cookidoo_search_result_from_json(
-    data: SearchResultJSON,
+    data: Mapping[str, object],
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooSearchResult:
     """Convert a search result received from the API to a CookidooSearchResult.
@@ -393,6 +391,9 @@ def cookidoo_custom_recipe_from_json(
 
         if isinstance(value, int | float):
             return int(value)
+
+        if not value:
+            return 0
 
         duration = isodate.parse_duration(value).total_seconds()
         return int(duration) if isinstance(duration, float) else 0

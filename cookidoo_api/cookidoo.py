@@ -111,12 +111,6 @@ from cookidoo_api.types import (
     CookidooSubscription,
     CookidooUserInfo,
     ThermomixMachineType,
-    ThermomixBrowningPower,
-    ThermomixDirection,
-    ThermomixMode,
-    ThermomixSpeed,
-    ThermomixSteamingAccessory,
-    ThermomixTemperature,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -2093,6 +2087,7 @@ class Cookidoo:
                 self._cfg.localization,
             ),
         )
+
     # ------------------------------------------------------------------
     # Recipe-step processing helper
     # ------------------------------------------------------------------
@@ -2139,10 +2134,12 @@ class Cookidoo:
                         f"'{step_text}'"
                     ) from e
 
-                # Fix Varoma temperature: remove unit when value is "varoma"
-                temp = annotation_data.get("temperature")
-                if isinstance(temp, dict) and temp.get("value", "").lower() == "varoma":
-                    temp.pop("unit", None)
+                temperature = annotation_data.get("temperature")
+                if isinstance(temperature, dict):
+                    value = str(temperature.get("value", "")).lower()
+                    if value == "varoma":
+                        temperature["value"] = value
+                        temperature.pop("unit", None)
 
                 processed_annotation: RecipeAnnotationJSON = {
                     "type": annotation_type,
@@ -2254,9 +2251,7 @@ class Cookidoo:
             "name": name,
             "image": None,
             "isImageOwnedByUser": False,
-            "tools": [
-                mt.value if hasattr(mt, "value") else mt for mt in machine_types
-            ],
+            "tools": [mt.value if hasattr(mt, "value") else mt for mt in machine_types],
             "yield": {"value": servings, "unitText": "portion"},
             "prepTime": prep_time * 60,
             "cookTime": 0,

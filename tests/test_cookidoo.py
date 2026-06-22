@@ -899,7 +899,7 @@ class TestSearchRecipes:
         with pytest.raises(CookidooParseException):
             await cookidoo.search_recipes("chicken")
 
-    async def test_search_recipes_unexpected_status(
+    async def test_search_recipes_without_query_unexpected_status(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """Test an unexpected HTTP status."""
@@ -3856,6 +3856,29 @@ class TestProcessRecipeSteps:
         temp = result[0]["annotations"][0]["data"]["temperature"]
         assert "unit" not in temp
         assert temp["value"] == "varoma"
+
+    def test_varoma_temperature_normalizes_value_case(self) -> None:
+        """Test that a mixed-case Varoma value is normalized for the API."""
+        steps: list[RecipeStepInputJSON] = [
+            {
+                "text": "Cook Varoma/speed 1",
+                "annotations": [
+                    {
+                        "type": "TTS",
+                        "slot": "Varoma/speed 1",
+                        "data": {
+                            "time": 300,
+                            "speed": "1",
+                            "temperature": {"value": "Varoma", "unit": "C"},
+                        },
+                    }
+                ],
+            }
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"]["temperature"] == {"value": "varoma"}
 
     def test_normal_temperature_keeps_unit(self) -> None:
         """Test that a normal temperature keeps its unit intact."""
