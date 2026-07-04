@@ -1,5 +1,6 @@
 """Cookidoo API types."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 
@@ -456,6 +457,123 @@ class CookidooChapter:
     recipes: list[CookidooChapterRecipe]
 
 
+@dataclass(frozen=True, slots=True)
+class CookidooStepSettings:
+    """Structured guided-cooking settings for an instruction."""
+
+    time: int | None = None
+    temperature: int | str | ThermomixTemperature | None = None
+    speed: float | str | ThermomixSpeed | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooTemperatureSetting:
+    """Temperature value used by an instruction annotation."""
+
+    value: int | str | ThermomixTemperature
+    unit: str | None = "C"
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooIngredientAnnotation:
+    """Reference an ingredient occurrence within an instruction."""
+
+    slot: str
+    description: str
+    name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooTTSAnnotation:
+    """Text-to-speech cooking settings anchored to an instruction slot."""
+
+    slot: str
+    time: int | None = None
+    temperature: CookidooTemperatureSetting | None = None
+    speed: str | ThermomixSpeed | None = None
+    direction: str | ThermomixDirection | None = None
+    name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooModeAnnotation:
+    """Thermomix mode settings anchored to an instruction slot."""
+
+    slot: str
+    mode: str | ThermomixMode
+    time: int | None = None
+    temperature: CookidooTemperatureSetting | None = None
+    speed: str | ThermomixSpeed | None = None
+    direction: str | ThermomixDirection | None = None
+    power: str | ThermomixBrowningPower | None = None
+    accessory: str | ThermomixSteamingAccessory | None = None
+    name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooCustomAnnotation:
+    """Extensible annotation for API types not modeled by this library."""
+
+    type: str
+    slot: str
+    data: Mapping[str, object] = field(default_factory=dict)
+    name: str | None = None
+
+
+CookidooAnnotation = (
+    CookidooIngredientAnnotation
+    | CookidooTTSAnnotation
+    | CookidooModeAnnotation
+    | CookidooCustomAnnotation
+)
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooInstruction:
+    """Recipe instruction with optional guided-cooking settings."""
+
+    text: str
+    settings: CookidooStepSettings | None = None
+    annotations: list[CookidooAnnotation] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooCreateCustomRecipe:
+    """Input model for creating a custom recipe."""
+
+    name: str
+    ingredients: list[str]
+    instructions: list[str | CookidooInstruction]
+    serving_size: int
+    total_time: int
+    active_time: int
+    tools: list[str | ThermomixMachineType] = field(default_factory=list)
+    unit_text: str = "portion"
+    image: str | None = None
+    hints: list[str] = field(default_factory=list)
+    work_status: str = "PRIVATE"
+    requires_annotations_check: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class CookidooUpdateCustomRecipe:
+    """Partial update model for an existing custom recipe."""
+
+    name: str | None = None
+    ingredients: list[str] | None = None
+    instructions: list[str | CookidooInstruction] | None = None
+    serving_size: int | None = None
+    total_time: int | None = None
+    active_time: int | None = None
+    tools: list[str | ThermomixMachineType] | None = None
+    unit_text: str | None = None
+    image: str | None = None
+    image_owned_by_user: bool | None = None
+    hints: list[str] | None = None
+    work_status: str | None = None
+    requires_annotations_check: bool | None = None
+
+
 @dataclass
 class CookidooCustomRecipe:
     """Cookidoo custom recipe type.
@@ -490,7 +608,7 @@ class CookidooCustomRecipe:
     id: str
     name: str
     ingredients: list[str]
-    instructions: list[str]
+    instructions: list[str | CookidooInstruction]
     tools: list[str]
     serving_size: int
     active_time: int
@@ -498,6 +616,11 @@ class CookidooCustomRecipe:
     thumbnail: str | None
     image: str | None
     url: str
+    hints: list[str] = field(default_factory=list)
+    unit_text: str = "portion"
+    image_owned_by_user: bool = False
+    work_status: str = "PRIVATE"
+    requires_annotations_check: bool = False
 
 
 @dataclass

@@ -5,7 +5,12 @@ from datetime import datetime
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
-from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
+from cookidoo_api.types import (
+    CookidooAdditionalItem,
+    CookidooCreateCustomRecipe,
+    CookidooIngredientItem,
+    CookidooUpdateCustomRecipe,
+)
 
 
 class TestMethods:
@@ -70,17 +75,29 @@ class TestMethods:
 
     async def test_cookidoo_create_custom_recipe(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo create custom recipe from scratch, get and remove."""
-        recipe_id = await cookidoo.create_custom_recipe(
-            name="Smoke test recipe",
-            ingredients=["100g flour", "1 egg"],
-            steps=["Mix ingredients", "Bake 20 min"],
-            servings=2,
+        created = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Smoke test recipe",
+                ingredients=["100g flour", "1 egg"],
+                instructions=["Mix ingredients", "Bake 20 min"],
+                serving_size=2,
+                active_time=300,
+                total_time=1200,
+            )
         )
-        assert recipe_id
-        fetched = await cookidoo.get_custom_recipe(recipe_id)
-        assert fetched.id == recipe_id
+        assert created.id
+        fetched = await cookidoo.get_custom_recipe(created.id)
+        assert fetched.id == created.id
         assert fetched.name == "Smoke test recipe"
-        await cookidoo.remove_custom_recipe(recipe_id)
+        edited = await cookidoo.update_custom_recipe(
+            created.id,
+            CookidooUpdateCustomRecipe(name="Edited smoke test recipe"),
+        )
+        assert edited.id == created.id
+        assert edited.name == "Edited smoke test recipe"
+        listed = await cookidoo.list_custom_recipes()
+        assert any(recipe.id == created.id for recipe in listed)
+        await cookidoo.remove_custom_recipe(created.id)
 
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo

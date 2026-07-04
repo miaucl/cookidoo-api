@@ -212,6 +212,39 @@ class CustomRecipeTextJSON(TypedDict):
     text: str
 
 
+class RecipeAnnotationPositionJSON(TypedDict):
+    """Position of an annotation within a recipe step."""
+
+    offset: int
+    length: int
+
+
+class RecipeAnnotationJSON(TypedDict):
+    """Processed annotation sent to the custom recipe API."""
+
+    type: str
+    data: dict[str, object]
+    position: RecipeAnnotationPositionJSON
+    name: NotRequired[str]
+
+
+class RecipeStepJSON(TypedDict):
+    """Processed step sent to the custom recipe API."""
+
+    type: str
+    text: str
+    annotations: NotRequired[list[RecipeAnnotationJSON]]
+    time: NotRequired[int]
+    temperature: NotRequired[int | str]
+    speed: NotRequired[float | str]
+
+
+class CustomRecipeMetadataJSON(TypedDict):
+    """Metadata sent when updating a custom recipe."""
+
+    requiresAnnotationsCheck: bool
+
+
 CustomRecipeContentJSON = TypedDict(
     "CustomRecipeContentJSON",
     {
@@ -225,9 +258,12 @@ CustomRecipeContentJSON = TypedDict(
         "yield": CustomRecipeYieldJSON,
         "recipeIngredient": list[str | CustomRecipeTextJSON],
         "ingredients": list[str | CustomRecipeTextJSON],
-        "recipeInstructions": list[str | CustomRecipeTextJSON],
-        "instructions": list[str | CustomRecipeTextJSON],
+        "recipeInstructions": list[str | RecipeStepJSON],
+        "instructions": list[str | RecipeStepJSON],
         "image": str | None,
+        "isImageOwnedByUser": bool,
+        "hints": str | list[str],
+        "recipeMetadata": CustomRecipeMetadataJSON,
     },
     total=False,
 )
@@ -238,75 +274,14 @@ class CustomRecipeJSON(TypedDict):
 
     recipeId: str
     title: NotRequired[str]
+    workStatus: NotRequired[str]
     recipeContent: CustomRecipeContentJSON
-
-
-class RecipeAnnotationTemperatureJSON(TypedDict, total=False):
-    """Temperature data for a custom recipe annotation."""
-
-    value: str
-    unit: str
-
-
-class RecipeAnnotationDataJSON(TypedDict, total=False):
-    """Data for a custom recipe annotation."""
-
-    description: str
-    time: int
-    speed: str
-    temperature: RecipeAnnotationTemperatureJSON
-
-
-class RecipeAnnotationInputJSON(TypedDict):
-    """Input annotation for a custom recipe step."""
-
-    type: str
-    slot: str
-    data: RecipeAnnotationDataJSON
-    name: NotRequired[str]
-
-
-class RecipeStepInputJSON(TypedDict):
-    """Input step used when creating a custom recipe."""
-
-    text: str
-    annotations: NotRequired[list[RecipeAnnotationInputJSON]]
-
-
-class RecipeAnnotationPositionJSON(TypedDict):
-    """Position of an annotation within a recipe step."""
-
-    offset: int
-    length: int
-
-
-class RecipeAnnotationJSON(TypedDict):
-    """Processed annotation sent to the custom recipe API."""
-
-    type: str
-    data: RecipeAnnotationDataJSON
-    position: RecipeAnnotationPositionJSON
-    name: NotRequired[str]
-
-
-class RecipeStepJSON(TypedDict):
-    """Processed step sent to the custom recipe API."""
-
-    type: str
-    text: str
-    annotations: NotRequired[list[RecipeAnnotationJSON]]
 
 
 class CreateCustomRecipeJSON(TypedDict):
     """The initial request used to create a blank custom recipe."""
 
     recipeName: str
-
-
-class CustomRecipeMetadataJSON(TypedDict):
-    """Metadata sent when updating a custom recipe."""
-
-    requiresAnnotationsCheck: bool
 
 
 UpdateCustomRecipeJSON = TypedDict(
@@ -323,7 +298,7 @@ UpdateCustomRecipeJSON = TypedDict(
         "ingredients": list[CustomRecipeTextJSON],
         "instructions": list[RecipeStepJSON],
         "hints": str,
-        "workStatus": Literal["PRIVATE"],
+        "workStatus": str,
         "recipeMetadata": CustomRecipeMetadataJSON,
     },
 )

@@ -26,7 +26,12 @@ from cookidoo_api.raw_types import (
     RecipeJSON,
     SearchResultJSON,
 )
-from cookidoo_api.types import CookidooLocalizationConfig, ThermomixMachineType
+from cookidoo_api.types import (
+    CookidooInstruction,
+    CookidooLocalizationConfig,
+    CookidooStepSettings,
+    ThermomixMachineType,
+)
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
@@ -281,8 +286,8 @@ class TestRecipeImagesAndUrls:
             "65 g di olio extravergine di oliva",
         ]
         assert result.instructions == [
-            "Mettere nel boccale le cipolle.",
-            "Servire subito.",
+            CookidooInstruction("Mettere nel boccale le cipolle."),
+            CookidooInstruction("Servire subito."),
         ]
         assert result.tools == ["TM7", "TM6", "TM5"]
         assert result.active_time == 600
@@ -334,6 +339,52 @@ class TestRecipeImagesAndUrls:
         assert result.active_time == 0
         assert result.ingredients == []
         assert result.instructions == []
+
+    def test_custom_recipe_prefers_structured_instructions(self) -> None:
+        """Structured instructions take precedence over their text-only projection."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Structured recipe",
+                    "recipeInstructions": ["Legacy text projection"],
+                    "instructions": [
+                        {"type": "STEP", "text": "Heat water", "time": 30}
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.instructions == [
+            CookidooInstruction("Heat water", CookidooStepSettings(time=30))
+        ]
+
+    def test_custom_recipe_tolerates_malformed_optional_metadata(self) -> None:
+        """Optional response metadata cannot prevent a recipe from being edited."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "workStatus": None,
+                "recipeContent": {
+                    "name": "Minimal recipe",
+                    "yield": {"value": "invalid", "unitText": None},
+                    "hints": None,
+                    "recipeMetadata": None,
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.hints == []
+        assert result.serving_size == 0
+        assert result.unit_text == "portion"
+        assert result.work_status == "PRIVATE"
+        assert result.requires_annotations_check is False
 
     def test_cookidoo_calendar_day_from_json_with_images(self) -> None:
         """Test cookidoo_calendar_day_from_json extracts images correctly."""
