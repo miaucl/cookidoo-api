@@ -774,7 +774,12 @@ class Cookidoo:
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
-            await self._request_json("get", url, "loading custom recipe"),
+            await self._request_json(
+                "get",
+                url,
+                "loading custom recipe",
+                headers={"ACCEPT": CUSTOM_RECIPES_PATH_ACCEPT},
+            ),
             "loading custom recipe",
         )
         return self._parse_result(
@@ -2256,6 +2261,21 @@ class Cookidoo:
         return processed
 
     @staticmethod
+    def _custom_recipe_image_for_payload(image: str | None) -> str | None:
+        """Keep only Cookidoo-accepted custom recipe image references."""
+        if image is None:
+            return None
+        # Cookidoo rejects CDN/display URLs and only accepts null or a path/filename:
+        # ((prod|nonprod)/img/customer-recipe/)?[A-Za-z0-9-_]{1,}.(bmp|jpe|jpeg|jpg|png)
+        if re.fullmatch(
+            r"((prod|nonprod)/img/customer-recipe/)?[A-Za-z0-9_-]+\."
+            r"(bmp|jpe|jpeg|jpg|png)",
+            image,
+        ):
+            return image
+        return None
+
+    @staticmethod
     def _build_custom_recipe_payload(
         *,
         name: str,
@@ -2287,10 +2307,13 @@ class Cookidoo:
         ingredient_items: list[CustomRecipeTextJSON] = [
             {"type": "INGREDIENT", "text": ingredient} for ingredient in ingredients
         ]
+        normalized_image = Cookidoo._custom_recipe_image_for_payload(image)
         return {
             "name": name,
-            "image": image,
-            "isImageOwnedByUser": image_owned_by_user,
+            "image": normalized_image,
+            "isImageOwnedByUser": (
+                image_owned_by_user if normalized_image is not None else False
+            ),
             "tools": [
                 machine.value if hasattr(machine, "value") else machine
                 for machine in machine_types
