@@ -4306,6 +4306,242 @@ class TestProcessRecipeSteps:
         assert "annotations" in result[1]
         assert result[2] == {"type": "STEP", "text": "Serve warm"}
 
+    def test_empty_annotation_slot_raises(self) -> None:
+        """Reject annotations without a slot before calculating offsets."""
+        steps = [
+            CookidooInstruction(
+                "Mix well",
+                annotations=[CookidooTTSAnnotation("", time=60)],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation slot must not be empty"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_tts_annotation_time_raises(self) -> None:
+        """Reject negative TTS annotation times."""
+        steps = [
+            CookidooInstruction(
+                "Mix 1 min",
+                annotations=[CookidooTTSAnnotation("1 min", time=-1)],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_mode_annotation_time_raises(self) -> None:
+        """Reject negative MODE annotation times."""
+        steps = [
+            CookidooInstruction(
+                "Knead dough",
+                annotations=[
+                    CookidooModeAnnotation("dough", ThermomixMode.DOUGH, time=-5)
+                ],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_empty_custom_annotation_type_raises(self) -> None:
+        """Reject custom annotations without a type."""
+        steps = [
+            CookidooInstruction(
+                "Use future mode",
+                annotations=[
+                    CookidooCustomAnnotation(
+                        type="",
+                        slot="future mode",
+                        data={"enabled": True},
+                    )
+                ],
+            )
+        ]
+
+        with pytest.raises(
+            ValueError, match="Custom annotation type must not be empty"
+        ):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_instruction_time_raises(self) -> None:
+        """Reject negative direct instruction settings."""
+        steps = [CookidooInstruction("Heat", settings=CookidooStepSettings(time=-1))]
+
+        with pytest.raises(ValueError, match="Instruction time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_tts_annotation_serializes_direction(self) -> None:
+        """Serialize enum-backed TTS direction values."""
+        steps = [
+            CookidooInstruction(
+                "Mix CW",
+                annotations=[
+                    CookidooTTSAnnotation(
+                        "CW",
+                        time=30,
+                        direction=ThermomixDirection.CW,
+                    )
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"]["direction"] == "CW"
+
+    def test_tts_annotation_without_time_omits_field(self) -> None:
+        """Omit optional TTS time when it is not provided."""
+        steps = [
+            CookidooInstruction(
+                "Mix slowly",
+                annotations=[CookidooTTSAnnotation("slowly", speed="2")],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"] == {"speed": "2"}
+
+    def test_mode_annotation_without_time(self) -> None:
+        """Omit optional MODE time when it is not provided."""
+        steps = [
+            CookidooInstruction(
+                "Knead dough",
+                annotations=[
+                    CookidooModeAnnotation("dough", ThermomixMode.DOUGH),
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"] == {}
+
+    def test_instruction_settings_only_speed(self) -> None:
+        """Serialize partial direct instruction settings."""
+        steps = [
+            CookidooInstruction(
+                "Mix",
+                settings=CookidooStepSettings(speed=ThermomixSpeed.SPEED_3),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0] == {"type": "STEP", "text": "Mix", "speed": "3"}
+
+    def test_instruction_settings_only_temperature(self) -> None:
+        """Serialize direct instruction temperature without speed."""
+        steps = [
+            CookidooInstruction(
+                "Heat",
+                settings=CookidooStepSettings(temperature=100),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0] == {"type": "STEP", "text": "Heat", "temperature": 100}
+
+    def test_instruction_settings_use_enum_values(self) -> None:
+        """Serialize enum-backed direct instruction settings."""
+        steps = [
+            CookidooInstruction(
+                "Heat",
+                settings=CookidooStepSettings(
+                    time=30,
+                    temperature=ThermomixTemperature.VAROMA,
+                    speed=ThermomixSpeed.SPEED_2,
+                ),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["temperature"] == "varoma"
+        assert result[0]["speed"] == "2"
+
+
+class TestBuildCustomRecipePayload:
+    """Tests for custom recipe payload validation."""
+
+    def test_rejects_blank_name(self) -> None:
+        """Reject blank recipe names before building the payload."""
+        with pytest.raises(ValueError, match="Recipe name must not be empty"):
+            Cookidoo._build_custom_recipe_payload(
+                name="   ",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=0,
+                total_time=0,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_negative_times(self) -> None:
+        """Reject negative prep or total times."""
+        with pytest.raises(ValueError, match="Recipe times must not be negative"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=-1,
+                total_time=10,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_active_time_greater_than_total(self) -> None:
+        """Reject payloads where active time exceeds total time."""
+        with pytest.raises(ValueError, match="Active time must not exceed total time"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=120,
+                total_time=60,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_blank_unit_text(self) -> None:
+        """Reject blank yield unit text."""
+        with pytest.raises(ValueError, match="Recipe unit text must not be empty"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=0,
+                total_time=60,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text=" ",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
 
 # ======================================================================
 # Tests for Thermomix Enums

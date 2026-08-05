@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.helpers import (
+    _extract_custom_recipe_ingredients,
+    _parse_annotation_temperature,
+    _parse_custom_recipe_annotation,
+    _parse_custom_recipe_instructions,
     cookidoo_calendar_day_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_recipe_details_from_json,
@@ -27,9 +31,14 @@ from cookidoo_api.raw_types import (
     SearchResultJSON,
 )
 from cookidoo_api.types import (
+    CookidooCustomAnnotation,
+    CookidooIngredientAnnotation,
     CookidooInstruction,
     CookidooLocalizationConfig,
+    CookidooModeAnnotation,
     CookidooStepSettings,
+    CookidooTemperatureSetting,
+    CookidooTTSAnnotation,
     ThermomixMachineType,
 )
 from tests.responses import (
@@ -361,6 +370,195 @@ class TestRecipeImagesAndUrls:
         assert result.instructions == [
             CookidooInstruction("Heat water", CookidooStepSettings(time=30))
         ]
+
+    def test_custom_recipe_parses_recipe_ingredient_objects(self) -> None:
+        """Extract ingredient text from structured recipeIngredient items."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Structured ingredients",
+                    "recipeIngredient": [
+                        {"type": "INGREDIENT", "text": "100 g flour"},
+                        "1 egg",
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.ingredients == ["100 g flour", "1 egg"]
+
+    def test_custom_recipe_parses_instruction_annotations(self) -> None:
+        """Parse structured instructions with typed annotations."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Annotated recipe",
+                    "ingredients": [{"type": "INGREDIENT", "text": "flour"}],
+                    "instructions": [
+                        {
+                            "type": "STEP",
+                            "text": "Add flour and mix",
+                            "annotations": [
+                                {
+                                    "type": "INGREDIENT",
+                                    "data": {"description": "flour"},
+                                    "position": {"offset": 4, "length": 5},
+                                },
+                                {
+                                    "type": "TTS",
+                                    "data": {
+                                        "time": 60,
+                                        "temperature": {"value": 100, "unit": "C"},
+                                        "speed": "4",
+                                        "direction": "CW",
+                                    },
+                                    "position": {"offset": 14, "length": 3},
+                                },
+                                {
+                                    "type": "MODE",
+                                    "name": "dough",
+                                    "data": {
+                                        "time": 120,
+                                        "speed": "1",
+                                        "direction": "CCW",
+                                        "power": "Intense",
+                                        "accessory": "Varoma",
+                                    },
+                                    "position": {"offset": 14, "length": 3},
+                                },
+                                {
+                                    "type": "FUTURE",
+                                    "data": {"enabled": True},
+                                    "position": {"offset": 0, "length": 1},
+                                },
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        instruction = result.instructions[0]
+        assert isinstance(instruction, CookidooInstruction)
+        assert instruction.annotations[0] == CookidooIngredientAnnotation(
+            "flour", "flour"
+        )
+        assert instruction.annotations[1] == CookidooTTSAnnotation(
+            slot="mix",
+            time=60,
+            temperature=CookidooTemperatureSetting(100, "C"),
+            speed="4",
+            direction="CW",
+        )
+        assert isinstance(instruction.annotations[2], CookidooModeAnnotation)
+        assert instruction.annotations[3] == CookidooCustomAnnotation(
+            type="FUTURE",
+            slot="A",
+            data={"enabled": True},
+        )
+
+    def test_custom_recipe_hints_list_is_preserved(self) -> None:
+        """Parse list-based hint responses."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Hints recipe",
+                    "hints": ["first hint", "second hint", 42],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.hints == ["first hint", "second hint"]
+
+    def test_extract_custom_recipe_ingredients_handles_none(self) -> None:
+        """Return an empty list when the API omits ingredient data."""
+        assert _extract_custom_recipe_ingredients(None) == []
+
+    def test_parse_custom_recipe_instructions_skips_invalid_items(self) -> None:
+        """Ignore malformed instruction entries while keeping valid ones."""
+        assert _parse_custom_recipe_instructions("not-a-list") == []
+        assert _parse_custom_recipe_instructions(
+            [
+                "Plain step",
+                {"type": "STEP"},
+                {"type": "STEP", "text": 42},
+                123,
+                {
+                    "type": "STEP",
+                    "text": "Heat",
+                    "time": 30,
+                    "temperature": 100,
+                    "speed": 2,
+                },
+            ]
+        ) == [
+            "Plain step",
+            CookidooInstruction(
+                "Heat",
+                CookidooStepSettings(time=30, temperature=100, speed=2),
+            ),
+        ]
+
+    def test_parse_custom_recipe_annotation_handles_invalid_shapes(self) -> None:
+        """Ignore malformed annotations and invalid temperature objects."""
+        assert _parse_custom_recipe_annotation("invalid", "text") is None
+        assert (
+            _parse_custom_recipe_annotation(
+                {"type": "INGREDIENT", "data": "invalid", "position": {}},
+                "text",
+            )
+            is None
+        )
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": 42},
+                    "position": {"offset": 0, "length": 1},
+                },
+                "text",
+            )
+            == CookidooCustomAnnotation(
+                type="INGREDIENT",
+                slot="t",
+                data={"description": 42},
+            )
+        )
+        assert _parse_annotation_temperature({"value": 1.5}) is None
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": "flour"},
+                    "position": {"offset": 0, "length": "bad"},
+                },
+                "flour",
+            )
+            == CookidooIngredientAnnotation("", "flour")
+        )
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": "flour"},
+                    "position": "bad",
+                },
+                "flour",
+            )
+            == CookidooIngredientAnnotation("", "flour")
+        )
 
     def test_custom_recipe_tolerates_malformed_optional_metadata(self) -> None:
         """Optional response metadata cannot prevent a recipe from being edited."""
