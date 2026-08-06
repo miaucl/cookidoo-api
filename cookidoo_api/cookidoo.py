@@ -598,6 +598,7 @@ class Cookidoo:
     async def search_recipes(
         self,
         query: str | None = None,
+        *,
         locale: str | None = None,
         accessories: str | list[str] | None = None,
         languages: str | list[str] | None = None,
