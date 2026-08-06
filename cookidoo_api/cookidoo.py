@@ -38,6 +38,7 @@ from cookidoo_api.const import (
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
     INGREDIENT_ITEMS_PATH,
+    LOGIN_HEADERS,
     LOGIN_PATH,
     LOGIN_REDIRECT,
     MANAGED_COLLECTIONS_PATH,
@@ -336,6 +337,12 @@ class Cookidoo:
         After login, the session's cookie jar contains the authentication
         cookies and all subsequent API calls are authenticated automatically.
 
+        The login requests are sent with a browser-like ``User-Agent``
+        (request-scoped only, the session's own defaults are left untouched)
+        since the login flow is served behind Cloudflare, which is more
+        likely to challenge/block requests carrying a non-browser
+        User-Agent (e.g. a generic HTTP client's default).
+
         Raises
         ------
         CookidooRequestException
@@ -356,7 +363,9 @@ class Cookidoo:
 
         try:
             # Step 1: Follow redirect chain to reach the CIAM login page
-            async with self._session.get(login_url, allow_redirects=True) as resp:
+            async with self._session.get(
+                login_url, allow_redirects=True, headers=LOGIN_HEADERS
+            ) as resp:
                 self._check_login_page_status(resp.status)
                 login_html = await resp.text()
 
@@ -373,6 +382,7 @@ class Cookidoo:
                 CIAM_LOGIN_SRV_URL,
                 data=login_data,
                 allow_redirects=True,
+                headers=LOGIN_HEADERS,
             ) as resp:
                 _LOGGER.debug(
                     "Login POST completed, final URL: %s (status: %s)",
