@@ -714,6 +714,20 @@ class TestCookidooSearchResultFromJson:
         assert result.recipes == []
         assert result.total == 5
 
+    def test_search_result_empty_data_does_not_fall_back_to_recipes(self) -> None:
+        """An explicit empty 'data' list must not fall back to 'recipes'."""
+        data = cast(
+            SearchResultJSON,
+            {
+                "data": [],
+                "recipes": [{"id": "r1", "title": "stale-fallback"}],
+                "total": 0,
+            },
+        )
+        result = cookidoo_search_result_from_json(data, None)
+        assert result.recipes == []
+        assert result.total == 0
+
     def test_search_result_with_descriptive_assets(self) -> None:
         """Search result extracts thumbnail and image from descriptiveAssets."""
         localization = CookidooLocalizationConfig(

@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
+from enum import StrEnum
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 import json
@@ -58,6 +59,7 @@ from cookidoo_api.const import (
 from cookidoo_api.exceptions import (
     CookidooAuthException,
     CookidooConfigException,
+    CookidooException,
     CookidooParseException,
     CookidooRequestException,
 )
@@ -121,6 +123,10 @@ from cookidoo_api.types import (
 
 _LOGGER = logging.getLogger(__name__)
 _T = TypeVar("_T")
+_CUSTOM_RECIPE_IMAGE_RE = re.compile(
+    r"((prod|nonprod)/img/customer-recipe/)?"
+    r"[A-Za-z0-9_-]+\.(bmp|jpe|jpeg|jpg|png)"
+)
 
 
 class Cookidoo:
@@ -612,7 +618,6 @@ class Cookidoo:
     async def search_recipes(
         self,
         query: str | None = None,
-        *,
         locale: str | None = None,
         accessories: str | list[str] | None = None,
         languages: str | list[str] | None = None,
@@ -748,6 +753,11 @@ class Cookidoo:
 
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
         """Get custom recipe.
+
+        Requests the full customer-recipe representation
+        (``CUSTOM_RECIPES_PATH_ACCEPT``) so Cookidoo returns structured
+        instructions and annotations that the parser can map into
+        ``CookidooInstruction`` models.
 
         Parameters
         ----------
@@ -2105,12 +2115,16 @@ class Cookidoo:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _enum_value[T](value: T | StrEnum) -> T | str:
+        """Unwrap StrEnum members to their plain value."""
+        return value.value if isinstance(value, StrEnum) else value
+
+    @staticmethod
     def _temperature_to_json(
         temperature: CookidooTemperatureSetting,
     ) -> dict[str, object]:
         """Serialize an annotation temperature without mutating the model."""
-        raw_value = temperature.value
-        value = raw_value.value if hasattr(raw_value, "value") else raw_value
+        value = Cookidoo._enum_value(temperature.value)
         normalized_value = (
             str(value).lower() if str(value).lower() == "varoma" else value
         )
@@ -2170,17 +2184,9 @@ class Cookidoo:
                     annotation.temperature
                 )
             if annotation.speed is not None:
-                data["speed"] = (
-                    annotation.speed.value
-                    if hasattr(annotation.speed, "value")
-                    else annotation.speed
-                )
+                data["speed"] = Cookidoo._enum_value(annotation.speed)
             if annotation.direction is not None:
-                data["direction"] = (
-                    annotation.direction.value
-                    if hasattr(annotation.direction, "value")
-                    else annotation.direction
-                )
+                data["direction"] = Cookidoo._enum_value(annotation.direction)
             name = annotation.name
         elif isinstance(annotation, CookidooModeAnnotation):
             annotation_type = "MODE"
@@ -2200,9 +2206,9 @@ class Cookidoo:
                 ("accessory", annotation.accessory),
             ):
                 if value is not None:
-                    data[key] = value.value if hasattr(value, "value") else value
+                    data[key] = Cookidoo._enum_value(value)
             mode = annotation.mode
-            name = annotation.name or (mode.value if hasattr(mode, "value") else mode)
+            name = annotation.name or Cookidoo._enum_value(mode)
         else:
             annotation_type = annotation.type
             if not annotation_type:
@@ -2238,17 +2244,11 @@ class Cookidoo:
                         raise ValueError("Instruction time must not be negative.")
                     processed_step["time"] = step.settings.time
                 if step.settings.temperature is not None:
-                    temperature = step.settings.temperature
-                    processed_step["temperature"] = (
-                        temperature.value
-                        if hasattr(temperature, "value")
-                        else temperature
+                    processed_step["temperature"] = Cookidoo._enum_value(
+                        step.settings.temperature
                     )
                 if step.settings.speed is not None:
-                    speed = step.settings.speed
-                    processed_step["speed"] = (
-                        speed.value if hasattr(speed, "value") else speed
-                    )
+                    processed_step["speed"] = Cookidoo._enum_value(step.settings.speed)
             if step.annotations:
                 processed_step["annotations"] = [
                     Cookidoo._annotation_to_json(
@@ -2261,17 +2261,29 @@ class Cookidoo:
         return processed
 
     @staticmethod
+    def _validate_custom_recipe_image(image: str | None) -> None:
+        """Validate a caller-provided custom recipe image reference."""
+        if image is None:
+            return
+        if not _CUSTOM_RECIPE_IMAGE_RE.fullmatch(image):
+            raise ValueError(
+                "Custom recipe image must be a Cookidoo customer-recipe "
+                "path or filename (bmp, jpe, jpeg, jpg, png), not a "
+                "CDN/display URL."
+            )
+
+    @staticmethod
     def _custom_recipe_image_for_payload(image: str | None) -> str | None:
-        """Keep only Cookidoo-accepted custom recipe image references."""
+        """Keep only Cookidoo-accepted custom recipe image references.
+
+        Used to normalize values inherited from the API (for example CDN
+        display URLs returned by ``get_custom_recipe``) before echoing them
+        back in an update payload. Caller-provided images must be validated
+        with ``_validate_custom_recipe_image`` first.
+        """
         if image is None:
             return None
-        # Cookidoo rejects CDN/display URLs and only accepts null or a path/filename:
-        # ((prod|nonprod)/img/customer-recipe/)?[A-Za-z0-9-_]{1,}.(bmp|jpe|jpeg|jpg|png)
-        if re.fullmatch(
-            r"((prod|nonprod)/img/customer-recipe/)?[A-Za-z0-9_-]+\."
-            r"(bmp|jpe|jpeg|jpg|png)",
-            image,
-        ):
+        if _CUSTOM_RECIPE_IMAGE_RE.fullmatch(image):
             return image
         return None
 
@@ -2314,10 +2326,7 @@ class Cookidoo:
             "isImageOwnedByUser": (
                 image_owned_by_user if normalized_image is not None else False
             ),
-            "tools": [
-                machine.value if hasattr(machine, "value") else machine
-                for machine in machine_types
-            ],
+            "tools": [Cookidoo._enum_value(machine) for machine in machine_types],
             "yield": {"value": servings, "unitText": unit_text},
             "prepTime": active_time,
             "cookTime": total_time - active_time,
@@ -2348,7 +2357,26 @@ class Cookidoo:
     async def create_custom_recipe(
         self, recipe: CookidooCreateCustomRecipe
     ) -> CookidooCustomRecipe:
-        """Create, populate, and return a custom recipe."""
+        """Create, populate, and return a custom recipe.
+
+        Creation uses a stub ``POST`` followed by a ``PATCH`` with the full
+        payload and a final ``GET`` reload. If the populate or reload step
+        fails after the stub was created, the orphaned recipe id is attached
+        to the raised exception via ``Exception.add_note``.
+
+        Raises
+        ------
+        ValueError
+            If the recipe input fails local validation.
+        CookidooAuthException
+            When the access token is not valid anymore.
+        CookidooRequestException
+            If a request fails after the stub may already exist server-side.
+        CookidooParseException
+            If a response cannot be parsed after the stub may already exist.
+
+        """
+        self._validate_custom_recipe_image(recipe.image)
         recipe_machines: Sequence[ThermomixMachineType | str] = recipe.tools or [
             ThermomixMachineType.TM7
         ]
@@ -2388,15 +2416,28 @@ class Cookidoo:
         if not isinstance(recipe_id, str) or not recipe_id:
             raise CookidooParseException("No recipe ID returned from creation.")
 
-        await self._patch_custom_recipe(recipe_id, payload, "update custom recipe")
-
-        return await self.get_custom_recipe(recipe_id)
+        try:
+            await self._patch_custom_recipe(recipe_id, payload, "update custom recipe")
+            return await self.get_custom_recipe(recipe_id)
+        except CookidooException as e:
+            _LOGGER.warning(
+                "Custom recipe %s was created but could not be populated", recipe_id
+            )
+            e.add_note(f"Orphaned custom recipe stub id: {recipe_id}")
+            raise
 
     async def update_custom_recipe(
         self, recipe_id: str, recipe: CookidooUpdateCustomRecipe
     ) -> CookidooCustomRecipe:
         """Update selected fields and return the refreshed custom recipe."""
+        self._validate_custom_recipe_image(recipe.image)
         existing = await self.get_custom_recipe(recipe_id)
+        if recipe.image_owned_by_user is not None:
+            image_owned_by_user = recipe.image_owned_by_user
+        elif recipe.image is not None:
+            image_owned_by_user = True
+        else:
+            image_owned_by_user = existing.image_owned_by_user
         payload = self._build_custom_recipe_payload(
             name=recipe.name if recipe.name is not None else existing.name,
             ingredients=(
@@ -2430,13 +2471,7 @@ class Cookidoo:
                 recipe.unit_text if recipe.unit_text is not None else existing.unit_text
             ),
             image=recipe.image if recipe.image is not None else existing.image,
-            image_owned_by_user=(
-                recipe.image_owned_by_user
-                if recipe.image_owned_by_user is not None
-                else True
-                if recipe.image is not None
-                else existing.image_owned_by_user
-            ),
+            image_owned_by_user=image_owned_by_user,
             work_status=(
                 recipe.work_status
                 if recipe.work_status is not None

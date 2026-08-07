@@ -265,8 +265,15 @@ def cookidoo_search_result_from_json(
         The parsed search result with recipe hits and total count.
 
     """
-    raw_recipes = data.get("data") or data.get("recipes") or []
-    recipes_data = raw_recipes if isinstance(raw_recipes, list) else []
+    if "data" in data:
+        raw_recipes = data["data"]
+    elif "recipes" in data:
+        raw_recipes = data["recipes"]
+    else:
+        raw_recipes = []
+    recipes_data: list[object] = (
+        raw_recipes if isinstance(raw_recipes, list) else []
+    )
     total_raw = data.get("total")
     hits: list[CookidooSearchRecipeHit] = []
     for item in recipes_data:
