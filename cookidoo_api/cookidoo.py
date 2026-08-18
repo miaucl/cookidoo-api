@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
+from enum import StrEnum
 from http import HTTPStatus
 from http.cookies import SimpleCookie
 import json
@@ -54,10 +55,12 @@ from cookidoo_api.const import (
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
+    UPDATE_CUSTOM_RECIPE_PATH,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
     CookidooConfigException,
+    CookidooException,
     CookidooParseException,
     CookidooRequestException,
 )
@@ -79,35 +82,52 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
     CommunityProfileJSON,
+    CreateCustomRecipeJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     CustomRecipesJSON,
+    CustomRecipeTextJSON,
     ItemJSON,
     ManagedCollectionJSON,
     PaginationJSON,
+    RecipeAnnotationJSON,
     RecipeDetailsJSON,
     RecipeJSON,
+    RecipeStepJSON,
     SearchResultJSON,
     SubscriptionJSON,
+    UpdateCustomRecipeJSON,
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooCalendarDay,
     CookidooCollection,
     CookidooConfig,
+    CookidooCreateCustomRecipe,
+    CookidooCustomAnnotation,
     CookidooCustomRecipe,
+    CookidooIngredientAnnotation,
     CookidooIngredientItem,
+    CookidooInstruction,
     CookidooLocalizationConfig,
+    CookidooModeAnnotation,
     CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
     CookidooSubscription,
+    CookidooTemperatureSetting,
+    CookidooTTSAnnotation,
+    CookidooUpdateCustomRecipe,
     CookidooUserInfo,
     ThermomixMachineType,
 )
 
 _LOGGER = logging.getLogger(__name__)
 _T = TypeVar("_T")
+_CUSTOM_RECIPE_IMAGE_RE = re.compile(
+    r"((prod|nonprod)/img/customer-recipe/)?"
+    r"[A-Za-z0-9_-]+\.(bmp|jpe|jpeg|jpg|png)"
+)
 
 
 class Cookidoo:
@@ -759,6 +779,11 @@ class Cookidoo:
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
         """Get custom recipe.
 
+        Requests the full customer-recipe representation
+        (``CUSTOM_RECIPES_PATH_ACCEPT``) so Cookidoo returns structured
+        instructions and annotations that the parser can map into
+        ``CookidooInstruction`` models.
+
         Parameters
         ----------
         id
@@ -784,7 +809,12 @@ class Cookidoo:
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
-            await self._request_json("get", url, "loading custom recipe"),
+            await self._request_json(
+                "get",
+                url,
+                "loading custom recipe",
+                headers={"ACCEPT": CUSTOM_RECIPES_PATH_ACCEPT},
+            ),
             "loading custom recipe",
         )
         return self._parse_result(
@@ -2114,3 +2144,379 @@ class Cookidoo:
                 self._cfg.localization,
             ),
         )
+
+    # ------------------------------------------------------------------
+    # Recipe-step processing helper
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _enum_value[T](value: T | StrEnum) -> T | str:
+        """Unwrap StrEnum members to their plain value."""
+        return value.value if isinstance(value, StrEnum) else value
+
+    @staticmethod
+    def _temperature_to_json(
+        temperature: CookidooTemperatureSetting,
+    ) -> dict[str, object]:
+        """Serialize an annotation temperature without mutating the model."""
+        value = Cookidoo._enum_value(temperature.value)
+        normalized_value = (
+            str(value).lower() if str(value).lower() == "varoma" else value
+        )
+        result: dict[str, object] = {"value": normalized_value}
+        if normalized_value != "varoma" and temperature.unit is not None:
+            result["unit"] = temperature.unit
+        return result
+
+    @staticmethod
+    def _annotation_to_json(
+        annotation: (
+            CookidooIngredientAnnotation
+            | CookidooTTSAnnotation
+            | CookidooModeAnnotation
+            | CookidooCustomAnnotation
+        ),
+        instruction_text: str,
+        ingredients: list[str],
+        step_index: int,
+    ) -> RecipeAnnotationJSON:
+        """Serialize an annotation and calculate its text position."""
+        slot = annotation.slot
+        if not slot:
+            raise ValueError(
+                f"Step {step_index + 1}: Annotation slot must not be empty."
+            )
+        try:
+            offset = instruction_text.index(slot)
+        except ValueError as e:
+            raise ValueError(
+                f"Step {step_index + 1}: Annotation slot '{slot}' "
+                f"not found in step text: '{instruction_text}'"
+            ) from e
+
+        annotation_type: str
+        data: dict[str, object]
+        name: str | None
+        if isinstance(annotation, CookidooIngredientAnnotation):
+            if annotation.description not in ingredients:
+                raise ValueError(
+                    f"Step {step_index + 1}: Ingredient "
+                    f"'{annotation.description}' used in annotation but not "
+                    f"found in the recipe's ingredient list: {ingredients}"
+                )
+            annotation_type = "INGREDIENT"
+            data = {"description": annotation.description}
+            name = annotation.name
+        elif isinstance(annotation, CookidooTTSAnnotation):
+            annotation_type = "TTS"
+            data = {}
+            if annotation.time is not None:
+                if annotation.time < 0:
+                    raise ValueError("Annotation time must not be negative.")
+                data["time"] = annotation.time
+            if annotation.temperature is not None:
+                data["temperature"] = Cookidoo._temperature_to_json(
+                    annotation.temperature
+                )
+            if annotation.speed is not None:
+                data["speed"] = Cookidoo._enum_value(annotation.speed)
+            if annotation.direction is not None:
+                data["direction"] = Cookidoo._enum_value(annotation.direction)
+            name = annotation.name
+        elif isinstance(annotation, CookidooModeAnnotation):
+            annotation_type = "MODE"
+            data = {}
+            if annotation.time is not None:
+                if annotation.time < 0:
+                    raise ValueError("Annotation time must not be negative.")
+                data["time"] = annotation.time
+            if annotation.temperature is not None:
+                data["temperature"] = Cookidoo._temperature_to_json(
+                    annotation.temperature
+                )
+            for key, value in (
+                ("speed", annotation.speed),
+                ("direction", annotation.direction),
+                ("power", annotation.power),
+                ("accessory", annotation.accessory),
+            ):
+                if value is not None:
+                    data[key] = Cookidoo._enum_value(value)
+            mode = annotation.mode
+            name = annotation.name or Cookidoo._enum_value(mode)
+        else:
+            annotation_type = annotation.type
+            if not annotation_type:
+                raise ValueError("Custom annotation type must not be empty.")
+            data = dict(annotation.data)
+            name = annotation.name
+
+        result: RecipeAnnotationJSON = {
+            "type": annotation_type,
+            "data": data,
+            "position": {"offset": offset, "length": len(slot)},
+        }
+        if name:
+            result["name"] = name
+        return result
+
+    @staticmethod
+    def _process_recipe_steps(
+        steps: Sequence[CookidooInstruction | str],
+        ingredients: list[str],
+    ) -> list[RecipeStepJSON]:
+        """Convert public instruction models into the API payload format."""
+        processed: list[RecipeStepJSON] = []
+        for step_index, step in enumerate(steps):
+            if isinstance(step, str):
+                processed.append({"type": "STEP", "text": step})
+                continue
+
+            processed_step: RecipeStepJSON = {"type": "STEP", "text": step.text}
+            if step.settings is not None:
+                if step.settings.time is not None:
+                    if step.settings.time < 0:
+                        raise ValueError("Instruction time must not be negative.")
+                    processed_step["time"] = step.settings.time
+                if step.settings.temperature is not None:
+                    processed_step["temperature"] = Cookidoo._enum_value(
+                        step.settings.temperature
+                    )
+                if step.settings.speed is not None:
+                    processed_step["speed"] = Cookidoo._enum_value(step.settings.speed)
+            if step.annotations:
+                processed_step["annotations"] = [
+                    Cookidoo._annotation_to_json(
+                        annotation, step.text, ingredients, step_index
+                    )
+                    for annotation in step.annotations
+                ]
+            processed.append(processed_step)
+
+        return processed
+
+    @staticmethod
+    def _validate_custom_recipe_image(image: str | None) -> None:
+        """Validate a caller-provided custom recipe image reference."""
+        if image is None:
+            return
+        if not _CUSTOM_RECIPE_IMAGE_RE.fullmatch(image):
+            raise ValueError(
+                "Custom recipe image must be a Cookidoo customer-recipe "
+                "path or filename (bmp, jpe, jpeg, jpg, png), not a "
+                "CDN/display URL."
+            )
+
+    @staticmethod
+    def _custom_recipe_image_for_payload(image: str | None) -> str | None:
+        """Keep only Cookidoo-accepted custom recipe image references.
+
+        Used to normalize values inherited from the API (for example CDN
+        display URLs returned by ``get_custom_recipe``) before echoing them
+        back in an update payload. Caller-provided images must be validated
+        with ``_validate_custom_recipe_image`` first.
+        """
+        if image is None:
+            return None
+        if _CUSTOM_RECIPE_IMAGE_RE.fullmatch(image):
+            return image
+        return None
+
+    @staticmethod
+    def _build_custom_recipe_payload(
+        *,
+        name: str,
+        ingredients: list[str],
+        steps: Sequence[CookidooInstruction | str],
+        servings: int,
+        active_time: int,
+        total_time: int,
+        hints: Sequence[str],
+        machine_types: Sequence[ThermomixMachineType | str],
+        unit_text: str,
+        image: str | None,
+        image_owned_by_user: bool,
+        work_status: str,
+        requires_annotations_check: bool,
+    ) -> UpdateCustomRecipeJSON:
+        """Build and validate the complete custom-recipe PATCH payload."""
+        if not name.strip():
+            raise ValueError("Recipe name must not be empty.")
+        if servings <= 0:
+            raise ValueError("Recipe servings must be greater than zero.")
+        if active_time < 0 or total_time < 0:
+            raise ValueError("Recipe times must not be negative.")
+        if active_time > total_time:
+            raise ValueError("Active time must not exceed total time.")
+        if not unit_text.strip():
+            raise ValueError("Recipe unit text must not be empty.")
+
+        ingredient_items: list[CustomRecipeTextJSON] = [
+            {"type": "INGREDIENT", "text": ingredient} for ingredient in ingredients
+        ]
+        normalized_image = Cookidoo._custom_recipe_image_for_payload(image)
+        return {
+            "name": name,
+            "image": normalized_image,
+            "isImageOwnedByUser": (
+                image_owned_by_user if normalized_image is not None else False
+            ),
+            "tools": [Cookidoo._enum_value(machine) for machine in machine_types],
+            "yield": {"value": servings, "unitText": unit_text},
+            "prepTime": active_time,
+            "cookTime": total_time - active_time,
+            "totalTime": total_time,
+            "ingredients": ingredient_items,
+            "instructions": Cookidoo._process_recipe_steps(steps, ingredients),
+            "hints": "\n".join(hints),
+            "workStatus": work_status,
+            "recipeMetadata": {"requiresAnnotationsCheck": requires_annotations_check},
+        }
+
+    async def _patch_custom_recipe(
+        self, recipe_id: str, payload: UpdateCustomRecipeJSON, operation: str
+    ) -> None:
+        """Patch a custom recipe using the shared request implementation."""
+        url = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__, id=recipe_id
+        )
+        await self._request_json(
+            "patch",
+            url,
+            operation,
+            json=payload,
+            headers={"CONTENT-TYPE": "application/json"},
+            accepted_statuses=(HTTPStatus.OK, HTTPStatus.NO_CONTENT),
+        )
+
+    async def create_custom_recipe(
+        self, recipe: CookidooCreateCustomRecipe
+    ) -> CookidooCustomRecipe:
+        """Create, populate, and return a custom recipe.
+
+        Creation uses a stub ``POST`` followed by a ``PATCH`` with the full
+        payload and a final ``GET`` reload. If the populate or reload step
+        fails after the stub was created, the orphaned recipe id is attached
+        to the raised exception via ``Exception.add_note``.
+
+        Raises
+        ------
+        ValueError
+            If the recipe input fails local validation.
+        CookidooAuthException
+            When the access token is not valid anymore.
+        CookidooRequestException
+            If a request fails after the stub may already exist server-side.
+        CookidooParseException
+            If a response cannot be parsed after the stub may already exist.
+
+        """
+        self._validate_custom_recipe_image(recipe.image)
+        recipe_machines: Sequence[ThermomixMachineType | str] = recipe.tools or [
+            ThermomixMachineType.TM7
+        ]
+
+        payload = self._build_custom_recipe_payload(
+            name=recipe.name,
+            ingredients=recipe.ingredients,
+            steps=recipe.instructions,
+            servings=recipe.serving_size,
+            active_time=recipe.active_time,
+            total_time=recipe.total_time,
+            hints=recipe.hints,
+            machine_types=recipe_machines,
+            unit_text=recipe.unit_text,
+            image=recipe.image,
+            image_owned_by_user=recipe.image is not None,
+            work_status=recipe.work_status,
+            requires_annotations_check=recipe.requires_annotations_check,
+        )
+
+        url_create = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+            **self._cfg.localization.__dict__
+        )
+        create_json: CreateCustomRecipeJSON = {"recipeName": recipe.name}
+        created_recipe = self._ensure_mapping(
+            await self._request_json(
+                "post",
+                url_create,
+                "create custom recipe",
+                json=create_json,
+                headers={"CONTENT-TYPE": "application/json"},
+            ),
+            "create custom recipe",
+        )
+
+        recipe_id = created_recipe.get("recipeId")
+        if not isinstance(recipe_id, str) or not recipe_id:
+            raise CookidooParseException("No recipe ID returned from creation.")
+
+        try:
+            await self._patch_custom_recipe(recipe_id, payload, "update custom recipe")
+            return await self.get_custom_recipe(recipe_id)
+        except CookidooException as e:
+            _LOGGER.warning(
+                "Custom recipe %s was created but could not be populated", recipe_id
+            )
+            e.add_note(f"Orphaned custom recipe stub id: {recipe_id}")
+            raise
+
+    async def update_custom_recipe(
+        self, recipe_id: str, recipe: CookidooUpdateCustomRecipe
+    ) -> CookidooCustomRecipe:
+        """Update selected fields and return the refreshed custom recipe."""
+        self._validate_custom_recipe_image(recipe.image)
+        existing = await self.get_custom_recipe(recipe_id)
+        if recipe.image_owned_by_user is not None:
+            image_owned_by_user = recipe.image_owned_by_user
+        elif recipe.image is not None:
+            image_owned_by_user = True
+        else:
+            image_owned_by_user = existing.image_owned_by_user
+        payload = self._build_custom_recipe_payload(
+            name=recipe.name if recipe.name is not None else existing.name,
+            ingredients=(
+                recipe.ingredients
+                if recipe.ingredients is not None
+                else existing.ingredients
+            ),
+            steps=(
+                recipe.instructions
+                if recipe.instructions is not None
+                else existing.instructions
+            ),
+            servings=(
+                recipe.serving_size
+                if recipe.serving_size is not None
+                else existing.serving_size
+            ),
+            active_time=(
+                recipe.active_time
+                if recipe.active_time is not None
+                else existing.active_time
+            ),
+            total_time=(
+                recipe.total_time
+                if recipe.total_time is not None
+                else existing.total_time
+            ),
+            hints=recipe.hints if recipe.hints is not None else existing.hints,
+            machine_types=recipe.tools if recipe.tools is not None else existing.tools,
+            unit_text=(
+                recipe.unit_text if recipe.unit_text is not None else existing.unit_text
+            ),
+            image=recipe.image if recipe.image is not None else existing.image,
+            image_owned_by_user=image_owned_by_user,
+            work_status=(
+                recipe.work_status
+                if recipe.work_status is not None
+                else existing.work_status
+            ),
+            requires_annotations_check=(
+                recipe.requires_annotations_check
+                if recipe.requires_annotations_check is not None
+                else existing.requires_annotations_check
+            ),
+        )
+        await self._patch_custom_recipe(recipe_id, payload, "update custom recipe")
+        return await self.get_custom_recipe(recipe_id)

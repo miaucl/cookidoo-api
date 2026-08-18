@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from http import HTTPStatus
+from typing import cast
 
 from aiohttp import ClientError, ClientSession
 from aioresponses import aioresponses
@@ -16,12 +17,28 @@ from cookidoo_api.exceptions import (
     CookidooRequestException,
 )
 from cookidoo_api.helpers import get_localization_options
+from cookidoo_api.raw_types import CustomRecipeJSON, CustomRecipesJSON
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooConfig,
+    CookidooCreateCustomRecipe,
+    CookidooCustomAnnotation,
+    CookidooIngredientAnnotation,
     CookidooIngredientItem,
+    CookidooInstruction,
+    CookidooModeAnnotation,
     CookidooSearchResult,
+    CookidooStepSettings,
+    CookidooTemperatureSetting,
+    CookidooTTSAnnotation,
+    CookidooUpdateCustomRecipe,
+    ThermomixBrowningPower,
+    ThermomixDirection,
     ThermomixMachineType,
+    ThermomixMode,
+    ThermomixSpeed,
+    ThermomixSteamingAccessory,
+    ThermomixTemperature,
 )
 from tests.responses import (
     COOKIDOO_TEST_LOGIN_PAGE_HTML,
@@ -36,6 +53,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
+    COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
@@ -53,6 +71,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
+    COOKIDOO_TEST_RESPONSE_UPDATE_CUSTOM_RECIPE,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
 )
 
@@ -889,6 +908,31 @@ class TestSearchRecipes:
         with pytest.raises(CookidooParseException):
             await cookidoo.search_recipes("chicken")
 
+    async def test_search_recipes_without_query_unexpected_status(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test an unexpected HTTP status."""
+        mocked.get(
+            "https://cookidoo.ch/search/de",
+            status=HTTPStatus.INTERNAL_SERVER_ERROR,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.search_recipes()
+
+    async def test_search_recipes_non_mapping_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test a valid JSON response with an unexpected shape."""
+        mocked.get(
+            "https://cookidoo.ch/search/de",
+            payload=[],
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.search_recipes()
+
 
 class TestGetCustomRecipe:
     """Tests for get_custom_recipe method."""
@@ -990,6 +1034,7 @@ class TestListCustomRecipes:
         assert len(data) == 1
         assert data[0].id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
         assert data[0].name == "Vongole alla marinara"
+
         assert data[0].active_time == 600
         assert data[0].total_time == 1800
         assert data[0].ingredients == [
@@ -3533,3 +3578,1243 @@ class TestRemoveCustomRecipeFromCalendar:
                 datetime.fromisoformat("2025-08-11").date(),
                 "01K2CTJ9Y1BABRG5MXK44CFZS4",
             )
+
+
+# ======================================================================
+# Tests for create_custom_recipe
+# ======================================================================
+
+CREATE_URL = "https://cookidoo.ch/created-recipes/de-CH"
+UPDATE_URL = "https://cookidoo.ch/created-recipes/de-CH/01K2CTJ9Y1BABRG5MXK44CFZS4"
+
+
+def _mock_create_and_update(mocked: aioresponses) -> None:
+    """Register both POST (stub) and PATCH (full) mock responses."""
+    mocked.post(
+        CREATE_URL,
+        payload=COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB,
+        status=HTTPStatus.OK,
+    )
+    mocked.patch(
+        UPDATE_URL,
+        payload=COOKIDOO_TEST_RESPONSE_UPDATE_CUSTOM_RECIPE,
+        status=HTTPStatus.OK,
+    )
+    mocked.get(
+        UPDATE_URL,
+        payload=cast(CustomRecipesJSON, COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES)[
+            "items"
+        ][0],
+        status=HTTPStatus.OK,
+    )
+
+
+class TestCreateCustomRecipe:
+    """Tests for create_custom_recipe method."""
+
+    async def test_create_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for create_custom_recipe with simple string steps."""
+        _mock_create_and_update(mocked)
+
+        created_recipe = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Test Recipe",
+                ingredients=["200g flour", "2 eggs"],
+                instructions=["Mix ingredients", "Bake at 180C"],
+                serving_size=4,
+                active_time=1800,
+                total_time=3600,
+            )
+        )
+
+        assert created_recipe.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        requests = [call for calls in mocked.requests.values() for call in calls]
+        create_request, update_request = requests[:2]
+        assert create_request.kwargs["json"] == {"recipeName": "Test Recipe"}
+        assert update_request.kwargs["json"] == {
+            "name": "Test Recipe",
+            "image": None,
+            "isImageOwnedByUser": False,
+            "tools": ["TM7"],
+            "yield": {"value": 4, "unitText": "portion"},
+            "prepTime": 1800,
+            "cookTime": 1800,
+            "totalTime": 3600,
+            "ingredients": [
+                {"type": "INGREDIENT", "text": "200g flour"},
+                {"type": "INGREDIENT", "text": "2 eggs"},
+            ],
+            "instructions": [
+                {"type": "STEP", "text": "Mix ingredients"},
+                {"type": "STEP", "text": "Bake at 180C"},
+            ],
+            "hints": "",
+            "workStatus": "PRIVATE",
+            "recipeMetadata": {"requiresAnnotationsCheck": False},
+        }
+
+    async def test_create_custom_recipe_with_annotations(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Preserve the legacy multi-annotation payload using public models."""
+        _mock_create_and_update(mocked)
+
+        created_recipe = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Test Recipe",
+                ingredients=["200g flour", "2 eggs"],
+                instructions=[
+                    CookidooInstruction(
+                        text="Add 200g flour and mix 1 min/speed 3",
+                        annotations=[
+                            CookidooIngredientAnnotation(
+                                slot="200g flour", description="200g flour"
+                            ),
+                            CookidooTTSAnnotation(
+                                slot="1 min/speed 3", time=60, speed="3"
+                            ),
+                        ],
+                    )
+                ],
+                serving_size=4,
+                active_time=1800,
+                total_time=3600,
+            )
+        )
+        assert created_recipe.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+
+    async def test_create_custom_recipe_default_machine_type(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test that default machine type is TM7 when none provided."""
+        _mock_create_and_update(mocked)
+
+        created_recipe = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Test Recipe",
+                ingredients=["salt"],
+                instructions=["Cook it"],
+                serving_size=4,
+                active_time=1800,
+                total_time=3600,
+            )
+        )
+        assert created_recipe.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+
+    async def test_create_custom_recipe_with_enum_machine_types(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test create_custom_recipe with ThermomixMachineType enum values."""
+        _mock_create_and_update(mocked)
+
+        created_recipe = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Test Recipe",
+                ingredients=["water"],
+                instructions=["Boil"],
+                serving_size=4,
+                active_time=1800,
+                total_time=3600,
+                tools=[ThermomixMachineType.TM6, ThermomixMachineType.TM7],
+            )
+        )
+        assert created_recipe.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+
+    async def test_create_custom_recipe_missing_recipe_id(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test create_custom_recipe raises when recipeId is missing."""
+        mocked.post(
+            CREATE_URL,
+            payload={"status": "ACTIVE"},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException, match="No recipe ID returned"):
+            await cookidoo.create_custom_recipe(
+                CookidooCreateCustomRecipe(
+                    name="Test Recipe",
+                    ingredients=["flour"],
+                    instructions=["Mix"],
+                    serving_size=4,
+                    active_time=30,
+                    total_time=60,
+                )
+            )
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_create_custom_recipe_request_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        exception: Exception,
+    ) -> None:
+        """Test create_custom_recipe request exception."""
+        mocked.post(
+            CREATE_URL,
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.create_custom_recipe(
+                CookidooCreateCustomRecipe(
+                    name="Test Recipe",
+                    ingredients=["flour"],
+                    instructions=["Mix"],
+                    serving_size=4,
+                    active_time=30,
+                    total_time=60,
+                )
+            )
+
+    async def test_create_custom_recipe_unauthorized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test create_custom_recipe unauthorized exception."""
+        mocked.post(
+            CREATE_URL,
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.create_custom_recipe(
+                CookidooCreateCustomRecipe(
+                    name="Test Recipe",
+                    ingredients=["flour"],
+                    instructions=["Bake"],
+                    serving_size=4,
+                    active_time=30,
+                    total_time=60,
+                )
+            )
+
+    async def test_create_custom_recipe_patch_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Propagate request failures while populating the created stub."""
+        mocked.post(
+            CREATE_URL,
+            payload=COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB,
+            status=HTTPStatus.OK,
+        )
+        mocked.patch(UPDATE_URL, exception=ClientError())
+
+        with pytest.raises(CookidooRequestException) as exc_info:
+            await cookidoo.create_custom_recipe(
+                CookidooCreateCustomRecipe(
+                    name="Test Recipe",
+                    ingredients=["flour"],
+                    instructions=["Mix"],
+                    serving_size=4,
+                    active_time=30,
+                    total_time=60,
+                )
+            )
+
+        assert any(
+            "Orphaned custom recipe stub id: 01K2CTJ9Y1BABRG5MXK44CFZS4" in note
+            for note in exc_info.value.__notes__
+        )
+
+    async def test_create_custom_recipe_reload_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Propagate failures while loading the completed recipe."""
+        mocked.post(
+            CREATE_URL,
+            payload=COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB,
+            status=HTTPStatus.OK,
+        )
+        mocked.patch(UPDATE_URL, status=HTTPStatus.NO_CONTENT)
+        mocked.get(UPDATE_URL, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException) as exc_info:
+            await cookidoo.create_custom_recipe(
+                CookidooCreateCustomRecipe(
+                    name="Test Recipe",
+                    ingredients=["flour"],
+                    instructions=["Mix"],
+                    serving_size=4,
+                    active_time=30,
+                    total_time=60,
+                )
+            )
+
+        assert any(
+            "Orphaned custom recipe stub id: 01K2CTJ9Y1BABRG5MXK44CFZS4" in note
+            for note in exc_info.value.__notes__
+        )
+
+    async def test_create_custom_recipe_from_model(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Create from the public model and return the complete recipe."""
+        _mock_create_and_update(mocked)
+        mocked.get(
+            UPDATE_URL,
+            payload=cast(CustomRecipesJSON, COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES)[
+                "items"
+            ][0],
+            status=HTTPStatus.OK,
+        )
+        recipe = CookidooCreateCustomRecipe(
+            name="Test Recipe",
+            ingredients=["200g flour"],
+            instructions=[
+                CookidooInstruction(
+                    "Cook",
+                    CookidooStepSettings(time=60, temperature=100, speed=2.5),
+                )
+            ],
+            serving_size=2,
+            active_time=600,
+            total_time=1800,
+            tools=[ThermomixMachineType.TM6],
+            image="prod/img/customer-recipe/smoke-test-recipe.jpg",
+        )
+
+        result = await cookidoo.create_custom_recipe(recipe)
+
+        assert result.id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        assert update_request.kwargs["json"]["instructions"] == [
+            {
+                "type": "STEP",
+                "text": "Cook",
+                "time": 60,
+                "temperature": 100,
+                "speed": 2.5,
+            }
+        ]
+        assert update_request.kwargs["json"]["cookTime"] == 1200
+        assert (
+            update_request.kwargs["json"]["image"]
+            == "prod/img/customer-recipe/smoke-test-recipe.jpg"
+        )
+        assert update_request.kwargs["json"]["isImageOwnedByUser"] is True
+
+    async def test_create_custom_recipe_validates_before_request(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Reject invalid input without leaving a blank remote recipe."""
+        recipe = CookidooCreateCustomRecipe(
+            name="Invalid",
+            ingredients=[],
+            instructions=[],
+            serving_size=0,
+            active_time=60,
+            total_time=30,
+        )
+
+        with pytest.raises(ValueError, match="servings"):
+            await cookidoo.create_custom_recipe(recipe)
+
+        assert mocked.requests == {}
+
+    async def test_create_custom_recipe_rejects_invalid_image(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Reject CDN/display image URLs before creating a stub."""
+        recipe = CookidooCreateCustomRecipe(
+            name="Invalid image",
+            ingredients=["flour"],
+            instructions=["Mix"],
+            serving_size=2,
+            active_time=60,
+            total_time=120,
+            image="https://assets.tmecosys.com/image/upload/recipe.jpg",
+        )
+
+        with pytest.raises(ValueError, match="customer-recipe"):
+            await cookidoo.create_custom_recipe(recipe)
+
+        assert mocked.requests == {}
+
+
+class TestUpdateCustomRecipe:
+    """Tests for partial custom recipe updates."""
+
+    async def test_update_custom_recipe(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Merge omitted fields, patch once, and reload the recipe."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        result = await cookidoo.update_custom_recipe(
+            "01K2CVHD1DXG1PVETNVV3JPKWW",
+            CookidooUpdateCustomRecipe(
+                name="Updated recipe",
+                instructions=[
+                    CookidooInstruction(
+                        "Heat",
+                        CookidooStepSettings(time=120, temperature="varoma", speed="2"),
+                    )
+                ],
+            ),
+        )
+
+        assert result.id == "01K2CVHD1DXG1PVETNVV3JPKWW"
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["name"] == "Updated recipe"
+        assert payload["ingredients"] == [
+            {"type": "INGREDIENT", "text": ingredient}
+            for ingredient in cast(
+                list[str],
+                cast(CustomRecipeJSON, COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE)[
+                    "recipeContent"
+                ]["recipeIngredient"],
+            )
+        ]
+        assert payload["instructions"] == [
+            {
+                "type": "STEP",
+                "text": "Heat",
+                "time": 120,
+                "temperature": "varoma",
+                "speed": "2",
+            }
+        ]
+        assert payload["prepTime"] == 600
+        assert payload["cookTime"] == 1200
+        assert payload["totalTime"] == 1800
+
+    async def test_edit_preserves_structured_recipe_fields(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Keep structured instructions and metadata when editing one field."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/structured-recipe"
+        response: CustomRecipeJSON = {
+            "recipeId": "structured-recipe",
+            "workStatus": "PUBLIC",
+            "recipeContent": {
+                "name": "Original",
+                "prepTime": 60,
+                "totalTime": 180,
+                "tools": ["TM6"],
+                "yield": {"value": 2, "unitText": "serving"},
+                "ingredients": [{"type": "INGREDIENT", "text": "water"}],
+                "instructions": [
+                    {
+                        "type": "STEP",
+                        "text": "Heat water",
+                        "time": 120,
+                        "temperature": 100,
+                        "speed": "2",
+                        "annotations": [
+                            {
+                                "type": "INGREDIENT",
+                                "data": {"description": "water"},
+                                "position": {"offset": 5, "length": 5},
+                            },
+                            {
+                                "type": "FUTURE_MODE",
+                                "name": "future",
+                                "data": {"unknown": {"enabled": True}},
+                                "position": {"offset": 0, "length": 4},
+                            },
+                        ],
+                    }
+                ],
+                "hints": "first\nsecond",
+                "isImageOwnedByUser": True,
+                "recipeMetadata": {"requiresAnnotationsCheck": True},
+            },
+        }
+        mocked.get(url, payload=response, status=HTTPStatus.OK, repeat=True)
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "structured-recipe", CookidooUpdateCustomRecipe(name="Updated")
+        )
+
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["instructions"] == response["recipeContent"]["instructions"]
+        assert payload["hints"] == "first\nsecond"
+        assert payload["yield"] == {"value": 2, "unitText": "serving"}
+        assert payload["workStatus"] == "PUBLIC"
+        assert payload["image"] is None
+        assert payload["isImageOwnedByUser"] is False
+        assert payload["recipeMetadata"] == {"requiresAnnotationsCheck": True}
+
+    async def test_update_drops_display_image_urls(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Do not echo CDN/display image URLs back to the update endpoint."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "01K2CVHD1DXG1PVETNVV3JPKWW",
+            CookidooUpdateCustomRecipe(name="Updated without image echo"),
+        )
+
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["name"] == "Updated without image echo"
+        assert payload["image"] is None
+        assert payload["isImageOwnedByUser"] is False
+
+    async def test_update_keeps_valid_customer_recipe_image(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Preserve customer-recipe image paths accepted by Cookidoo."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/image-recipe"
+        response: CustomRecipeJSON = {
+            "recipeId": "image-recipe",
+            "workStatus": "PRIVATE",
+            "recipeContent": {
+                "name": "Original",
+                "prepTime": 60,
+                "totalTime": 180,
+                "tools": ["TM7"],
+                "yield": {"value": 2, "unitText": "portion"},
+                "ingredients": [],
+                "instructions": [],
+                "image": "prod/img/customer-recipe/my-photo.jpg",
+                "isImageOwnedByUser": True,
+            },
+        }
+        mocked.get(url, payload=response, status=HTTPStatus.OK, repeat=True)
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "image-recipe", CookidooUpdateCustomRecipe(name="Updated")
+        )
+
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["image"] == "prod/img/customer-recipe/my-photo.jpg"
+        assert payload["isImageOwnedByUser"] is True
+
+    async def test_update_custom_recipe_rejects_invalid_image(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Reject CDN/display image URLs before fetching the existing recipe."""
+        with pytest.raises(ValueError, match="customer-recipe"):
+            await cookidoo.update_custom_recipe(
+                "01K2CVHD1DXG1PVETNVV3JPKWW",
+                CookidooUpdateCustomRecipe(
+                    image="https://assets.tmecosys.com/image/upload/recipe.jpg",
+                    image_owned_by_user=True,
+                ),
+            )
+
+        assert mocked.requests == {}
+
+    async def test_update_custom_recipe_image_ownership_defaults(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Default ownership to True when a caller supplies a new image."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "01K2CVHD1DXG1PVETNVV3JPKWW",
+            CookidooUpdateCustomRecipe(
+                image="prod/img/customer-recipe/new-photo.jpg",
+            ),
+        )
+
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["image"] == "prod/img/customer-recipe/new-photo.jpg"
+        assert payload["isImageOwnedByUser"] is True
+
+    async def test_update_custom_recipe_explicit_image_ownership(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Honor an explicit image_owned_by_user value from the caller."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "01K2CVHD1DXG1PVETNVV3JPKWW",
+            CookidooUpdateCustomRecipe(
+                image="prod/img/customer-recipe/shared-photo.jpg",
+                image_owned_by_user=False,
+            ),
+        )
+
+        update_request = next(
+            calls[0]
+            for (method, _url), calls in mocked.requests.items()
+            if str(method).upper() == "PATCH"
+        )
+        payload = update_request.kwargs["json"]
+        assert payload["image"] == "prod/img/customer-recipe/shared-photo.jpg"
+        assert payload["isImageOwnedByUser"] is False
+
+    async def test_update_custom_recipe_unauthorized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Propagate authorization failures from the PATCH request."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
+        mocked.get(
+            url,
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+        )
+        mocked.patch(
+            url,
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": "expired"},
+        )
+
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.update_custom_recipe(
+                "01K2CVHD1DXG1PVETNVV3JPKWW",
+                CookidooUpdateCustomRecipe(name="Updated"),
+            )
+
+
+# ======================================================================
+# Tests for _process_recipe_steps
+# ======================================================================
+
+
+class TestProcessRecipeSteps:
+    """Tests for _process_recipe_steps helper."""
+
+    def test_plain_string_step(self) -> None:
+        """Test that a plain string step is converted correctly."""
+        steps = ["Mix well"]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert len(result) == 1
+        assert result[0]["type"] == "STEP"
+        assert result[0]["text"] == "Mix well"
+        assert "annotations" not in result[0]
+
+    def test_structured_step_without_annotations(self) -> None:
+        """Test a structured step without annotations."""
+        steps = [CookidooInstruction("Mix well")]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result == [{"type": "STEP", "text": "Mix well"}]
+
+    def test_tts_annotation(self) -> None:
+        """Test TTS annotation with offset and length calculation."""
+        steps = [
+            CookidooInstruction(
+                "Mix 2 min/speed 4",
+                annotations=[
+                    CookidooTTSAnnotation("2 min/speed 4", time=120, speed="4")
+                ],
+            )
+        ]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=["flour"])
+
+        assert len(result) == 1
+        ann = result[0]["annotations"][0]
+        assert ann["type"] == "TTS"
+        assert ann["data"] == {"time": 120, "speed": "4"}
+        assert ann["position"]["offset"] == 4  # "Mix " = 4 chars
+        assert ann["position"]["length"] == 13  # "2 min/speed 4"
+
+    def test_ingredient_annotation_valid(self) -> None:
+        """Test valid INGREDIENT annotation passes validation."""
+        steps = [
+            CookidooInstruction(
+                "Add 200g flour and mix",
+                annotations=[CookidooIngredientAnnotation("200g flour", "200g flour")],
+            )
+        ]
+        result = Cookidoo._process_recipe_steps(
+            steps, ingredients=["200g flour", "2 eggs"]
+        )
+
+        assert len(result) == 1
+        ann = result[0]["annotations"][0]
+        assert ann["type"] == "INGREDIENT"
+        assert ann["position"]["offset"] == 4  # "Add "
+
+    def test_ingredient_annotation_invalid(self) -> None:
+        """Test INGREDIENT annotation with missing ingredient raises ValueError."""
+        steps = [
+            CookidooInstruction(
+                "Add 200g flour and mix",
+                annotations=[CookidooIngredientAnnotation("200g flour", "200g flour")],
+            )
+        ]
+        with pytest.raises(
+            ValueError, match="not found in the recipe's ingredient list"
+        ):
+            Cookidoo._process_recipe_steps(steps, ingredients=["sugar", "butter"])
+
+    def test_slot_not_found_in_text(self) -> None:
+        """Test that a missing slot in step text raises ValueError."""
+        steps = [
+            CookidooInstruction(
+                "Mix well",
+                annotations=[CookidooTTSAnnotation("nonexistent slot", time=60)],
+            )
+        ]
+        with pytest.raises(ValueError, match="not found in step text"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_varoma_temperature_removes_unit(self) -> None:
+        """Test that varoma temperature has its unit removed."""
+        steps = [
+            CookidooInstruction(
+                "Cook Varoma/speed 1",
+                annotations=[
+                    CookidooTTSAnnotation(
+                        "Varoma/speed 1",
+                        time=300,
+                        speed="1",
+                        temperature=CookidooTemperatureSetting("varoma"),
+                    )
+                ],
+            )
+        ]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        temp = cast(
+            dict[str, object], result[0]["annotations"][0]["data"]["temperature"]
+        )
+        assert "unit" not in temp
+        assert temp["value"] == "varoma"
+
+    def test_varoma_temperature_normalizes_value_case(self) -> None:
+        """Test that a mixed-case Varoma value is normalized for the API."""
+        steps = [
+            CookidooInstruction(
+                "Cook Varoma/speed 1",
+                annotations=[
+                    CookidooTTSAnnotation(
+                        "Varoma/speed 1",
+                        time=300,
+                        speed="1",
+                        temperature=CookidooTemperatureSetting("Varoma"),
+                    )
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"]["temperature"] == {"value": "varoma"}
+
+    def test_normal_temperature_keeps_unit(self) -> None:
+        """Test that a normal temperature keeps its unit intact."""
+        steps = [
+            CookidooInstruction(
+                "Heat 100C/speed 2",
+                annotations=[
+                    CookidooTTSAnnotation(
+                        "100C/speed 2",
+                        time=300,
+                        speed="2",
+                        temperature=CookidooTemperatureSetting("100"),
+                    )
+                ],
+            )
+        ]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        temp = cast(
+            dict[str, object], result[0]["annotations"][0]["data"]["temperature"]
+        )
+        assert temp["unit"] == "C"
+        assert temp["value"] == "100"
+
+    def test_mode_annotation_with_name(self) -> None:
+        """Test MODE annotation includes the name field."""
+        steps = [
+            CookidooInstruction(
+                "Knead dough 2 min",
+                annotations=[
+                    CookidooModeAnnotation("dough 2 min", ThermomixMode.DOUGH, time=120)
+                ],
+            )
+        ]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        ann = result[0]["annotations"][0]
+        assert ann["type"] == "MODE"
+        assert ann["name"] == "dough"
+        assert ann["data"] == {"time": 120}
+
+    def test_mode_annotation_full_settings(self) -> None:
+        """Serialize every supported MODE setting with enum values."""
+        steps = [
+            CookidooInstruction(
+                "Brown with Varoma",
+                annotations=[
+                    CookidooModeAnnotation(
+                        slot="Brown with Varoma",
+                        mode=ThermomixMode.BROWNING,
+                        time=300,
+                        temperature=CookidooTemperatureSetting(
+                            ThermomixTemperature.VAROMA
+                        ),
+                        speed=ThermomixSpeed.SPEED_1,
+                        direction=ThermomixDirection.CCW,
+                        power=ThermomixBrowningPower.INTENSE,
+                        accessory=ThermomixSteamingAccessory.VAROMA,
+                    )
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0] == {
+            "type": "MODE",
+            "name": "browning",
+            "data": {
+                "time": 300,
+                "temperature": {"value": "varoma"},
+                "speed": "1",
+                "direction": "CCW",
+                "power": "Intense",
+                "accessory": "Varoma",
+            },
+            "position": {"offset": 0, "length": 17},
+        }
+
+    def test_custom_annotation_preserves_unknown_data(self) -> None:
+        """Keep future annotation types and fields unchanged."""
+        steps = [
+            CookidooInstruction(
+                "Use future mode",
+                annotations=[
+                    CookidooCustomAnnotation(
+                        type="FUTURE_MODE",
+                        slot="future mode",
+                        data={"newField": {"enabled": True}},
+                        name="future",
+                    )
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0] == {
+            "type": "FUTURE_MODE",
+            "name": "future",
+            "data": {"newField": {"enabled": True}},
+            "position": {"offset": 4, "length": 11},
+        }
+
+    def test_direct_settings_and_annotations_coexist(self) -> None:
+        """Serialize direct guided settings and positioned annotations together."""
+        steps = [
+            CookidooInstruction(
+                "Add water and heat",
+                settings=CookidooStepSettings(time=120, temperature=100, speed=2),
+                annotations=[CookidooIngredientAnnotation("water", "water")],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=["water"])
+
+        assert result[0]["time"] == 120
+        assert result[0]["temperature"] == 100
+        assert result[0]["speed"] == 2
+        assert result[0]["annotations"][0]["position"] == {
+            "offset": 4,
+            "length": 5,
+        }
+
+    def test_repeated_slot_uses_first_occurrence(self) -> None:
+        """Preserve the previous first-match behavior for repeated slots."""
+        steps = [
+            CookidooInstruction(
+                "mix, then mix again",
+                annotations=[CookidooTTSAnnotation("mix", time=10)],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["position"] == {
+            "offset": 0,
+            "length": 3,
+        }
+
+    def test_mixed_string_and_dict_steps(self) -> None:
+        """Test a mix of plain strings and typed annotated steps."""
+        steps: list[str | CookidooInstruction] = [
+            "Preheat oven",
+            CookidooInstruction(
+                "Mix 1 min/speed 5",
+                annotations=[
+                    CookidooTTSAnnotation("1 min/speed 5", time=60, speed="5")
+                ],
+            ),
+            "Serve warm",
+        ]
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert len(result) == 3
+        assert result[0] == {"type": "STEP", "text": "Preheat oven"}
+        assert "annotations" in result[1]
+        assert result[2] == {"type": "STEP", "text": "Serve warm"}
+
+    def test_empty_annotation_slot_raises(self) -> None:
+        """Reject annotations without a slot before calculating offsets."""
+        steps = [
+            CookidooInstruction(
+                "Mix well",
+                annotations=[CookidooTTSAnnotation("", time=60)],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation slot must not be empty"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_tts_annotation_time_raises(self) -> None:
+        """Reject negative TTS annotation times."""
+        steps = [
+            CookidooInstruction(
+                "Mix 1 min",
+                annotations=[CookidooTTSAnnotation("1 min", time=-1)],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_mode_annotation_time_raises(self) -> None:
+        """Reject negative MODE annotation times."""
+        steps = [
+            CookidooInstruction(
+                "Knead dough",
+                annotations=[
+                    CookidooModeAnnotation("dough", ThermomixMode.DOUGH, time=-5)
+                ],
+            )
+        ]
+
+        with pytest.raises(ValueError, match="Annotation time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_empty_custom_annotation_type_raises(self) -> None:
+        """Reject custom annotations without a type."""
+        steps = [
+            CookidooInstruction(
+                "Use future mode",
+                annotations=[
+                    CookidooCustomAnnotation(
+                        type="",
+                        slot="future mode",
+                        data={"enabled": True},
+                    )
+                ],
+            )
+        ]
+
+        with pytest.raises(
+            ValueError, match="Custom annotation type must not be empty"
+        ):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_negative_instruction_time_raises(self) -> None:
+        """Reject negative direct instruction settings."""
+        steps = [CookidooInstruction("Heat", settings=CookidooStepSettings(time=-1))]
+
+        with pytest.raises(ValueError, match="Instruction time must not be negative"):
+            Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+    def test_tts_annotation_serializes_direction(self) -> None:
+        """Serialize enum-backed TTS direction values."""
+        steps = [
+            CookidooInstruction(
+                "Mix CW",
+                annotations=[
+                    CookidooTTSAnnotation(
+                        "CW",
+                        time=30,
+                        direction=ThermomixDirection.CW,
+                    )
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"]["direction"] == "CW"
+
+    def test_tts_annotation_without_time_omits_field(self) -> None:
+        """Omit optional TTS time when it is not provided."""
+        steps = [
+            CookidooInstruction(
+                "Mix slowly",
+                annotations=[CookidooTTSAnnotation("slowly", speed="2")],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"] == {"speed": "2"}
+
+    def test_mode_annotation_without_time(self) -> None:
+        """Omit optional MODE time when it is not provided."""
+        steps = [
+            CookidooInstruction(
+                "Knead dough",
+                annotations=[
+                    CookidooModeAnnotation("dough", ThermomixMode.DOUGH),
+                ],
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["annotations"][0]["data"] == {}
+
+    def test_instruction_settings_only_speed(self) -> None:
+        """Serialize partial direct instruction settings."""
+        steps = [
+            CookidooInstruction(
+                "Mix",
+                settings=CookidooStepSettings(speed=ThermomixSpeed.SPEED_3),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0] == {"type": "STEP", "text": "Mix", "speed": "3"}
+
+    def test_instruction_settings_only_temperature(self) -> None:
+        """Serialize direct instruction temperature without speed."""
+        steps = [
+            CookidooInstruction(
+                "Heat",
+                settings=CookidooStepSettings(temperature=100),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0] == {"type": "STEP", "text": "Heat", "temperature": 100}
+
+    def test_instruction_settings_use_enum_values(self) -> None:
+        """Serialize enum-backed direct instruction settings."""
+        steps = [
+            CookidooInstruction(
+                "Heat",
+                settings=CookidooStepSettings(
+                    time=30,
+                    temperature=ThermomixTemperature.VAROMA,
+                    speed=ThermomixSpeed.SPEED_2,
+                ),
+            )
+        ]
+
+        result = Cookidoo._process_recipe_steps(steps, ingredients=[])
+
+        assert result[0]["temperature"] == "varoma"
+        assert result[0]["speed"] == "2"
+
+
+class TestBuildCustomRecipePayload:
+    """Tests for custom recipe payload validation."""
+
+    def test_rejects_blank_name(self) -> None:
+        """Reject blank recipe names before building the payload."""
+        with pytest.raises(ValueError, match="Recipe name must not be empty"):
+            Cookidoo._build_custom_recipe_payload(
+                name="   ",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=0,
+                total_time=0,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_negative_times(self) -> None:
+        """Reject negative prep or total times."""
+        with pytest.raises(ValueError, match="Recipe times must not be negative"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=-1,
+                total_time=10,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_active_time_greater_than_total(self) -> None:
+        """Reject payloads where active time exceeds total time."""
+        with pytest.raises(ValueError, match="Active time must not exceed total time"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=120,
+                total_time=60,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text="portion",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+    def test_rejects_blank_unit_text(self) -> None:
+        """Reject blank yield unit text."""
+        with pytest.raises(ValueError, match="Recipe unit text must not be empty"):
+            Cookidoo._build_custom_recipe_payload(
+                name="Recipe",
+                ingredients=[],
+                steps=[],
+                servings=1,
+                active_time=0,
+                total_time=60,
+                hints=[],
+                machine_types=[ThermomixMachineType.TM7],
+                unit_text=" ",
+                image=None,
+                image_owned_by_user=False,
+                work_status="PRIVATE",
+                requires_annotations_check=False,
+            )
+
+
+# ======================================================================
+# Tests for Thermomix Enums
+# ======================================================================
+
+
+class TestThermomixEnums:
+    """Tests for Thermomix enum types."""
+
+    def test_machine_type_values(self) -> None:
+        """Test ThermomixMachineType enum has expected members."""
+        assert ThermomixMachineType.TM5.value == "TM5"
+        assert ThermomixMachineType.TM6.value == "TM6"
+        assert ThermomixMachineType.TM7.value == "TM7"
+        assert ThermomixMachineType.TM31.value == "TM31"
+        assert len(ThermomixMachineType) == 4
+
+    def test_machine_type_is_str(self) -> None:
+        """Test ThermomixMachineType members behave as strings."""
+        assert isinstance(ThermomixMachineType.TM7, str)
+        assert ThermomixMachineType.TM7 == "TM7"
+
+    def test_speed_values(self) -> None:
+        """Test ThermomixSpeed enum has soft and numeric values."""
+        assert ThermomixSpeed.SOFT.value == "soft"
+        assert ThermomixSpeed.SPEED_1.value == "1"
+        assert ThermomixSpeed.SPEED_10.value == "10"
+        # str behaviour
+        assert isinstance(ThermomixSpeed.SOFT, str)
+
+    def test_direction_values(self) -> None:
+        """Test ThermomixDirection enum values."""
+        assert ThermomixDirection.CW.value == "CW"
+        assert ThermomixDirection.CCW.value == "CCW"
+        assert len(ThermomixDirection) == 2
+
+    def test_temperature_values(self) -> None:
+        """Test ThermomixTemperature enum includes varoma and numeric values."""
+        assert ThermomixTemperature.VAROMA.value == "varoma"
+        assert ThermomixTemperature.TEMP_37.value == "37"
+        assert ThermomixTemperature.TEMP_120.value == "120"
+        assert isinstance(ThermomixTemperature.VAROMA, str)
+
+    def test_mode_values(self) -> None:
+        """Test ThermomixMode enum values."""
+        assert ThermomixMode.DOUGH.value == "dough"
+        assert ThermomixMode.BROWNING.value == "browning"
+        assert ThermomixMode.TURBO.value == "turbo"
+        assert ThermomixMode.STEAMING.value == "steaming"
+        assert ThermomixMode.BLEND.value == "blend"
+        assert ThermomixMode.WARM_UP.value == "warm_up"
+        assert ThermomixMode.RICE_COOKER.value == "rice_cooker"
+
+    def test_browning_power_values(self) -> None:
+        """Test ThermomixBrowningPower enum values."""
+        assert ThermomixBrowningPower.GENTLE.value == "Gentle"
+        assert ThermomixBrowningPower.INTENSE.value == "Intense"
+        assert len(ThermomixBrowningPower) == 2
+
+    def test_steaming_accessory_values(self) -> None:
+        """Test ThermomixSteamingAccessory enum values."""
+        assert ThermomixSteamingAccessory.VAROMA.value == "Varoma"
+        assert ThermomixSteamingAccessory.SIMMERING_BASKET.value == "SimmeringBasket"
+        assert (
+            ThermomixSteamingAccessory.VAROMA_AND_SIMMERING_BASKET.value
+            == "VaromaAndSimmeringBasket"
+        )
+        assert len(ThermomixSteamingAccessory) == 3

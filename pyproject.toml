@@ -128,6 +128,7 @@ ignore = [
     "PLR0912", # Too many branches ({branches} > {max_branches})
     "PLR0913", # Too many arguments to function call ({c_args} > {max_args})
     "PLR0915", # Too many statements ({statements} > {max_statements})
+    "PLR0917", # Too many positional arguments ({c_pos} > {max_pos})
     "PLR2004",  # Magic value used in comparison, consider replacing {value} with a constant variable
     "TRY003", # Avoid specifying long messages outside the exception class
 
@@ -187,7 +188,7 @@ log_cli_date_format = "%Y%m%dT%H%M%S."
 
 [tool.coverage.run]
 branch = true
-source = ["tests"]
+source = ["cookidoo_api"]
 
 [tool.coverage.report]
 format="text"

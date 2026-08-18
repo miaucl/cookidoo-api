@@ -6,6 +6,10 @@ from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.helpers import (
+    _extract_custom_recipe_ingredients,
+    _parse_annotation_temperature,
+    _parse_custom_recipe_annotation,
+    _parse_custom_recipe_instructions,
     cookidoo_calendar_day_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_recipe_details_from_json,
@@ -20,12 +24,23 @@ from cookidoo_api.helpers import (
 from cookidoo_api.raw_types import (
     CalendarDayJSON,
     CustomRecipeJSON,
+    CustomRecipesJSON,
     DescriptiveAssetJSON,
     RecipeDetailsJSON,
     RecipeJSON,
     SearchResultJSON,
 )
-from cookidoo_api.types import CookidooLocalizationConfig, ThermomixMachineType
+from cookidoo_api.types import (
+    CookidooCustomAnnotation,
+    CookidooIngredientAnnotation,
+    CookidooInstruction,
+    CookidooLocalizationConfig,
+    CookidooModeAnnotation,
+    CookidooStepSettings,
+    CookidooTemperatureSetting,
+    CookidooTTSAnnotation,
+    ThermomixMachineType,
+)
 from tests.responses import (
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
@@ -265,9 +280,8 @@ class TestRecipeImagesAndUrls:
     def test_cookidoo_custom_recipe_from_json_with_list_format(self) -> None:
         """Test cookidoo_custom_recipe_from_json handles list response format."""
         recipe_json = cast(
-            CustomRecipeJSON,
-            COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES["items"][0],  # type: ignore[index]
-        )
+            CustomRecipesJSON, COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES
+        )["items"][0]
         localization = CookidooLocalizationConfig(
             country_code="ch", language="de-CH", url="https://cookidoo.ch"
         )
@@ -281,8 +295,8 @@ class TestRecipeImagesAndUrls:
             "65 g di olio extravergine di oliva",
         ]
         assert result.instructions == [
-            "Mettere nel boccale le cipolle.",
-            "Servire subito.",
+            CookidooInstruction("Mettere nel boccale le cipolle."),
+            CookidooInstruction("Servire subito."),
         ]
         assert result.tools == ["TM7", "TM6", "TM5"]
         assert result.active_time == 600
@@ -311,6 +325,264 @@ class TestRecipeImagesAndUrls:
         assert result.active_time == 0
         assert result.serving_size == 0
         assert result.tools == []
+
+    def test_cookidoo_custom_recipe_from_json_with_empty_optional_values(self) -> None:
+        """Test empty times and missing text lists."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Minimal recipe",
+                    "totalTime": "",
+                    "prepTime": "",
+                    "yield": {"value": 1, "unitText": "portion"},
+                    "ingredients": [{"unexpected": "value"}],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.total_time == 0
+        assert result.active_time == 0
+        assert result.ingredients == []
+        assert result.instructions == []
+
+    def test_custom_recipe_prefers_structured_instructions(self) -> None:
+        """Structured instructions take precedence over their text-only projection."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Structured recipe",
+                    "recipeInstructions": ["Legacy text projection"],
+                    "instructions": [
+                        {"type": "STEP", "text": "Heat water", "time": 30}
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.instructions == [
+            CookidooInstruction("Heat water", CookidooStepSettings(time=30))
+        ]
+
+    def test_custom_recipe_parses_recipe_ingredient_objects(self) -> None:
+        """Extract ingredient text from structured recipeIngredient items."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Structured ingredients",
+                    "recipeIngredient": [
+                        {"type": "INGREDIENT", "text": "100 g flour"},
+                        "1 egg",
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.ingredients == ["100 g flour", "1 egg"]
+
+    def test_custom_recipe_parses_instruction_annotations(self) -> None:
+        """Parse structured instructions with typed annotations."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Annotated recipe",
+                    "ingredients": [{"type": "INGREDIENT", "text": "flour"}],
+                    "instructions": [
+                        {
+                            "type": "STEP",
+                            "text": "Add flour and mix",
+                            "annotations": [
+                                {
+                                    "type": "INGREDIENT",
+                                    "data": {"description": "flour"},
+                                    "position": {"offset": 4, "length": 5},
+                                },
+                                {
+                                    "type": "TTS",
+                                    "data": {
+                                        "time": 60,
+                                        "temperature": {"value": 100, "unit": "C"},
+                                        "speed": "4",
+                                        "direction": "CW",
+                                    },
+                                    "position": {"offset": 14, "length": 3},
+                                },
+                                {
+                                    "type": "MODE",
+                                    "name": "dough",
+                                    "data": {
+                                        "time": 120,
+                                        "speed": "1",
+                                        "direction": "CCW",
+                                        "power": "Intense",
+                                        "accessory": "Varoma",
+                                    },
+                                    "position": {"offset": 14, "length": 3},
+                                },
+                                {
+                                    "type": "FUTURE",
+                                    "data": {"enabled": True},
+                                    "position": {"offset": 0, "length": 1},
+                                },
+                            ],
+                        }
+                    ],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        instruction = result.instructions[0]
+        assert isinstance(instruction, CookidooInstruction)
+        assert instruction.annotations[0] == CookidooIngredientAnnotation(
+            "flour", "flour"
+        )
+        assert instruction.annotations[1] == CookidooTTSAnnotation(
+            slot="mix",
+            time=60,
+            temperature=CookidooTemperatureSetting(100, "C"),
+            speed="4",
+            direction="CW",
+        )
+        assert isinstance(instruction.annotations[2], CookidooModeAnnotation)
+        assert instruction.annotations[3] == CookidooCustomAnnotation(
+            type="FUTURE",
+            slot="A",
+            data={"enabled": True},
+        )
+
+    def test_custom_recipe_hints_list_is_preserved(self) -> None:
+        """Parse list-based hint responses."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "recipeContent": {
+                    "name": "Hints recipe",
+                    "hints": ["first hint", "second hint", 42],
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.hints == ["first hint", "second hint"]
+
+    def test_extract_custom_recipe_ingredients_handles_none(self) -> None:
+        """Return an empty list when the API omits ingredient data."""
+        assert _extract_custom_recipe_ingredients(None) == []
+
+    def test_parse_custom_recipe_instructions_skips_invalid_items(self) -> None:
+        """Ignore malformed instruction entries while keeping valid ones."""
+        assert _parse_custom_recipe_instructions("not-a-list") == []
+        assert _parse_custom_recipe_instructions(
+            [
+                "Plain step",
+                {"type": "STEP"},
+                {"type": "STEP", "text": 42},
+                123,
+                {
+                    "type": "STEP",
+                    "text": "Heat",
+                    "time": 30,
+                    "temperature": 100,
+                    "speed": 2,
+                },
+            ]
+        ) == [
+            "Plain step",
+            CookidooInstruction(
+                "Heat",
+                CookidooStepSettings(time=30, temperature=100, speed=2),
+            ),
+        ]
+
+    def test_parse_custom_recipe_annotation_handles_invalid_shapes(self) -> None:
+        """Ignore malformed annotations and invalid temperature objects."""
+        assert _parse_custom_recipe_annotation("invalid", "text") is None
+        assert (
+            _parse_custom_recipe_annotation(
+                {"type": "INGREDIENT", "data": "invalid", "position": {}},
+                "text",
+            )
+            is None
+        )
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": 42},
+                    "position": {"offset": 0, "length": 1},
+                },
+                "text",
+            )
+            == CookidooCustomAnnotation(
+                type="INGREDIENT",
+                slot="t",
+                data={"description": 42},
+            )
+        )
+        assert _parse_annotation_temperature({"value": 1.5}) is None
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": "flour"},
+                    "position": {"offset": 0, "length": "bad"},
+                },
+                "flour",
+            )
+            == CookidooIngredientAnnotation("", "flour")
+        )
+        assert (
+            _parse_custom_recipe_annotation(
+                {
+                    "type": "INGREDIENT",
+                    "data": {"description": "flour"},
+                    "position": "bad",
+                },
+                "flour",
+            )
+            == CookidooIngredientAnnotation("", "flour")
+        )
+
+    def test_custom_recipe_tolerates_malformed_optional_metadata(self) -> None:
+        """Optional response metadata cannot prevent a recipe from being edited."""
+        recipe_json = cast(
+            CustomRecipeJSON,
+            {
+                "recipeId": "01CUSTOMRECIPEID",
+                "workStatus": None,
+                "recipeContent": {
+                    "name": "Minimal recipe",
+                    "yield": {"value": "invalid", "unitText": None},
+                    "hints": None,
+                    "recipeMetadata": None,
+                },
+            },
+        )
+
+        result = cookidoo_custom_recipe_from_json(recipe_json)
+
+        assert result.hints == []
+        assert result.serving_size == 0
+        assert result.unit_text == "portion"
+        assert result.work_status == "PRIVATE"
+        assert result.requires_annotations_check is False
 
     def test_cookidoo_calendar_day_from_json_with_images(self) -> None:
         """Test cookidoo_calendar_day_from_json extracts images correctly."""
@@ -441,6 +713,20 @@ class TestCookidooSearchResultFromJson:
         result = cookidoo_search_result_from_json(data, None)
         assert result.recipes == []
         assert result.total == 5
+
+    def test_search_result_empty_data_does_not_fall_back_to_recipes(self) -> None:
+        """An explicit empty 'data' list must not fall back to 'recipes'."""
+        data = cast(
+            SearchResultJSON,
+            {
+                "data": [],
+                "recipes": [{"id": "r1", "title": "stale-fallback"}],
+                "total": 0,
+            },
+        )
+        result = cookidoo_search_result_from_json(data, None)
+        assert result.recipes == []
+        assert result.total == 0
 
     def test_search_result_with_descriptive_assets(self) -> None:
         """Search result extracts thumbnail and image from descriptiveAssets."""

@@ -206,9 +206,43 @@ class CustomRecipeYieldJSON(TypedDict):
 
 
 class CustomRecipeTextJSON(TypedDict):
-    """A text item in a custom recipe list response."""
+    """A text item used in custom recipe ingredients and instructions."""
 
+    type: NotRequired[Literal["INGREDIENT", "STEP"]]
     text: str
+
+
+class RecipeAnnotationPositionJSON(TypedDict):
+    """Position of an annotation within a recipe step."""
+
+    offset: int
+    length: int
+
+
+class RecipeAnnotationJSON(TypedDict):
+    """Processed annotation sent to the custom recipe API."""
+
+    type: str
+    data: dict[str, object]
+    position: RecipeAnnotationPositionJSON
+    name: NotRequired[str]
+
+
+class RecipeStepJSON(TypedDict):
+    """Processed step sent to the custom recipe API."""
+
+    type: str
+    text: str
+    annotations: NotRequired[list[RecipeAnnotationJSON]]
+    time: NotRequired[int]
+    temperature: NotRequired[int | str]
+    speed: NotRequired[float | str]
+
+
+class CustomRecipeMetadataJSON(TypedDict):
+    """Metadata sent when updating a custom recipe."""
+
+    requiresAnnotationsCheck: bool
 
 
 CustomRecipeContentJSON = TypedDict(
@@ -217,15 +251,19 @@ CustomRecipeContentJSON = TypedDict(
         "name": Required[str],
         "totalTime": str | int | float,
         "prepTime": str | int | float,
+        "activeTime": str | int | float,
         "tool": list[str],
         "tools": list[str],
         "recipeYield": CustomRecipeYieldJSON,
         "yield": CustomRecipeYieldJSON,
         "recipeIngredient": list[str | CustomRecipeTextJSON],
         "ingredients": list[str | CustomRecipeTextJSON],
-        "recipeInstructions": list[str | CustomRecipeTextJSON],
-        "instructions": list[str | CustomRecipeTextJSON],
+        "recipeInstructions": list[str | RecipeStepJSON],
+        "instructions": list[str | RecipeStepJSON],
         "image": str | None,
+        "isImageOwnedByUser": bool,
+        "hints": str | list[str],
+        "recipeMetadata": CustomRecipeMetadataJSON,
     },
     total=False,
 )
@@ -236,7 +274,34 @@ class CustomRecipeJSON(TypedDict):
 
     recipeId: str
     title: NotRequired[str]
+    workStatus: NotRequired[str]
     recipeContent: CustomRecipeContentJSON
+
+
+class CreateCustomRecipeJSON(TypedDict):
+    """The initial request used to create a blank custom recipe."""
+
+    recipeName: str
+
+
+UpdateCustomRecipeJSON = TypedDict(
+    "UpdateCustomRecipeJSON",
+    {
+        "name": str,
+        "image": str | None,
+        "isImageOwnedByUser": bool,
+        "tools": list[str],
+        "yield": CustomRecipeYieldJSON,
+        "prepTime": int,
+        "cookTime": int,
+        "totalTime": int,
+        "ingredients": list[CustomRecipeTextJSON],
+        "instructions": list[RecipeStepJSON],
+        "hints": str,
+        "workStatus": str,
+        "recipeMetadata": CustomRecipeMetadataJSON,
+    },
+)
 
 
 class CustomRecipesJSON(TypedDict):
