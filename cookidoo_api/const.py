@@ -6,6 +6,20 @@ DEFAULT_API_HEADERS: Final = {
     "ACCEPT": "application/json",
 }
 
+# A browser-like User-Agent for the login flow requests only. The login
+# flow is served behind Cloudflare and clients without a recognizable
+# browser User-Agent (e.g. Home Assistant's default "Home Assistant/x.y
+# aiohttp/x.y Python/x.y") are more likely to be flagged as bots, causing
+# intermittent 403s. This does not touch the caller's session defaults,
+# it is only sent with the login requests below.
+# See https://github.com/miaucl/cookidoo-api/issues/230
+LOGIN_HEADERS: Final = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+    ),
+}
+
 CIAM_LOGIN_SRV_URL: Final = (
     "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login"
 )
@@ -13,9 +27,7 @@ LOGIN_PATH: Final = "profile/{language}/login"
 LOGIN_REDIRECT: Final = "%2Ffoundation%2F{language}%2Ffor-you"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
 CUSTOM_RECIPES_PATH: Final = "created-recipes/{language}"
-CUSTOM_RECIPES_PATH_ACCEPT: Final = (
-    "application/vnd.vorwerk.customer-recipe.full+json"
-)
+CUSTOM_RECIPES_PATH_ACCEPT: Final = "application/vnd.vorwerk.customer-recipe.full+json"
 CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 ADD_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}"
 REMOVE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
