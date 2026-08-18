@@ -121,7 +121,7 @@ pre-commit run --all-files
 pytest tests/
 ```
 
-*(Note: If using the Devcontainer, these VS Code extensions are automatically installed for you)*
+> **Note:** If using the Devcontainer, these VS Code extensions are automatically installed for you.
 
 Following VSCode integrations may be helpful:
 
