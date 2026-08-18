@@ -3267,6 +3267,24 @@ class TestRemoveRecipeFromCalendar:
         assert data.id == "2025-03-04"
         assert data.recipes[0].id == "r214846"
 
+    async def test_remove_last_recipe_from_calendar(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for remove_recipe_from_calendar when the day becomes empty."""
+
+        mocked.delete(
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-03-04/recipes/r214846",
+            payload={"message": "Recipe Waffles was removed!", "content": None},
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.remove_recipe_from_calendar(
+            datetime.fromisoformat("2025-03-04").date(), "r214846"
+        )
+        assert data
+        assert data.id == "2025-03-04"
+        assert data.recipes == []
+
     @pytest.mark.parametrize(
         "exception",
         [
@@ -3433,6 +3451,24 @@ class TestRemoveCustomRecipeFromCalendar:
         )
         assert data
         assert data.id == "2025-08-11"
+
+    async def test_remove_last_custom_recipe_from_calendar(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test remove_custom_recipe_from_calendar when the day becomes empty."""
+
+        mocked.delete(
+            "https://cookidoo.ch/planning/de-CH/api/my-day/2025-08-11/recipes/r214846?recipeSource=CUSTOMER",
+            payload={"message": "Recipe removed!", "content": None},
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.remove_custom_recipe_from_calendar(
+            datetime.fromisoformat("2025-08-11").date(), "r214846"
+        )
+        assert data
+        assert data.id == "2025-08-11"
+        assert data.recipes == []
 
     @pytest.mark.parametrize(
         "exception",

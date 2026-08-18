@@ -310,6 +310,20 @@ class Cookidoo:
                 f"{operation.capitalize()} failed during parsing of request response."
             ) from e
 
+    @staticmethod
+    def _empty_calendar_day(day: date) -> CookidooCalendarDay:
+        """Build an empty calendar day for a day with no recipes left.
+
+        The API returns a null ``content`` when a recipe removal leaves a
+        calendar day with no recipes, since the (now empty) day no longer
+        exists as an entity to return.
+        """
+        return CookidooCalendarDay(
+            id=day.isoformat(),
+            title=day.isoformat(),
+            recipes=[],
+        )
+
     async def login(self) -> None:
         """Perform browser-based OAuth2 login.
 
@@ -1971,6 +1985,11 @@ class Cookidoo:
             await self._request_json("delete", url, "remove recipe from calendar"),
             "remove recipe from calendar",
         )
+        if result.get("content") is None:
+            # The API returns a null content when the removed recipe was the
+            # last one for the day, since the (now empty) day no longer
+            # exists as an entity.
+            return self._empty_calendar_day(day)
         return self._parse_result(
             "loading removed recipe",
             lambda: cookidoo_calendar_day_from_json(
@@ -2073,6 +2092,11 @@ class Cookidoo:
             ),
             "remove custom recipe from calendar",
         )
+        if result.get("content") is None:
+            # The API returns a null content when the removed recipe was the
+            # last one for the day, since the (now empty) day no longer
+            # exists as an entity.
+            return self._empty_calendar_day(day)
         return self._parse_result(
             "loading custom removed recipe",
             lambda: cookidoo_calendar_day_from_json(
