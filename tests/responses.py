@@ -342,6 +342,37 @@ COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE = {
     },
 }
 
+COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES: Final = {
+    "meta": {"recipeLimit": 150, "recipeLimitThreshold": 5},
+    "items": [
+        {
+            "recipeId": "01K2CTJ9Y1BABRG5MXK44CFZS4",
+            "authorId": "2d336b56-6c23-49bb-9543-5bdf0344eedf",
+            "modifiedAt": "2025-08-11T15:04:16.577Z",
+            "createdAt": "2025-08-11T15:04:16.577Z",
+            "status": "ACTIVE",
+            "workStatus": "PRIVATE",
+            "recipeContent": {
+                "name": "Vongole alla marinara",
+                "image": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/29F42E5A-098A-46BC-87C5-59CF7C81E44D/Derivates/43ADC698-B45F-41E2-A479-FA5BC32702C6",
+                "isBasedOn": "https://cookidoo.ch/recipes/recipe/en/r166987",
+                "prepTime": 600,
+                "totalTime": 1800,
+                "tools": ["TM7", "TM6", "TM5"],
+                "yield": {"value": 6, "unitText": "portion"},
+                "ingredients": [
+                    {"type": "INGREDIENT", "text": "130 g di cipolla"},
+                    {"type": "INGREDIENT", "text": "65 g di olio extravergine di oliva"},
+                ],
+                "instructions": [
+                    {"type": "STEP", "text": "Mettere nel boccale le cipolle."},
+                    {"type": "STEP", "text": "Servire subito."},
+                ],
+            },
+        }
+    ],
+}
+
 COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_RECIPE = {
     "recipeId": "01K2CTJ9Y1BABRG5MXK44CFZS4",
     "authorId": "2d336b56-6c23-49bb-9543-5bdf0344eedf",

@@ -1,5 +1,6 @@
 """Cookidoo API helpers."""
 
+from collections.abc import Sequence
 import json
 import logging
 import os
@@ -15,7 +16,9 @@ from cookidoo_api.raw_types import (
     CalenderDayRecipeJSON,
     CommunityProfileJSON,
     CustomCollectionJSON,
+    CustomRecipeContentJSON,
     CustomRecipeJSON,
+    CustomRecipeTextJSON,
     DescriptiveAssetJSON,
     IngredientJSON,
     ItemJSON,
@@ -387,32 +390,54 @@ def cookidoo_custom_recipe_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCustomRecipe:
     """Convert a custom recipe received from the API to a cookidoo custom recipe."""
-    total_time = isodate.parse_duration(
-        recipe["recipeContent"]["totalTime"]
-    ).total_seconds()
-    active_time = isodate.parse_duration(
-        recipe["recipeContent"]["prepTime"]
-    ).total_seconds()
+    def _duration_to_seconds(value: str | int | float | None) -> int:
+        if value is None:
+            return 0
+
+        if isinstance(value, int | float):
+            return int(value)
+
+        duration = isodate.parse_duration(value).total_seconds()
+        return int(duration) if isinstance(duration, float) else 0
+
+    def _extract_text_list(
+        value: Sequence[str | CustomRecipeTextJSON],
+    ) -> list[str]:
+        return [item["text"] if isinstance(item, dict) else item for item in value]
+
+    recipe_content: CustomRecipeContentJSON = recipe["recipeContent"]
+    total_time = _duration_to_seconds(recipe_content.get("totalTime"))
+    active_time = _duration_to_seconds(recipe_content.get("prepTime"))
 
     thumbnail: str | None = None
     image: str | None = None
 
-    recipe_content = recipe["recipeContent"]
     image = recipe_content.get("image", None)
     if image:
         thumbnail, image = _process_image_url(image)
 
     url = _construct_recipe_url(localization, recipe["recipeId"], "created-recipes")
+    recipe_yield = (
+        recipe_content.get("recipeYield")
+        or recipe_content.get("yield")
+        or {"value": 0, "unitText": ""}
+    )
 
     return CookidooCustomRecipe(
         id=recipe["recipeId"],
-        name=recipe["recipeContent"]["name"],
-        ingredients=recipe["recipeContent"]["recipeIngredient"],
-        instructions=recipe["recipeContent"]["recipeInstructions"],
-        serving_size=recipe["recipeContent"]["recipeYield"]["value"],
-        total_time=int(total_time) if isinstance(total_time, float) else 0,
-        active_time=int(active_time) if isinstance(active_time, float) else 0,
-        tools=recipe["recipeContent"]["tool"],
+        name=recipe_content["name"],
+        ingredients=_extract_text_list(
+            recipe_content.get("recipeIngredient")
+            or recipe_content.get("ingredients", [])
+        ),
+        instructions=_extract_text_list(
+            recipe_content.get("recipeInstructions")
+            or recipe_content.get("instructions", [])
+        ),
+        serving_size=recipe_yield["value"],
+        total_time=total_time,
+        active_time=active_time,
+        tools=recipe_content.get("tool") or recipe_content.get("tools", []),
         thumbnail=thumbnail,
         image=image,
         url=url,

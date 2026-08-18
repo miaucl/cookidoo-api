@@ -48,6 +48,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS,
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
+    COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES,
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
@@ -969,6 +970,100 @@ class TestGetCustomRecipe:
 
         with pytest.raises(exception):
             await cookidoo.get_custom_recipe("01K2CVHD1DXG1PVETNVV3JPKWW")
+
+
+class TestListCustomRecipes:
+    """Tests for list_custom_recipes method."""
+
+    async def test_list_custom_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for list_custom_recipes."""
+        mocked.get(
+            "https://cookidoo.ch/created-recipes/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.list_custom_recipes()
+
+        assert len(data) == 1
+        assert data[0].id == "01K2CTJ9Y1BABRG5MXK44CFZS4"
+        assert data[0].name == "Vongole alla marinara"
+        assert data[0].active_time == 600
+        assert data[0].total_time == 1800
+        assert data[0].ingredients == [
+            "130 g di cipolla",
+            "65 g di olio extravergine di oliva",
+        ]
+
+    async def test_list_custom_recipes_empty(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for list_custom_recipes with no recipes."""
+        mocked.get(
+            "https://cookidoo.ch/created-recipes/de-CH",
+            payload={"items": []},
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.list_custom_recipes()
+
+        assert data == []
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+        mocked.get(
+            "https://cookidoo.ch/created-recipes/de-CH",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.list_custom_recipes()
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://cookidoo.ch/created-recipes/de-CH",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.list_custom_recipes()
+
+    @pytest.mark.parametrize(
+        ("payload", "exception"),
+        [
+            ({}, CookidooParseException),
+            ({"items": None}, CookidooParseException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        payload: dict[str, object],
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://cookidoo.ch/created-recipes/de-CH",
+            status=HTTPStatus.OK,
+            payload=payload,
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.list_custom_recipes()
 
 
 class TestAddCustomRecipe:
