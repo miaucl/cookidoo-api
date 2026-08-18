@@ -1,0 +1,17 @@
+{
+	"name": "Cookidoo API",
+	"dockerComposeFile": "../docker-compose.yml",
+	"service": "dev",
+	"workspaceFolder": "/app",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"charliermarsh.ruff",
+				"davidanson.vscode-markdownlint"
+			]
+		}
+	},
+	"postCreateCommand": "git config --global --add safe.directory /app && pre-commit install"
+}
