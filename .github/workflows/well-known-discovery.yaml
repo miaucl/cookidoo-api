@@ -33,6 +33,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install requests~=2.32
+          pip install -e .
 
       - name: Run discovery
         id: discovery
@@ -60,8 +61,11 @@ jobs:
           {
             echo "## 🔍 Change summary"
             echo
+            echo "Detected changes to endpoints used by cookidoo-api (see"
+            echo "\`cookidoo_api/well_known.py\`'s \`ENDPOINT_RELS\`):"
+            echo
             echo '```json'
-            cat diff-summary.txt
+            cat diff-summary.json
             echo
             echo '```'
             echo
