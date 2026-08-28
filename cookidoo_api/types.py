@@ -69,6 +69,13 @@ class CookidooSubscription:
 
 
 @dataclass
+class CookidooDevice:
+    """A paired Thermomix appliance on the account."""
+
+    type: ThermomixMachineType
+
+
+@dataclass
 class CookidooIngredient:
     """Cookidoo ingredient type.
 

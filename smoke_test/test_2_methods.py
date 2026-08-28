@@ -5,7 +5,11 @@ from datetime import datetime
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
-from cookidoo_api.types import CookidooAdditionalItem, CookidooIngredientItem
+from cookidoo_api.types import (
+    CookidooAdditionalItem,
+    CookidooIngredientItem,
+    ThermomixMachineType,
+)
 
 
 class TestMethods:
@@ -28,6 +32,13 @@ class TestMethods:
             assert sub.type == "TRIAL"
         else:
             assert sub is None
+
+    async def test_cookidoo_get_devices(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo get devices."""
+        devices = await cookidoo.get_devices()
+        # The test account may or may not have a paired appliance.
+        for device in devices:
+            assert device.type in ThermomixMachineType
 
     @pytest.mark.parametrize(
         (

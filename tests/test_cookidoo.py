@@ -36,6 +36,9 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
+    COOKIDOO_TEST_RESPONSE_DEVICES,
+    COOKIDOO_TEST_RESPONSE_DEVICES_EMPTY,
+    COOKIDOO_TEST_RESPONSE_DEVICES_MULTIPLE,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
@@ -460,6 +463,70 @@ class TestGetActiveSubscription:
 
         data = await cookidoo.get_active_subscription()
         assert data is None
+
+    async def test_get_devices(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test for get_devices with a single appliance."""
+        mocked.get(
+            "https://cookidoo.ch/customer-devices/api/my-devices/versions",
+            payload=COOKIDOO_TEST_RESPONSE_DEVICES,
+            status=HTTPStatus.OK,
+        )
+
+        devices = await cookidoo.get_devices()
+        assert len(devices) == 1
+        assert devices[0].type == ThermomixMachineType.TM7
+
+    async def test_get_devices_multiple(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_devices with several appliances."""
+        mocked.get(
+            "https://cookidoo.ch/customer-devices/api/my-devices/versions",
+            payload=COOKIDOO_TEST_RESPONSE_DEVICES_MULTIPLE,
+            status=HTTPStatus.OK,
+        )
+
+        devices = await cookidoo.get_devices()
+        assert [d.type for d in devices] == [
+            ThermomixMachineType.TM7,
+            ThermomixMachineType.TM6,
+        ]
+
+    async def test_get_devices_empty(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_devices with no paired appliance."""
+        mocked.get(
+            "https://cookidoo.ch/customer-devices/api/my-devices/versions",
+            payload=COOKIDOO_TEST_RESPONSE_DEVICES_EMPTY,
+            status=HTTPStatus.OK,
+        )
+
+        assert await cookidoo.get_devices() == []
+
+    async def test_get_devices_no_content(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An account without a paired appliance gets a 204 with an empty body."""
+        mocked.get(
+            "https://cookidoo.ch/customer-devices/api/my-devices/versions",
+            status=HTTPStatus.NO_CONTENT,
+        )
+
+        assert await cookidoo.get_devices() == []
+
+    async def test_get_devices_unknown_type(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An unrecognized machine type raises a parse exception."""
+        mocked.get(
+            "https://cookidoo.ch/customer-devices/api/my-devices/versions",
+            payload=["TM99"],
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_devices()
 
     async def test_non_sequence_response(
         self, mocked: aioresponses, cookidoo: Cookidoo

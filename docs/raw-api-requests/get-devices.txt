@@ -1,0 +1,15 @@
+GET https://cookidoo.it/customer-devices/api/my-devices/versions HTTP/2.0
+accept: application/json
+accept-encoding: gzip
+cookie: v-authenticated=<redacted>; _oauth2_proxy=<redacted>
+
+
+
+HTTP/2.0 200
+content-type: application/json
+date: Fri, 28 Aug 2026 14:20:00 GMT
+strict-transport-security: max-age=31536000
+x-content-type-options: nosniff
+vary: Accept-Encoding
+
+["TM7"]

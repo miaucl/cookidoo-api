@@ -39,6 +39,7 @@ from cookidoo_api.types import (
     CookidooChapterRecipe,
     CookidooCollection,
     CookidooCustomRecipe,
+    CookidooDevice,
     CookidooIngredient,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
@@ -112,6 +113,14 @@ def cookidoo_subscription_from_json(
         type=subscription["type"],
         extended_type=subscription["extendedType"],
     )
+
+
+def cookidoo_device_from_json(model: str) -> CookidooDevice:
+    """Convert a device machine type received from the API to a cookidoo device.
+
+    The devices endpoint returns bare machine-type strings (e.g. ``"TM7"``).
+    """
+    return CookidooDevice(type=ThermomixMachineType(model))
 
 
 def cookidoo_collection_from_json(
