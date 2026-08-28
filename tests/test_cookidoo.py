@@ -2,15 +2,19 @@
 
 from datetime import datetime
 from http import HTTPStatus
+import pathlib
+import re
 
 from aiohttp import ClientError, ClientSession
 from aioresponses import aioresponses
 from dotenv import load_dotenv
 import pytest
 
+from cookidoo_api.const import CIAM_LOGIN_SRV_URL, OIDC_DISCOVERY_URL
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.exceptions import (
     CookidooAuthException,
+    CookidooConfigException,
     CookidooException,
     CookidooParseException,
     CookidooRequestException,
@@ -18,13 +22,17 @@ from cookidoo_api.exceptions import (
 from cookidoo_api.helpers import get_localization_options
 from cookidoo_api.types import (
     CookidooAdditionalItem,
+    CookidooAuthData,
     CookidooConfig,
     CookidooIngredientItem,
     CookidooSearchResult,
     ThermomixMachineType,
 )
+from tests.conftest import TEST_CLIENT_ID, TEST_CLIENT_SECRET, TEST_REDIRECT_URI
 from tests.responses import (
     COOKIDOO_TEST_LOGIN_PAGE_HTML,
+    COOKIDOO_TEST_OIDC_DISCOVERY,
+    COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE,
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
     COOKIDOO_TEST_RESPONSE_ADD_CUSTOM_COLLECTION,
@@ -57,6 +65,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
+    COOKIDOO_TEST_TOKEN_RESPONSE,
 )
 
 load_dotenv()
@@ -102,46 +111,52 @@ class TestGetterSetter:
         assert loc.country_code == "ch"
 
 
+TOKEN_ENDPOINT = "https://ciam.prod.cookidoo.vorwerk-digital.com/token-srv/token"
+AUTHZ_RE = re.compile(r".*/authz-srv/authz.*")
+
+
 class TestLogin:
-    """Tests for login method."""
+    """Tests for the OAuth2 authorization-code login flow."""
+
+    @staticmethod
+    def _mock_login_flow(
+        mocked: aioresponses,
+        *,
+        page_body: str = COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        code: str | None = "test-code",
+    ) -> None:
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=page_body)
+        location = TEST_REDIRECT_URI
+        if code:
+            location += f"?code={code}"
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": location},
+        )
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
 
     async def test_login_success(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test successful login via browser OAuth2 flow."""
-        import re
-
-        # Mock the login page (GET follows redirects to CIAM login page)
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            status=HTTPStatus.OK,
-            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
-        )
-
-        # Mock the CIAM login POST (returns redirect with auth cookies)
-        mocked.post(
-            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
-            status=HTTPStatus.OK,
-        )
-
-        # Manually set cookies since aioresponses doesn't handle Set-Cookie
-        cookidoo._session.cookie_jar.update_cookies(
-            {"_oauth2_proxy": "test-proxy-value", "v-authenticated": "test-auth-value"}
-        )
+        """Test a successful OAuth2 login."""
+        self._mock_login_flow(mocked)
 
         await cookidoo.login()
+
         assert cookidoo._logged_in
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "test-access-token"
+        assert cookidoo.auth_data.refresh_token == "test-refresh-token"
+        assert cookidoo._api_headers["Authorization"] == "Bearer test-access-token"
 
     async def test_login_page_unreachable(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test login when login page returns error."""
-        import re
-
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            status=HTTPStatus.SERVICE_UNAVAILABLE,
-        )
+        """Test login when the authorize/login page returns an error."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.SERVICE_UNAVAILABLE)
 
         with pytest.raises(CookidooAuthException, match="could not reach login page"):
             await cookidoo.login()
@@ -150,10 +165,9 @@ class TestLogin:
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """Test login when requestId cannot be extracted."""
-        import re
-
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
         mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            AUTHZ_RE,
             status=HTTPStatus.OK,
             body="<html><body>No form here</body></html>",
         )
@@ -164,23 +178,174 @@ class TestLogin:
     async def test_login_invalid_credentials(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test login with invalid credentials (no auth cookies set)."""
-        import re
+        """Invalid credentials yield no authorization code."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        # The login service replies 200 (re-renders the form) instead of redirecting.
+        mocked.post(CIAM_LOGIN_SRV_URL, status=HTTPStatus.OK)
 
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            status=HTTPStatus.OK,
-            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        with pytest.raises(CookidooAuthException, match="invalid credentials"):
+            await cookidoo.login()
+
+    async def test_login_follows_intermediate_redirects(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Redirects before the app scheme are followed to capture the code."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        interstitial = (
+            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/continue"
         )
         mocked.post(
-            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
-            status=HTTPStatus.OK,
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": interstitial},
+        )
+        mocked.get(
+            interstitial,
+            status=HTTPStatus.FOUND,
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
+        )
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
+
+        await cookidoo.login()
+
+        assert cookidoo._logged_in
+
+    async def test_login_state_mismatch(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A state that does not match the one sent aborts the login."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={
+                "Location": f"{TEST_REDIRECT_URI}?code=test-code&state=tampered"
+            },
         )
 
-        with pytest.raises(
-            CookidooAuthException, match="authentication cookies were not set"
-        ):
+        with pytest.raises(CookidooAuthException, match="state mismatch"):
             await cookidoo.login()
+
+    async def test_login_redirect_loop(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An endless redirect chain gives up instead of looping forever."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        loop_url = "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/loop"
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": loop_url},
+        )
+        mocked.get(
+            re.compile(r".*/login-srv/loop.*"),
+            status=HTTPStatus.FOUND,
+            headers={"Location": loop_url},
+            repeat=True,
+        )
+
+        with pytest.raises(CookidooAuthException, match="invalid credentials"):
+            await cookidoo.login()
+
+    async def test_login_token_exchange_failure(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A rejected code exchange surfaces as an auth exception."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
+        )
+        mocked.post(TOKEN_ENDPOINT, status=HTTPStatus.BAD_REQUEST)
+
+        with pytest.raises(CookidooAuthException, match="Token exchange failed"):
+            await cookidoo.login()
+
+    async def test_login_unexpected_token_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A token response without an access token surfaces as an auth exception."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
+        )
+        mocked.post(TOKEN_ENDPOINT, payload={"token_type": "Bearer"})
+
+        with pytest.raises(CookidooAuthException, match="Unexpected token response"):
+            await cookidoo.login()
+
+    async def test_discovery_is_cached(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The OIDC discovery document is only fetched once."""
+        self._mock_login_flow(mocked)
+
+        await cookidoo.login()
+        # A second login must not hit the discovery endpoint again, it is only
+        # mocked once and a second request would fail.
+        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
+        )
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
+
+        await cookidoo.login()
+
+        assert cookidoo._logged_in
+
+    @pytest.mark.parametrize(
+        ("client_id", "client_secret", "redirect_uri", "expected"),
+        [
+            ("", TEST_CLIENT_SECRET, TEST_REDIRECT_URI, "client_id"),
+            (TEST_CLIENT_ID, "", TEST_REDIRECT_URI, "client_secret"),
+            (TEST_CLIENT_ID, TEST_CLIENT_SECRET, "", "redirect_uri"),
+            ("", "", "", "client_id, client_secret, redirect_uri"),
+        ],
+    )
+    async def test_login_without_client_credentials(
+        self,
+        session: ClientSession,
+        client_id: str,
+        client_secret: str,
+        redirect_uri: str,
+        expected: str,
+    ) -> None:
+        """Login requires the caller to provide the OAuth2 client credentials."""
+        cookidoo = Cookidoo(
+            session,
+            cfg=CookidooConfig(
+                client_id=client_id,
+                client_secret=client_secret,
+                redirect_uri=redirect_uri,
+            ),
+        )
+
+        with pytest.raises(CookidooConfigException, match=expected):
+            await cookidoo.login()
+
+    async def test_refresh_without_client_credentials(
+        self, mocked: aioresponses, session: ClientSession
+    ) -> None:
+        """Refreshing a restored token also requires the client credentials."""
+        cookidoo = Cookidoo(session)
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+
+        with pytest.raises(
+            CookidooConfigException, match="Missing OAuth2 client credentials"
+        ):
+            await cookidoo.refresh()
 
     @pytest.mark.parametrize(
         "exception",
@@ -192,134 +357,118 @@ class TestLogin:
     async def test_request_exceptions(
         self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
     ) -> None:
-        """Test exceptions."""
-        import re
+        """Test that transport exceptions surface as request exceptions."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.get(AUTHZ_RE, exception=exception)
 
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            exception=exception,
-        )
         with pytest.raises(CookidooRequestException):
             await cookidoo.login()
 
 
-class TestCookiePersistence:
-    """Tests for cookie save/load methods."""
+class TestTokenPersistenceAndRefresh:
+    """Tests for token persistence and refresh."""
 
-    async def test_save_and_load_cookies(
-        self, cookidoo: Cookidoo, tmp_path: object
+    async def test_save_and_load_token(
+        self, cookidoo: Cookidoo, tmp_path: pathlib.Path
     ) -> None:
-        """Test saving and loading cookies."""
-        import pathlib
+        """Test saving and restoring tokens across instances."""
+        cookidoo.apply_auth_data(CookidooAuthData("acc", "ref", 9999999999.0))
+        token_file = tmp_path / "token.json"
+        cookidoo.save_token(token_file)
+        assert token_file.exists()
 
-        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
+        fresh = Cookidoo(cookidoo._session)
+        fresh.load_token(token_file)
+        assert fresh._logged_in
+        assert fresh.auth_data is not None
+        assert fresh.auth_data.access_token == "acc"
+        assert fresh.auth_data.refresh_token == "ref"
 
-        # Set some cookies on the session
-        cookidoo._session.cookie_jar.update_cookies(
-            {"_oauth2_proxy": "proxy-val", "v-authenticated": "auth-val"}
-        )
-
-        # Save
-        cookidoo.save_cookies(cookie_file)
-        assert cookie_file.exists()
-
-        # Load into a fresh Cookidoo instance on same session
-        # (clear cookies first)
-        cookidoo._session.cookie_jar.clear()
-        assert not cookidoo._logged_in or True  # reset
-        cookidoo._logged_in = False
-
-        cookidoo.load_cookies(cookie_file)
-        assert cookidoo._logged_in
-
-        cookie_names = {c.key for c in cookidoo._session.cookie_jar}
-        assert "_oauth2_proxy" in cookie_names
-        assert "v-authenticated" in cookie_names
-
-    async def test_load_cookies_missing_file(self, cookidoo: Cookidoo) -> None:
-        """Test loading cookies from nonexistent file."""
-        from cookidoo_api.exceptions import CookidooConfigException
-
-        with pytest.raises(CookidooConfigException, match="Cannot load cookies"):
-            cookidoo.load_cookies("/nonexistent/path/cookies.json")
-
-    async def test_load_cookies_without_auth_cookies(
-        self, cookidoo: Cookidoo, tmp_path: object
+    async def test_save_token_not_logged_in(
+        self, cookidoo: Cookidoo, tmp_path: pathlib.Path
     ) -> None:
-        """Test that loading cookies without required auth cookies does not set logged_in."""
-        import json
-        import pathlib
+        """Saving without a login raises."""
+        with pytest.raises(CookidooConfigException, match="not logged in"):
+            cookidoo.save_token(tmp_path / "token.json")
 
-        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
-        cookie_file.write_text(
-            json.dumps(
-                [{"key": "some_other", "value": "val", "domain": "", "path": "/"}]
-            )
-        )
-        cookidoo._logged_in = False
-        cookidoo.load_cookies(cookie_file)
-        assert not cookidoo._logged_in
+    async def test_load_token_missing_file(self, cookidoo: Cookidoo) -> None:
+        """Loading a missing token file raises."""
+        with pytest.raises(CookidooConfigException, match="Cannot load token"):
+            cookidoo.load_token("/nonexistent/path/token.json")
 
-    async def test_corrupted_cookies_recovery(
-        self, mocked: aioresponses, cookidoo: Cookidoo, tmp_path: object
+    async def test_refresh(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test refreshing the access token."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+
+        await cookidoo.refresh()
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
+        assert cookidoo.auth_data.refresh_token == "refreshed-refresh-token"
+
+    async def test_refresh_without_login(self, cookidoo: Cookidoo) -> None:
+        """Refreshing without a login raises."""
+        with pytest.raises(CookidooAuthException, match="not logged in"):
+            await cookidoo.refresh()
+
+    async def test_refresh_rejected(
+        self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Test recovery flow: load expired/corrupted cookies, API fails, re-login succeeds."""
-        import pathlib
-        import re
+        """A rejected refresh surfaces as an auth exception."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, status=HTTPStatus.UNAUTHORIZED)
 
-        cookie_file = pathlib.Path(str(tmp_path)) / "cookies.json"
+        with pytest.raises(CookidooAuthException, match="Token refresh failed"):
+            await cookidoo.refresh()
 
-        # Set corrupted/expired auth cookies
-        cookidoo._session.cookie_jar.update_cookies(
-            {"_oauth2_proxy": "corrupted-value", "v-authenticated": "expired"}
-        )
-        cookidoo.save_cookies(cookie_file)
+    async def test_refresh_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A transport error during refresh surfaces as a request exception."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, exception=ClientError())
 
-        # Clear and reload the corrupted cookies
-        cookidoo._session.cookie_jar.clear()
-        cookidoo._logged_in = False
-        cookidoo.load_cookies(cookie_file)
-        assert cookidoo._logged_in  # Cookies are present, so flag is set
+        with pytest.raises(CookidooRequestException, match="Token refresh failed"):
+            await cookidoo.refresh()
 
-        # API call fails with 401 because cookies are invalid
-        mocked.get(
-            "https://cookidoo.ch/community/profile",
-            status=HTTPStatus.UNAUTHORIZED,
-            payload={"error": "Unauthorized", "error_description": "Token expired"},
-        )
-        with pytest.raises(CookidooAuthException):
-            await cookidoo.get_user_info()
-
-        # Recovery: re-login
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            status=HTTPStatus.OK,
-            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
-        )
-        mocked.post(
-            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
-            status=HTTPStatus.OK,
-        )
-        cookidoo._session.cookie_jar.update_cookies(
-            {
-                "_oauth2_proxy": "fresh-proxy-value",
-                "v-authenticated": "fresh-auth-value",
-            }
-        )
-        await cookidoo.login()
-        assert cookidoo._logged_in
-
-        # API call now succeeds
+    async def test_no_refresh_on_valid_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A still valid access token is used as is, without a refresh."""
+        cookidoo.apply_auth_data(CookidooAuthData("valid", "ref", 9999999999.0))
         mocked.get(
             "https://cookidoo.ch/community/profile",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
-        data = await cookidoo.get_user_info()
-        assert data.username == COOKIDOO_TEST_RESPONSE_USER_INFO["userInfo"]["username"]  # type: ignore[index]
 
-        # Save fresh cookies for next run
-        cookidoo.save_cookies(cookie_file)
+        await cookidoo.get_user_info()
+
+        # No token endpoint was mocked, so a refresh would have failed.
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "valid"
+
+    async def test_auto_refresh_on_expired_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An expired access token is refreshed automatically before a request."""
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
 
 
 class TestGetUserInfo:

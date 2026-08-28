@@ -34,6 +34,16 @@ class CookidooConfig:
         The email to login
     password
         The password to login
+    client_id
+        The OAuth2 client id to authenticate the login flow as
+    client_secret
+        The OAuth2 client secret belonging to ``client_id``
+    redirect_uri
+        The OAuth2 redirect uri registered for ``client_id``
+
+    The OAuth2 client credentials are not distributed with this library and
+    have no defaults, they must be provided by the caller (e.g. from a config
+    entry or an environment variable). See ``docs/oauth-client.md``.
 
     """
 
@@ -42,6 +52,9 @@ class CookidooConfig:
     )
     email: str = "your@email"
     password: str = "1234password!"
+    client_id: str = ""
+    client_secret: str = ""
+    redirect_uri: str = ""
 
 
 @dataclass
@@ -73,6 +86,18 @@ class CookidooDevice:
     """A paired Thermomix appliance on the account."""
 
     type: ThermomixMachineType
+
+
+@dataclass
+class CookidooAuthData:
+    """OAuth2 tokens obtained from a login, for persistence and restore.
+
+    ``expires_at`` is a POSIX timestamp (seconds) for the access token.
+    """
+
+    access_token: str
+    refresh_token: str
+    expires_at: float
 
 
 @dataclass

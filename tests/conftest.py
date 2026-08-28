@@ -8,10 +8,16 @@ from dotenv import load_dotenv
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.types import CookidooConfig
 
 load_dotenv()
 
 UUID = "00000000-00000000-00000000-00000000"
+
+# Dummy OAuth2 client, the real credentials are not part of this repository.
+TEST_CLIENT_ID = "test-client-id"
+TEST_CLIENT_SECRET = "test-client-secret"
+TEST_REDIRECT_URI = "test.cookidoo.api://code-grant"
 
 
 @pytest.fixture(name="session")
@@ -25,7 +31,14 @@ async def aiohttp_client_session() -> AsyncGenerator[ClientSession]:
 @pytest.fixture(name="cookidoo")
 async def bring_api_client(session: ClientSession) -> Cookidoo:
     """Create Cookidoo instance."""
-    cookidoo = Cookidoo(session)
+    cookidoo = Cookidoo(
+        session,
+        cfg=CookidooConfig(
+            client_id=TEST_CLIENT_ID,
+            client_secret=TEST_CLIENT_SECRET,
+            redirect_uri=TEST_REDIRECT_URI,
+        ),
+    )
     return cookidoo
 
 

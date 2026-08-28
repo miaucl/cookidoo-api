@@ -20,9 +20,21 @@ LOGIN_HEADERS: Final = {
     ),
 }
 
-CIAM_LOGIN_SRV_URL: Final = (
-    "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login"
-)
+CIAM_BASE_URL: Final = "https://ciam.prod.cookidoo.vorwerk-digital.com"
+CIAM_LOGIN_SRV_URL: Final = f"{CIAM_BASE_URL}/login-srv/login"
+OIDC_DISCOVERY_URL: Final = f"{CIAM_BASE_URL}/.well-known/openid-configuration"
+
+# OAuth2 / OIDC client. The bearer token it yields works against the same
+# api_endpoint as the previous cookie session, and additionally reaches the
+# remote-monitoring backend (which the cookie session could not).
+#
+# The client credentials (id, secret, redirect uri) are NOT shipped with this
+# library and must be supplied by the caller via `CookidooConfig`; see
+# `docs/oauth-client.md` for how to obtain them.
+OAUTH_SCOPE: Final = "openid profile email offline offline_access"
+# Refresh a little before the (12h) access token actually expires.
+TOKEN_EXPIRY_MARGIN_S: Final = 300
+
 LOGIN_PATH: Final = "profile/{language}/login"
 LOGIN_REDIRECT: Final = "%2Ffoundation%2F{language}%2Ffor-you"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"

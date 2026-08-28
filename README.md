@@ -30,14 +30,19 @@ See below for usage examples.
 
 ## Usage Example
 
-The API is based on the `aiohttp` library. A `CookieJar(unsafe=True)` is required for the session to support cross-domain cookies during the OAuth2 login flow.
+The API is based on the `aiohttp` library. Authentication uses the OAuth2 authorization-code flow (with PKCE) and authenticates requests with a bearer token; tokens can be persisted with `save_token`/`load_token`. A `CookieJar(unsafe=True)` is still required for the session, as the login redirect chain relies on cookies.
 
 Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 
 ```text
 EMAIL=your@mail.com
 PASSWORD=password
+CLIENT_ID=your-oauth-client-id
+CLIENT_SECRET=your-oauth-client-secret
+REDIRECT_URI=your-oauth-redirect-uri
 ```
+
+The OAuth2 client credentials (`CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`) are not shipped with this library and have no defaults, they must be provided by you. See [OAuth2 client](https://miaucl.github.io/cookidoo-api/oauth-client/) for what they are and how to obtain them.
 
 Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/example.py) and have a look at the inline comments for more explanation.
 

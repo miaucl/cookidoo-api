@@ -45,25 +45,30 @@ async def main():
         _localizations_ch = await get_localization_options(country="ch")
         _localizations_en = await get_localization_options(language="en")
 
-        # Create Cookidoo instance with email and password
+        # Create Cookidoo instance with email and password, plus the OAuth2
+        # client credentials, which are not shipped with this library and must
+        # be provided by you (see docs/oauth-client.md)
         cookidoo = Cookidoo(
             session,
             cfg=CookidooConfig(
                 email=os.environ["EMAIL"],
                 password=os.environ["PASSWORD"],
+                client_id=os.environ["CLIENT_ID"],
+                client_secret=os.environ["CLIENT_SECRET"],
+                redirect_uri=os.environ["REDIRECT_URI"],
                 localization=(
                     await get_localization_options(country="ie", language="en-GB")
                 )[0],
             ),
         )
 
-        # Try to load saved cookies, otherwise login fresh
-        cookie_file = ".cookies"
+        # Try to reuse a saved token, otherwise login fresh
+        token_file = ".token"
         try:
-            cookidoo.load_cookies(cookie_file)
+            cookidoo.load_token(token_file)
         except Exception:
             await cookidoo.login()
-            cookidoo.save_cookies(cookie_file)
+            cookidoo.save_token(token_file)
 
         # Info
         await cookidoo.get_user_info()
