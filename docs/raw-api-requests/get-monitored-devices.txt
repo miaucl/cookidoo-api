@@ -1,0 +1,9 @@
+GET https://iot-api.production-eu.cookidoo.vorwerk-digital.com/devices HTTP/2.0
+authorization: Bearer eyJhbGciOiJS<redacted>
+accept: application/json
+
+
+HTTP/2.0 200
+content-type: application/json
+
+[{"deviceId":"22e920b2d6184cec6c854cd005d6aa8fb851d7e783478b50f361ac8d1ab97bfe"}]

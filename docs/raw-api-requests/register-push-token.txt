@@ -1,0 +1,13 @@
+POST https://iot-api.production-eu.cookidoo.vorwerk-digital.com/device-token HTTP/2.0
+authorization: Bearer eyJhbGciOiJS<redacted>
+rmi-api-version: 2026-06-01
+content-type: application/json
+accept: application/json
+
+{"token":"<fcm registration token>","bundleId":"com.vorwerk.cookidoo","platform":"AN","mobileAppId":"<per-install uuid>"}
+
+
+HTTP/2.0 200
+content-type: application/json
+
+{"message":"OK"}

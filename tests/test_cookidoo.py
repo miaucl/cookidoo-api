@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import pytest
 from yarl import URL
 
+from cookidoo_api import cooking_activity_from_push
 from cookidoo_api.const import (
     CIAM_LOGIN_SRV_URL,
     OAUTH_CLIENT_ID,
@@ -33,6 +34,7 @@ from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooAuthData,
     CookidooConfig,
+    CookidooCookState,
     CookidooIngredientItem,
     CookidooSearchResult,
     ThermomixMachineType,
@@ -41,6 +43,7 @@ from tests.conftest import TEST_CLIENT_ID, TEST_REDIRECT_URI
 from tests.responses import (
     COOKIDOO_TEST_LOGIN_PAGE_HTML,
     COOKIDOO_TEST_OIDC_DISCOVERY,
+    COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
     COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE,
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
@@ -69,9 +72,12 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES,
+    COOKIDOO_TEST_RESPONSE_MOBILE_HOME,
+    COOKIDOO_TEST_RESPONSE_MONITORED_DEVICES,
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
+    COOKIDOO_TEST_RESPONSE_RMI_CONFIG,
     COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
     COOKIDOO_TEST_TOKEN_RESPONSE,
@@ -4000,3 +4006,91 @@ class TestRemoveCustomRecipeFromCalendar:
                 datetime.fromisoformat("2025-08-11").date(),
                 "01K2CTJ9Y1BABRG5MXK44CFZS4",
             )
+
+
+class TestRemoteMonitoring:
+    """Tests for remote-monitoring (device management) methods."""
+
+    MOBILE_HOME_URL = "https://cookidoo.ch/.well-known/mobile-home"
+    RMI_CONFIG_URL = (
+        "https://it.tmmobile.vorwerk-digital.com/rmi-config/.well-known/home"
+    )
+    DEVICES_URL = "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/devices"
+    REGISTER_URL = (
+        "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/device-token"
+    )
+    UNREGISTER_URL = "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/token"
+
+    def _mock_rmi_resolution(self, mocked: aioresponses) -> None:
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload=COOKIDOO_TEST_RESPONSE_RMI_CONFIG)
+
+    async def test_get_monitored_device_ids(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test listing monitorable device ids."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=COOKIDOO_TEST_RESPONSE_MONITORED_DEVICES)
+
+        ids = await cookidoo.get_monitored_device_ids()
+        assert ids == [
+            "22e920b2d6184cec6c854cd005d6aa8fb851d7e783478b50f361ac8d1ab97bfe"
+        ]
+
+    async def test_get_monitored_device_ids_empty(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test listing when no device is currently monitorable."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        assert await cookidoo.get_monitored_device_ids() == []
+
+    async def test_register_push_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test registering a push token."""
+        self._mock_rmi_resolution(mocked)
+        mocked.post(self.REGISTER_URL, payload={"message": "OK"})
+
+        await cookidoo.register_push_token("fcm-token", "app-install-id")
+
+    async def test_unregister_push_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test unregistering a push token."""
+        self._mock_rmi_resolution(mocked)
+        mocked.delete(self.UNREGISTER_URL, payload={"message": "OK"})
+
+        await cookidoo.unregister_push_token("fcm-token")
+
+    async def test_rmi_config_link_missing(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A home doc without the rmi-config link raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload={"_links": {}})
+
+        with pytest.raises(CookidooParseException, match="rmi-config link missing"):
+            await cookidoo.get_monitored_device_ids()
+
+    def test_cooking_activity_from_push(self) -> None:
+        """Test decoding a remote-monitoring push payload."""
+        activity = cooking_activity_from_push(COOKIDOO_TEST_PUSH_COOKING_ACTIVITY)
+        assert activity.state == CookidooCookState.RUNNING
+        assert activity.is_active
+        assert activity.recipe_name == "Purè di patate"
+        assert activity.step == "5/9"
+        assert activity.target_temperature == 95.0
+        assert activity.current_temperature is None  # "---" -> None
+        assert activity.is_time_estimated is False  # "false" -> False
+        assert activity.recipe_type == "VORWERK"
+        assert activity.completed_at is not None
+        assert activity.stale_at is not None and activity.stale_at.year == 2026
+
+    def test_cooking_activity_from_push_done_is_inactive(self) -> None:
+        """A done cook is not active."""
+        activity = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "state": "done"}
+        )
+        assert activity.state == CookidooCookState.DONE
+        assert not activity.is_active

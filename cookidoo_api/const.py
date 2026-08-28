@@ -78,6 +78,26 @@ DEVICES_PATH: Final = "customer-devices/api/my-devices/versions"
 
 SEARCH_PATH: Final = "search/{locale}"
 
+# --- Remote monitoring (device management) --------------------------------
+# The remote-monitoring (RMI) endpoints live on a dedicated IoT backend that is
+# discovered from the mobile home document -> rmi-config sub-document. Reaching
+# them requires the OAuth2 bearer token (the previous cookie session was refused).
+MOBILE_HOME_PATH: Final = ".well-known/mobile-home"
+HAL_ACCEPT: Final = (
+    "application/vnd.vorwerk.tmde2.rhd.mobile.hal+json, application/hal+json"
+)
+# The RMI write endpoints require this API-version header.
+RMI_API_VERSION: Final = "2026-06-01"
+
+REL_RMI_CONFIG: Final = "tmde2:rmi-config"
+RMI_REGISTER_TOKEN: Final = "rmi:register-token"
+RMI_UNREGISTER: Final = "rmi:unregister"
+RMI_DEVICES: Final = "rmi:devices"
+
+# Fields for the push-token registration payload.
+PUSH_BUNDLE_ID: Final = "com.vorwerk.cookidoo"
+PUSH_PLATFORM: Final = "AN"  # Android; the value the app sends
+
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
 CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.custom-list.mobile+json"

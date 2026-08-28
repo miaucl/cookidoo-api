@@ -27,10 +27,19 @@ from cookidoo_api.const import (
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
+    HAL_ACCEPT,
     LOGIN_HEADERS,
     MANAGED_COLLECTIONS_PATH_ACCEPT,
+    MOBILE_HOME_PATH,
     OAUTH_SCOPE,
     OIDC_DISCOVERY_URL,
+    PUSH_BUNDLE_ID,
+    PUSH_PLATFORM,
+    REL_RMI_CONFIG,
+    RMI_API_VERSION,
+    RMI_DEVICES,
+    RMI_REGISTER_TOKEN,
+    RMI_UNREGISTER,
     TOKEN_EXPIRY_MARGIN_S,
 )
 from cookidoo_api.exceptions import (
@@ -105,6 +114,7 @@ class Cookidoo:
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
+    _rmi_links: dict[str, str] | None
 
     def __init__(
         self,
@@ -133,6 +143,7 @@ class Cookidoo:
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
+        self._rmi_links = None
 
     @property
     def localization(self) -> CookidooLocalizationConfig:
@@ -840,6 +851,181 @@ class Cookidoo:
         return self._parse_result(
             "loading devices",
             lambda: [cookidoo_device_from_json(cast(str, model)) for model in models],
+        )
+
+    async def _resolve_rmi_links(self) -> dict[str, str]:
+        """Resolve and cache the remote-monitoring endpoint links.
+
+        Walks the mobile home document to the ``rmi-config`` sub-document and
+        returns its ``{rel: href}`` map (``rmi:register-token``, ``rmi:devices``,
+        ``rmi:unregister``, ...).
+        """
+        if self._rmi_links is not None:
+            return self._rmi_links
+
+        hal_headers = {"ACCEPT": HAL_ACCEPT}
+        home = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                self.api_endpoint / MOBILE_HOME_PATH,
+                "resolving remote monitoring",
+                headers=hal_headers,
+            ),
+            "resolving remote monitoring",
+        )
+        rmi_config_url = self._hal_link(home, REL_RMI_CONFIG)
+        if rmi_config_url is None:
+            raise CookidooParseException(
+                "Resolving remote monitoring failed: rmi-config link missing."
+            )
+        rmi_home = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                URL(rmi_config_url),
+                "resolving remote monitoring",
+                headers=hal_headers,
+            ),
+            "resolving remote monitoring",
+        )
+        links_obj = rmi_home.get("_links")
+        if not isinstance(links_obj, Mapping):
+            raise CookidooParseException(
+                "Resolving remote monitoring failed during parsing of request response."
+            )
+        links: dict[str, str] = {}
+        for rel, value in links_obj.items():
+            if isinstance(value, str):
+                links[rel] = value
+            elif isinstance(value, Mapping) and isinstance(value.get("href"), str):
+                links[rel] = cast(str, value["href"])
+        self._rmi_links = links
+        return links
+
+    @staticmethod
+    def _hal_link(doc: Mapping[str, object], rel: str) -> str | None:
+        """Extract a HAL link href for ``rel`` from a document's ``_links``."""
+        links = doc.get("_links")
+        if not isinstance(links, Mapping):
+            return None
+        value = links.get(rel)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Mapping) and isinstance(value.get("href"), str):
+            return cast(str, value["href"])
+        return None
+
+    async def get_monitored_device_ids(self) -> list[str]:
+        """Get the appliance IDs currently available for remote monitoring.
+
+        Note this is distinct from :meth:`get_devices` (all paired appliances):
+        an appliance only appears here while it is online/reachable for
+        monitoring, and the identifier is the opaque remote-monitoring device id.
+
+        Returns
+        -------
+        list[str]
+            The remote-monitoring device ids (empty when none are available).
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_DEVICES)
+        if url is None:
+            raise CookidooParseException("rmi:devices link missing.")
+        devices = self._ensure_sequence(
+            await self._request_json(
+                "get", URL(url.split("{")[0]), "loading monitored devices"
+            ),
+            "loading monitored devices",
+        )
+        return self._parse_result(
+            "loading monitored devices",
+            lambda: [
+                cast(str, cast(Mapping[str, object], device)["deviceId"])
+                for device in devices
+            ],
+        )
+
+    async def register_push_token(self, push_token: str, mobile_app_id: str) -> None:
+        """Register a push token to receive remote-monitoring cook-state updates.
+
+        Appliance state is delivered as a Firebase Cloud Messaging data message
+        to the registered token; obtaining the token and receiving the messages
+        is the caller's responsibility. Decode received payloads with
+        :func:`cookidoo_api.cooking_activity_from_push`.
+
+        Parameters
+        ----------
+        push_token
+            The FCM registration token to deliver updates to.
+        mobile_app_id
+            A stable per-installation identifier for this client.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_REGISTER_TOKEN)
+        if url is None:
+            raise CookidooParseException("rmi:register-token link missing.")
+        await self._request_json(
+            "post",
+            URL(url),
+            "registering push token",
+            json={
+                "token": push_token,
+                "bundleId": PUSH_BUNDLE_ID,
+                "platform": PUSH_PLATFORM,
+                "mobileAppId": mobile_app_id,
+            },
+            headers={"rmi-api-version": RMI_API_VERSION},
+            parse_response=False,
+        )
+
+    async def unregister_push_token(self, push_token: str) -> None:
+        """Unregister a previously registered push token.
+
+        Parameters
+        ----------
+        push_token
+            The FCM registration token to stop delivering updates to.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_UNREGISTER)
+        if url is None:
+            raise CookidooParseException("rmi:unregister link missing.")
+        await self._request_json(
+            "delete",
+            URL(url),
+            "unregistering push token",
+            json={"tokens": [push_token]},
+            headers={"rmi-api-version": RMI_API_VERSION},
+            parse_response=False,
         )
 
     async def get_recipe_details(self, id: str) -> CookidooShoppingRecipeDetails:
