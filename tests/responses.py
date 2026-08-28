@@ -86,6 +86,30 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
     }
 ]
 
+COOKIDOO_TEST_OIDC_DISCOVERY: Final = {
+    "authorization_endpoint": (
+        "https://ciam.prod.cookidoo.vorwerk-digital.com/authz-srv/authz"
+    ),
+    "token_endpoint": (
+        "https://ciam.prod.cookidoo.vorwerk-digital.com/token-srv/token"
+    ),
+}
+
+COOKIDOO_TEST_TOKEN_RESPONSE: Final = {
+    "access_token": "test-access-token",
+    "refresh_token": "test-refresh-token",
+    "id_token": "test-id-token",
+    "token_type": "Bearer",
+    "expires_in": 43200,
+}
+
+COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE: Final = {
+    "access_token": "refreshed-access-token",
+    "refresh_token": "refreshed-refresh-token",
+    "token_type": "Bearer",
+    "expires_in": 43200,
+}
+
 COOKIDOO_TEST_RESPONSE_DEVICES: Final = ["TM7"]
 
 COOKIDOO_TEST_RESPONSE_DEVICES_MULTIPLE: Final = ["TM7", "TM6"]

@@ -53,7 +53,7 @@ jobs:
           python-version: ${{ env.python-version }}
       - name: Check secret access
         run: |
-          if [[ "x${{ secrets.PASSWORD }}" != "x" ]]; then
+          if [[ "x${{ secrets.PASSWORD }}" != "x" && "x${{ secrets.CLIENT_SECRET }}" != "x" ]]; then
             echo "Access to secrets"
           else
             echo "No access to secrets"
@@ -74,3 +74,6 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: ${{ secrets.PASSWORD }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          REDIRECT_URI: ${{ secrets.REDIRECT_URI }}

@@ -14,7 +14,7 @@ from cookidoo_api.types import CookidooConfig
 
 load_dotenv()
 
-COOKIE_FILE = Path(".cookies")
+TOKEN_FILE = Path(".token")
 
 
 @pytest.fixture(name="session")
@@ -37,6 +37,9 @@ async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
         cfg=CookidooConfig(
             email=os.environ[f"EMAIL_{country.upper()}"],
             password=os.environ["PASSWORD"],
+            client_id=os.environ["CLIENT_ID"],
+            client_secret=os.environ["CLIENT_SECRET"],
+            redirect_uri=os.environ["REDIRECT_URI"],
             localization=localizations[0],
         ),
     )
@@ -47,21 +50,27 @@ async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
 async def cookidoo_authenticated_api_client(
     session: ClientSession,
 ) -> Cookidoo:
-    """Create authenticated Cookidoo instance from saved cookies."""
+    """Create authenticated Cookidoo instance from a saved token."""
 
     country = os.environ["COUNTRY"]
     localizations = await get_localization_options(country=country)
 
+    # The OAuth2 client credentials are only needed to log in or to refresh the
+    # access token, not to restore a still valid one, so they are optional here
+    # (the PR smoke test intentionally runs this stage without secrets).
     cookidoo = Cookidoo(
         session,
         cfg=CookidooConfig(
             email=os.environ[f"EMAIL_{country.upper()}"],
             password=os.environ["PASSWORD"],
+            client_id=os.environ.get("CLIENT_ID", ""),
+            client_secret=os.environ.get("CLIENT_SECRET", ""),
+            redirect_uri=os.environ.get("REDIRECT_URI", ""),
             localization=localizations[0],
         ),
     )
 
-    # Restore session from saved cookies
-    cookidoo.load_cookies(COOKIE_FILE)
+    # Restore session from a saved token
+    cookidoo.load_token(TOKEN_FILE)
 
     return cookidoo
