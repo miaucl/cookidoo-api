@@ -69,6 +69,9 @@ async def main():
         await cookidoo.get_user_info()
         subscription = await cookidoo.get_active_subscription()
 
+        # Paired Thermomix appliances on the account
+        _devices = await cookidoo.get_devices()
+
         # Some features are only available for premium accounts. To get a premium account, you need to subscribe to the Cookidoo service. When creating a new account, you get 1 month of premium for free which is enough to test the premium features :)
         ENABLE_PREMIUM = subscription and subscription.active
 

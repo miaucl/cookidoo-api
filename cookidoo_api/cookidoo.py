@@ -34,6 +34,7 @@ from cookidoo_api.const import (
     CUSTOM_RECIPES_PATH,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
+    DEVICES_PATH,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
@@ -66,6 +67,7 @@ from cookidoo_api.helpers import (
     cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
     cookidoo_custom_recipe_from_json,
+    cookidoo_device_from_json,
     cookidoo_ingredient_item_from_json,
     cookidoo_recipe_details_from_json,
     cookidoo_recipe_from_json,
@@ -96,6 +98,7 @@ from cookidoo_api.types import (
     CookidooCollection,
     CookidooConfig,
     CookidooCustomRecipe,
+    CookidooDevice,
     CookidooIngredientItem,
     CookidooLocalizationConfig,
     CookidooSearchResult,
@@ -579,6 +582,36 @@ class Cookidoo:
                 "Loading active subscription failed during parsing of request response."
             ) from e
         return None
+
+    async def get_devices(self) -> list[CookidooDevice]:
+        """Get the Thermomix appliances paired to the account.
+
+        Returns
+        -------
+        list[CookidooDevice]
+            The paired appliances, identified by machine type (e.g. ``TM7``).
+            An empty list when no appliance is paired.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        url = self.api_endpoint / DEVICES_PATH
+        result = await self._request_json("get", url, "loading devices")
+        if result is None:
+            # An account without a paired appliance gets a 204 No Content.
+            return []
+        models = self._ensure_sequence(result, "loading devices")
+        return self._parse_result(
+            "loading devices",
+            lambda: [cookidoo_device_from_json(cast(str, model)) for model in models],
+        )
 
     async def get_recipe_details(self, id: str) -> CookidooShoppingRecipeDetails:
         """Get recipe details.

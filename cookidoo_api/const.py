@@ -49,6 +49,10 @@ REMOVE_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/remo
 COMMUNITY_PROFILE_PATH: Final = "community/profile"
 SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 
+# Paired Thermomix appliances on the account. Returns the machine types, e.g.
+# ``["TM7"]``. Language-independent path (customer-devices service).
+DEVICES_PATH: Final = "customer-devices/api/my-devices/versions"
+
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
 CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.custom-list.mobile+json"
