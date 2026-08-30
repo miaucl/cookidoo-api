@@ -44,6 +44,8 @@ REDIRECT_URI=your-oauth-redirect-uri
 
 The OAuth2 client credentials (`CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`) are not shipped with this library and have no defaults, they must be provided by you. See [OAuth2 client](https://miaucl.github.io/cookidoo-api/oauth-client/) for what they are and how to obtain them.
 
+If you don't provide the OAuth2 client credentials (or only some of them), `login()` automatically falls back to the legacy browser-style cookie-session login instead, so the library keeps working without them; sessions can then be persisted with `save_cookies`/`load_cookies`. OAuth2 is the preferred method going forward, the cookie-session login is kept only as a fallback.
+
 Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/example.py) and have a look at the inline comments for more explanation.
 
 ## Exceptions
