@@ -23,8 +23,11 @@ cookidoo = Cookidoo(
 )
 ```
 
-If any of the three is missing, `login()` raises a `CookidooConfigException`
-before performing any request.
+If any of the three is missing, `login()` falls back to the legacy
+browser-style cookie-session login instead (see
+[docs/browser-login-flow](browser-login-flow/)), so supplying them is
+optional but recommended — OAuth2 is the preferred login method going
+forward.
 
 ## Obtaining the values
 
