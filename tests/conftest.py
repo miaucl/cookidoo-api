@@ -42,6 +42,16 @@ async def bring_api_client(session: ClientSession) -> Cookidoo:
     return cookidoo
 
 
+@pytest.fixture(name="cookidoo_cookie")
+async def bring_api_client_cookie(session: ClientSession) -> Cookidoo:
+    """Create Cookidoo instance without OAuth2 client credentials.
+
+    Since no client credentials are configured, ``login()`` falls back to the
+    legacy cookie-session flow.
+    """
+    return Cookidoo(session)
+
+
 @pytest.fixture(name="mocked")
 def aioclient_mock() -> Generator[aioresponses]:
     """Mock Aiohttp client requests."""

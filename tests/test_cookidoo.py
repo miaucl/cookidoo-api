@@ -2,6 +2,8 @@
 
 from datetime import datetime
 from http import HTTPStatus
+import json
+import logging
 import pathlib
 import re
 
@@ -221,9 +223,7 @@ class TestLogin:
         mocked.post(
             CIAM_LOGIN_SRV_URL,
             status=HTTPStatus.FOUND,
-            headers={
-                "Location": f"{TEST_REDIRECT_URI}?code=test-code&state=tampered"
-            },
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code&state=tampered"},
         )
 
         with pytest.raises(CookidooAuthException, match="state mismatch"):
@@ -305,23 +305,24 @@ class TestLogin:
         assert cookidoo._logged_in
 
     @pytest.mark.parametrize(
-        ("client_id", "client_secret", "redirect_uri", "expected"),
+        ("client_id", "client_secret", "redirect_uri"),
         [
-            ("", TEST_CLIENT_SECRET, TEST_REDIRECT_URI, "client_id"),
-            (TEST_CLIENT_ID, "", TEST_REDIRECT_URI, "client_secret"),
-            (TEST_CLIENT_ID, TEST_CLIENT_SECRET, "", "redirect_uri"),
-            ("", "", "", "client_id, client_secret, redirect_uri"),
+            ("", TEST_CLIENT_SECRET, TEST_REDIRECT_URI),
+            (TEST_CLIENT_ID, "", TEST_REDIRECT_URI),
+            (TEST_CLIENT_ID, TEST_CLIENT_SECRET, ""),
+            ("", "", ""),
         ],
     )
-    async def test_login_without_client_credentials(
+    async def test_login_falls_back_to_cookie_flow_without_client_credentials(
         self,
+        monkeypatch: pytest.MonkeyPatch,
         session: ClientSession,
         client_id: str,
         client_secret: str,
         redirect_uri: str,
-        expected: str,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Login requires the caller to provide the OAuth2 client credentials."""
+        """Login falls back to the cookie flow when OAuth2 creds are incomplete."""
         cookidoo = Cookidoo(
             session,
             cfg=CookidooConfig(
@@ -330,9 +331,49 @@ class TestLogin:
                 redirect_uri=redirect_uri,
             ),
         )
+        oauth_called = False
+        cookie_called = False
 
-        with pytest.raises(CookidooConfigException, match=expected):
+        async def fake_oauth() -> None:
+            nonlocal oauth_called
+            oauth_called = True
+
+        async def fake_cookie() -> None:
+            nonlocal cookie_called
+            cookie_called = True
+
+        monkeypatch.setattr(cookidoo, "_login_oauth", fake_oauth)
+        monkeypatch.setattr(cookidoo, "_login_cookie", fake_cookie)
+
+        with caplog.at_level(logging.WARNING):
             await cookidoo.login()
+
+        assert cookie_called
+        assert not oauth_called
+        assert "OAuth2" in caplog.text
+
+    async def test_login_uses_oauth_flow_when_fully_configured(
+        self, monkeypatch: pytest.MonkeyPatch, cookidoo: Cookidoo
+    ) -> None:
+        """Login uses the OAuth2 flow when all client credentials are set."""
+        oauth_called = False
+        cookie_called = False
+
+        async def fake_oauth() -> None:
+            nonlocal oauth_called
+            oauth_called = True
+
+        async def fake_cookie() -> None:
+            nonlocal cookie_called
+            cookie_called = True
+
+        monkeypatch.setattr(cookidoo, "_login_oauth", fake_oauth)
+        monkeypatch.setattr(cookidoo, "_login_cookie", fake_cookie)
+
+        await cookidoo.login()
+
+        assert oauth_called
+        assert not cookie_called
 
     async def test_refresh_without_client_credentials(
         self, mocked: aioresponses, session: ClientSession
@@ -363,6 +404,148 @@ class TestLogin:
 
         with pytest.raises(CookidooRequestException):
             await cookidoo.login()
+
+
+class TestLoginCookie:
+    """Tests for the legacy cookie-session login fallback.
+
+    Exercised via :meth:`Cookidoo.login` on a config without OAuth2 client
+    credentials (the ``cookidoo_cookie`` fixture), which dispatches to
+    :meth:`Cookidoo._login_cookie`.
+    """
+
+    async def test_login_success(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo
+    ) -> None:
+        """Test successful login via the cookie-session flow."""
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        )
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.OK,
+        )
+
+        # aioresponses doesn't handle Set-Cookie, so set them manually.
+        cookidoo_cookie._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "test-proxy-value", "v-authenticated": "test-auth-value"}
+        )
+
+        await cookidoo_cookie.login()
+
+        assert cookidoo_cookie._logged_in
+
+    async def test_login_page_unreachable(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo
+    ) -> None:
+        """Test login when the login page returns an error."""
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.SERVICE_UNAVAILABLE,
+        )
+
+        with pytest.raises(CookidooAuthException, match="could not reach login page"):
+            await cookidoo_cookie.login()
+
+    async def test_login_page_parse_error(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo
+    ) -> None:
+        """Test login when requestId cannot be extracted."""
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body="<html><body>No form here</body></html>",
+        )
+
+        with pytest.raises(CookidooParseException, match="could not extract requestId"):
+            await cookidoo_cookie.login()
+
+    async def test_login_invalid_credentials(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo
+    ) -> None:
+        """Test login with invalid credentials (no auth cookies set)."""
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        )
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(
+            CookidooAuthException, match="authentication cookies were not set"
+        ):
+            await cookidoo_cookie.login()
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exceptions(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo, exception: Exception
+    ) -> None:
+        """Test that transport exceptions surface as request exceptions."""
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            exception=exception,
+        )
+        with pytest.raises(CookidooRequestException):
+            await cookidoo_cookie.login()
+
+
+class TestCookiePersistence:
+    """Tests for the legacy cookie save/load methods."""
+
+    async def test_save_and_load_cookies(
+        self, cookidoo_cookie: Cookidoo, tmp_path: pathlib.Path
+    ) -> None:
+        """Test saving and loading cookies."""
+        cookie_file = tmp_path / "cookies.json"
+
+        cookidoo_cookie._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "proxy-val", "v-authenticated": "auth-val"}
+        )
+
+        cookidoo_cookie.save_cookies(cookie_file)
+        assert cookie_file.exists()
+
+        cookidoo_cookie._session.cookie_jar.clear()
+        cookidoo_cookie._logged_in = False
+
+        cookidoo_cookie.load_cookies(cookie_file)
+        assert cookidoo_cookie._logged_in
+
+        cookie_names = {c.key for c in cookidoo_cookie._session.cookie_jar}
+        assert "_oauth2_proxy" in cookie_names
+        assert "v-authenticated" in cookie_names
+
+    async def test_load_cookies_missing_file(self, cookidoo_cookie: Cookidoo) -> None:
+        """Test loading cookies from a nonexistent file."""
+        with pytest.raises(CookidooConfigException, match="Cannot load cookies"):
+            cookidoo_cookie.load_cookies("/nonexistent/path/cookies.json")
+
+    async def test_load_cookies_without_auth_cookies(
+        self, cookidoo_cookie: Cookidoo, tmp_path: pathlib.Path
+    ) -> None:
+        """Loading cookies without the required auth cookies keeps logged_in false."""
+        cookie_file = tmp_path / "cookies.json"
+        cookie_file.write_text(
+            json.dumps(
+                [{"key": "some_other", "value": "val", "domain": "", "path": "/"}]
+            )
+        )
+        cookidoo_cookie._logged_in = False
+
+        cookidoo_cookie.load_cookies(cookie_file)
+
+        assert not cookidoo_cookie._logged_in
 
 
 class TestTokenPersistenceAndRefresh:

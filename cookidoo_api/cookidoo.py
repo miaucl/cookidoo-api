@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import date
 import hashlib
 from http import HTTPStatus
+from http.cookies import SimpleCookie
 import json
 from json import JSONDecodeError
 import logging
@@ -43,6 +44,8 @@ from cookidoo_api.const import (
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
     INGREDIENT_ITEMS_PATH,
     LOGIN_HEADERS,
+    LOGIN_PATH,
+    LOGIN_REDIRECT,
     MANAGED_COLLECTIONS_PATH,
     MANAGED_COLLECTIONS_PATH_ACCEPT,
     OAUTH_SCOPE,
@@ -363,6 +366,55 @@ class Cookidoo:
         self._logged_in = True
 
     async def login(self) -> None:
+        """Authenticate with Cookidoo.
+
+        Uses the OAuth2 authorization-code + PKCE flow (bearer token) when
+        OAuth2 client credentials (``client_id``, ``client_secret`` and
+        ``redirect_uri``) are configured on :class:`CookidooConfig` — this is
+        the preferred method going forward, see ``docs/oauth-client.md``.
+
+        Falls back to the legacy browser-style cookie-session login when the
+        client credentials are not (fully) configured. Both methods sign in
+        with the configured email/password and authenticate all subsequent
+        API calls automatically (via a ``Bearer`` header, or the session's
+        cookie jar, respectively).
+
+        A ``CookieJar(unsafe=True)`` session is required for both flows, and
+        login requests carry a browser-like ``User-Agent`` (request-scoped
+        only) since the flow is served behind Cloudflare.
+
+        Raises
+        ------
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the login page cannot be parsed.
+        CookidooAuthException
+            If the login fails due to invalid credentials.
+
+        """
+        if self._oauth_configured():
+            await self._login_oauth()
+        else:
+            _LOGGER.warning(
+                "Logging in with the legacy cookie-session flow, as no OAuth2 "
+                "client credentials are configured. The OAuth2 flow is "
+                "preferred, see docs/oauth-client.md."
+            )
+            await self._login_cookie()
+
+    def _oauth_configured(self) -> bool:
+        """Whether OAuth2 client credentials are fully configured.
+
+        The OAuth2 login is only attempted when ``client_id``,
+        ``client_secret`` and ``redirect_uri`` are all set; otherwise
+        :meth:`login` falls back to the cookie-session flow.
+        """
+        return bool(
+            self._cfg.client_id and self._cfg.client_secret and self._cfg.redirect_uri
+        )
+
+    async def _login_oauth(self) -> None:
         """Perform an OAuth2 authorization-code + PKCE login.
 
         Signs in with the configured email/password against the CIAM identity
@@ -374,11 +426,6 @@ class Cookidoo:
         3. POST the credentials to the CIAM login service
         4. capture the ``code`` from the redirect to the app scheme
         5. exchange the code for tokens (HTTP Basic client authentication)
-
-        The login redirects still rely on the session cookie jar, so a
-        ``CookieJar(unsafe=True)`` session is required. The login requests carry
-        a browser-like ``User-Agent`` (request-scoped only) since the flow is
-        served behind Cloudflare.
 
         Raises
         ------
@@ -440,6 +487,94 @@ class Cookidoo:
             raise CookidooRequestException(
                 "Authentication failed due to request exception."
             ) from e
+
+    async def _login_cookie(self) -> None:
+        """Perform the legacy browser-based cookie-session login.
+
+        Follows the same redirect chain as the Cookidoo web app:
+        1. Initiate login at ``cookidoo.{tld}/profile/{lang}/login``
+        2. Follow redirects through OAuth2/PKCE to the CIAM login page
+        3. POST credentials to the CIAM login service
+        4. Follow callback redirects to capture session cookies
+
+        After login, the session's cookie jar contains the authentication
+        cookies and all subsequent API calls are authenticated automatically.
+
+        Raises
+        ------
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the login page cannot be parsed.
+        CookidooAuthException
+            If the login fails due to invalid credentials.
+
+        """
+        language = self._cfg.localization.language
+        login_path = LOGIN_PATH.format(language=language)
+        redirect = LOGIN_REDIRECT.format(language=language)
+        login_url = URL(
+            str(self.api_endpoint / login_path) + f"?redirectAfterLogin={redirect}",
+            encoded=True,
+        )
+
+        try:
+            # Step 1: Follow redirect chain to reach the CIAM login page
+            async with self._session.get(
+                login_url, allow_redirects=True, headers=LOGIN_HEADERS
+            ) as resp:
+                self._check_login_page_status(resp.status)
+                login_html = await resp.text()
+
+            # Step 2: Extract requestId from the login form
+            request_id = self._extract_request_id(login_html)
+
+            # Step 3: POST credentials to CIAM login service
+            login_data = {
+                "requestId": request_id,
+                "username": self._cfg.email,
+                "password": self._cfg.password,
+            }
+            async with self._session.post(
+                CIAM_LOGIN_SRV_URL,
+                data=login_data,
+                allow_redirects=True,
+                headers=LOGIN_HEADERS,
+            ) as resp:
+                _LOGGER.debug(
+                    "Login POST completed, final URL: %s (status: %s)",
+                    resp.url,
+                    resp.status,
+                )
+
+            # Step 4: Verify authentication cookies were set
+            self._verify_auth_cookies()
+            self._logged_in = True
+
+        except CookidooAuthException:
+            raise
+        except CookidooParseException:
+            raise
+        except TimeoutError as e:
+            _LOGGER.debug("Exception: Login failed:\n %s", traceback.format_exc())
+            raise CookidooRequestException(
+                "Authentication failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug("Exception: Login failed:\n %s", traceback.format_exc())
+            raise CookidooRequestException(
+                "Authentication failed due to request exception."
+            ) from e
+
+    def _verify_auth_cookies(self) -> None:
+        """Verify that required authentication cookies are present."""
+        cookie_names = {c.key for c in self._session.cookie_jar}
+        required_cookies = {"_oauth2_proxy", "v-authenticated"}
+        if not required_cookies.issubset(cookie_names):
+            raise CookidooAuthException(
+                "Login failed: authentication cookies were not set. "
+                "Please check your email and password."
+            )
 
     async def refresh(self) -> None:
         """Refresh the access token using the stored refresh token.
@@ -509,6 +644,67 @@ class Cookidoo:
             self.apply_auth_data(CookidooAuthData(**data))
         except (OSError, json.JSONDecodeError, TypeError) as e:
             raise CookidooConfigException(f"Cannot load token from {path}.") from e
+
+    def save_cookies(self, path: str | Path) -> None:
+        """Save session cookies to a file for later reuse.
+
+        Only relevant for the legacy cookie-session login (:meth:`login`
+        falls back to it when no OAuth2 client credentials are configured).
+
+        Parameters
+        ----------
+        path
+            Path to the file where cookies will be saved.
+
+        """
+        cookies: list[dict[str, str]] = []
+        for cookie in self._session.cookie_jar:
+            cookies.append(
+                {
+                    "key": cookie.key,
+                    "value": cookie.value,
+                    "domain": cookie["domain"],
+                    "path": cookie["path"],
+                }
+            )
+        Path(path).write_text(json.dumps(cookies), encoding="utf-8")
+
+    def load_cookies(self, path: str | Path) -> None:
+        """Load session cookies from a file to restore a previous session.
+
+        Only relevant for the legacy cookie-session login (:meth:`login`
+        falls back to it when no OAuth2 client credentials are configured).
+
+        Parameters
+        ----------
+        path
+            Path to the file containing saved cookies.
+
+        Raises
+        ------
+        CookidooConfigException
+            If the cookie file cannot be read or parsed.
+
+        """
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            raise CookidooConfigException(f"Cannot load cookies from {path}.") from e
+
+        for entry in data:
+            cookie: SimpleCookie = SimpleCookie()
+            cookie[entry["key"]] = entry["value"]
+            cookie[entry["key"]]["domain"] = entry.get("domain", "")
+            cookie[entry["key"]]["path"] = entry.get("path", "/")
+            self._session.cookie_jar.update_cookies(
+                cookie, URL(f"https://{entry.get('domain', '')}")
+            )
+
+        # Check if required auth cookies are present
+        cookie_names = {c.key for c in self._session.cookie_jar}
+        required_cookies = {"_oauth2_proxy", "v-authenticated"}
+        if required_cookies.issubset(cookie_names):
+            self._logged_in = True
 
     # -- internal auth helpers --------------------------------------------
     async def _discovery(self) -> dict[str, str]:
@@ -606,8 +802,12 @@ class Cookidoo:
         self._expires_at = time.time() + expires_in
 
     async def _ensure_token(self) -> None:
-        """Refresh the access token if it is missing or about to expire."""
-        if not self._logged_in:
+        """Refresh the access token if it is missing or about to expire.
+
+        A no-op for the cookie-session login (no refresh token is ever set),
+        since that flow authenticates via the session's cookie jar instead.
+        """
+        if not self._logged_in or self._refresh_token is None:
             return
         if time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S:
             await self.refresh()

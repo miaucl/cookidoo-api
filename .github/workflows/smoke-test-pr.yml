@@ -51,7 +51,7 @@ jobs:
           python-version: ${{ env.python-version }}
       - name: Check secret access
         run: |
-          if [[ "x${{ secrets.PASSWORD }}" != "x" && "x${{ secrets.CLIENT_SECRET }}" != "x" ]]; then
+          if [[ "x${{ secrets.PASSWORD }}" != "x" && "x${{ secrets.OAUTH_CLIENT_SECRET }}" != "x" ]]; then
             echo "Access to secrets"
           else
             echo "No access to secrets"
@@ -72,14 +72,26 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: ${{ secrets.PASSWORD }}
-          CLIENT_ID: ${{ secrets.CLIENT_ID }}
-          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
-          REDIRECT_URI: ${{ secrets.REDIRECT_URI }}
-      # !!!!!!!!!!!!!!!!!!!!
-      # From here on, we run new code which does not have access to the password, only the token
-      # !!!!!!!!!!!!!!!!!!!!
+          CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          REDIRECT_URI: ${{ vars.OAUTH_REDIRECT_URI }}
       - name: Preserve token
         run: cp .token /tmp/.token
+      - name: Prepare cookies with pytest
+        run: pytest smoke_test/test_1_setup_cookies.py -v -x
+        env:
+          COUNTRY: ${{ matrix.country }}
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          EMAIL_DE: ${{ vars.EMAIL_DE }}
+          EMAIL_PL: ${{ vars.EMAIL_PL }}
+          EMAIL_MA: ${{ vars.EMAIL_MA }}
+          EMAIL_IE: ${{ vars.EMAIL_IE }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+      - name: Preserve cookies
+        run: cp .cookies /tmp/.cookies
+      # !!!!!!!!!!!!!!!!!!!!
+      # From here on, we run new code which does not have access to the password, only the token/cookies
+      # !!!!!!!!!!!!!!!!!!!!
       - name: Checkout new code
         uses: actions/checkout@v7
         with:
@@ -87,7 +99,8 @@ jobs:
           clean: false
       - name: Restore token
         run: cp /tmp/.token .token
-      - name: Test with pytest
+      # OAuth2 login is the primary method, run its methods batch first.
+      - name: Test OAuth2 login with pytest
         run: pytest smoke_test/test_2_methods.py -v -x
         env:
           COUNTRY: ${{ matrix.country }}
@@ -96,5 +109,19 @@ jobs:
           EMAIL_PL: ${{ vars.EMAIL_PL }}
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
-          PASSWORD: <redacted>
-          
+          AUTH_MODE: oauth
+      # Cookie-session login is the fallback, run it after the OAuth2 batch
+      # completes (sequentially, in the same job) so the two login methods
+      # don't clash by running concurrently against the same test account.
+      - name: Restore cookies
+        run: cp /tmp/.cookies .cookies
+      - name: Test cookie-session login with pytest
+        run: pytest smoke_test/test_2_methods.py -v -x
+        env:
+          COUNTRY: ${{ matrix.country }}
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          EMAIL_DE: ${{ vars.EMAIL_DE }}
+          EMAIL_PL: ${{ vars.EMAIL_PL }}
+          EMAIL_MA: ${{ vars.EMAIL_MA }}
+          EMAIL_IE: ${{ vars.EMAIL_IE }}
+          AUTH_MODE: cookie

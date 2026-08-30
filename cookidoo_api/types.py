@@ -41,9 +41,12 @@ class CookidooConfig:
     redirect_uri
         The OAuth2 redirect uri registered for ``client_id``
 
-    The OAuth2 client credentials are not distributed with this library and
-    have no defaults, they must be provided by the caller (e.g. from a config
-    entry or an environment variable). See ``docs/oauth-client.md``.
+    The OAuth2 client credentials are optional and not distributed with this
+    library, they must be provided by the caller (e.g. from a config entry or
+    an environment variable), see ``docs/oauth-client.md``. When all three are
+    set, ``login()`` uses the OAuth2 authorization-code + PKCE flow (the
+    preferred method). When any of them is missing, ``login()`` falls back to
+    the legacy cookie-session login instead of raising an error.
 
     """
 
