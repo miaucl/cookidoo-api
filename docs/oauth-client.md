@@ -30,13 +30,56 @@ before performing any request.
 
 The credentials belong to the official Cookidoo mobile app, so they can be read
 out of a copy of the app you own, or observed on the wire while it logs in.
-Two ways that work:
 
-1. **From the app package.** Unpack the APK of the Cookidoo app installed on
-   your own device (e.g. with `apktool`) and look through the decoded
-   resources and smali for the OAuth configuration. The client id is a short
-   identifier, the redirect uri is a custom scheme also declared as an intent
-   filter in `AndroidManifest.xml`, and the client secret sits next to them.
+### With the helper script
+
+[`scripts/extract-oauth-client.py`](https://github.com/miaucl/cookidoo-api/blob/master/scripts/extract-oauth-client.py)
+reads an APK you supply and reports the credential candidates it finds. It only
+uses the standard library, no `apktool` or other tooling needed:
+
+```bash
+./scripts/extract-oauth-client.py cookidoo.apk
+
+# or write the best candidates straight into your .env
+./scripts/extract-oauth-client.py cookidoo.apk --env >> .env
+```
+
+It collects the string constants the APK carries (the `classes*.dex` string
+pools, the `resources.arsc` and binary XML string pools, and plain text assets)
+and then, first of all, looks for the ready made HTTP Basic header the app uses
+against the token endpoint. That header is a base64 of `client_id:client_secret`,
+so decoding it recovers both halves exactly rather than by guesswork. The
+redirect uri and any leftover field are ranked heuristically on top.
+
+An app ships one client per environment it can reach, so expect several pairs
+in the report:
+
+```text
+client credentials (decoded from a Basic auth header):
+  kupferwerk-client-nwot:...
+  mobile-android:...  <-- selected
+  mobile-ios:...
+```
+
+Pick the one matching the flow you want with `--client-id`. If the token
+endpoint answers `invalid_client`, try another secret for the same id. When
+nothing plausible shows up at all, search the extracted strings yourself:
+
+```bash
+./scripts/extract-oauth-client.py cookidoo.apk --grep 'grant|secret|client'
+```
+
+The script does not download anything: bring your own APK, e.g. pulled off a
+device you own with `adb shell pm path com.vorwerk.cookidoo` followed by
+`adb pull <path>`.
+
+### By hand
+
+1. **From the app package.** Unpack the APK (e.g. with `apktool`) and look
+   through the decoded resources and smali for the OAuth configuration. The
+   client id is a short identifier, the redirect uri is a custom scheme also
+   declared as an intent filter in `AndroidManifest.xml`, and the client secret
+   sits next to them.
 
 2. **From the network traffic.** Run the app through an intercepting proxy
    (e.g. mitmproxy) with the proxy CA trusted on the device, and log in. The
