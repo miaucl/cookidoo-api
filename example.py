@@ -47,22 +47,27 @@ async def main():
 
         # Create Cookidoo instance with email and password, plus the OAuth2
         # client credentials, which are not shipped with this library and must
-        # be provided by you (see docs/oauth-client.md)
+        # be provided by you (see docs/oauth-client.md). If you don't set them
+        # (or only some of them), login() automatically falls back to the
+        # legacy browser-style cookie-session login instead.
         cookidoo = Cookidoo(
             session,
             cfg=CookidooConfig(
                 email=os.environ["EMAIL"],
                 password=os.environ["PASSWORD"],
-                client_id=os.environ["CLIENT_ID"],
-                client_secret=os.environ["CLIENT_SECRET"],
-                redirect_uri=os.environ["REDIRECT_URI"],
+                client_id=os.environ.get("CLIENT_ID", ""),
+                client_secret=os.environ.get("CLIENT_SECRET", ""),
+                redirect_uri=os.environ.get("REDIRECT_URI", ""),
                 localization=(
                     await get_localization_options(country="ie", language="en-GB")
                 )[0],
             ),
         )
 
-        # Try to reuse a saved token, otherwise login fresh
+        # Try to reuse a saved token, otherwise login fresh. If the OAuth2
+        # client credentials above are not set, login() falls back to the
+        # cookie-session flow instead; use save_cookies()/load_cookies() to
+        # persist that session in the same way.
         token_file = ".token"
         try:
             cookidoo.load_token(token_file)
