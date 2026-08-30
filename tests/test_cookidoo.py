@@ -936,6 +936,26 @@ class TestGetRecipeDetails:
         with pytest.raises(exception):
             await cookidoo.get_recipe_details("r907015")
 
+    async def test_missing_times_raises_parse_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A recipe missing a non-null activeTime/totalTime raises CookidooParseException.
+
+        Previously this raised a bare StopIteration, which is not a documented
+        exception of this method and is not even guaranteed to propagate as
+        StopIteration out of an async function (PEP 479).
+        """
+        payload = COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy()
+        payload["times"] = []
+        mocked.get(
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
+            payload=payload,
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_recipe_details("r907015")
+
 
 class TestSearchRecipes:
     """Tests for search_recipes method."""

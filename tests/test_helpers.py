@@ -59,7 +59,17 @@ class TestLocalization:
         JSON = cast(RecipeDetailsJSON, COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy())
         JSON["times"] = []
 
-        with pytest.raises(StopIteration):
+        with pytest.raises(ValueError, match="activeTime"):
+            cookidoo_recipe_details_from_json(JSON)
+
+    async def test_cookidoo_recipe_details_from_json_missing_total_time(self) -> None:
+        """Test get recipe details from json with only activeTime present."""
+        JSON = cast(RecipeDetailsJSON, COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy())
+        JSON["times"] = [
+            {"type": "activeTime", "comment": "", "quantity": {"value": 2700}}
+        ]
+
+        with pytest.raises(ValueError, match="totalTime"):
             cookidoo_recipe_details_from_json(JSON)
 
 
