@@ -880,6 +880,13 @@ class TestGetRecipeDetails:
         assert isinstance(data.active_time, int)
         assert isinstance(data.total_time, int)
         assert isinstance(data.serving_size, int)
+        assert len(data.step_groups) == 1
+        assert data.step_groups[0].title == ""
+        assert len(data.step_groups[0].recipe_steps) == 4
+        assert data.step_groups[0].recipe_steps[0].title == "1"
+        assert data.step_groups[0].recipe_steps[0].formatted_text.startswith(
+            "<NOBR>200 g Kokosraspeln</NOBR>"
+        )
 
     @pytest.mark.parametrize(
         "exception",

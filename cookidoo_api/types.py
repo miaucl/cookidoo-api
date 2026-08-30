@@ -329,6 +329,40 @@ class CookidooNutritionGroup:
 
 
 @dataclass
+class CookidooRecipeStep:
+    """Recipe step type.
+
+    Attributes
+    ----------
+    title
+        The title of the step (may be empty)
+    formatted_text
+        The instruction text for the step, as HTML markup
+
+    """
+
+    title: str
+    formatted_text: str
+
+
+@dataclass
+class CookidooRecipeStepGroup:
+    """Recipe step group type.
+
+    Attributes
+    ----------
+    title
+        The title of the step group (may be empty)
+    recipe_steps
+        List of recipe steps in this group
+
+    """
+
+    title: str
+    recipe_steps: list[CookidooRecipeStep]
+
+
+@dataclass
 class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     """Cookidoo recipe details type.
 
@@ -352,6 +386,10 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
         The time needed until the recipe is ready [in seconds]
     nutrition_groups
         The nutrition groups of the recipe (from API, may be empty)
+    step_groups
+        The grouped cooking instructions for the recipe (from API, may be
+        empty). Instruction text is returned as HTML markup, as sent by the
+        API.
 
     """
 
@@ -364,6 +402,7 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     active_time: int
     total_time: int
     nutrition_groups: list[CookidooNutritionGroup]
+    step_groups: list[CookidooRecipeStepGroup]
 
 
 @dataclass

@@ -47,6 +47,8 @@ from cookidoo_api.types import (
     CookidooNutritionGroup,
     CookidooRecipeCollection,
     CookidooRecipeNutrition,
+    CookidooRecipeStep,
+    CookidooRecipeStepGroup,
     CookidooSearchRecipeHit,
     CookidooSearchResult,
     CookidooShoppingRecipe,
@@ -387,6 +389,19 @@ def cookidoo_recipe_details_from_json(
                 ],
             )
             for ng in recipe.get("nutritionGroups", [])
+        ],
+        step_groups=[
+            CookidooRecipeStepGroup(
+                title=sg["title"],
+                recipe_steps=[
+                    CookidooRecipeStep(
+                        title=step["title"],
+                        formatted_text=step["formattedText"],
+                    )
+                    for step in sg["recipeSteps"]
+                ],
+            )
+            for sg in recipe.get("recipeStepGroups", [])
         ],
         thumbnail=thumbnail,
         image=image,
