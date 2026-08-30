@@ -392,7 +392,10 @@ COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES: Final = {
                 "yield": {"value": 6, "unitText": "portion"},
                 "ingredients": [
                     {"type": "INGREDIENT", "text": "130 g di cipolla"},
-                    {"type": "INGREDIENT", "text": "65 g di olio extravergine di oliva"},
+                    {
+                        "type": "INGREDIENT",
+                        "text": "65 g di olio extravergine di oliva",
+                    },
                 ],
                 "instructions": [
                     {"type": "STEP", "text": "Mettere nel boccale le cipolle."},
