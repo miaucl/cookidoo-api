@@ -3,14 +3,14 @@ aiofiles~=25.1.0
 mypy>=2.3.1
 pydantic>=2.13.4
 pre-commit>=4.6.2
-python-dotenv>=1.2.2
+python-dotenv>=1.2.3
 ruff~=0.16
 mkdocs-material==9.7.7
 mkdocstrings[python]==1.0.6
 pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 pytest>=9.1.1
-python-dotenv>=1.2.2
+python-dotenv>=1.2.3
 beautifulsoup4~=4.15.0
 isodate~=0.7.2
 requests~=2.34.2
