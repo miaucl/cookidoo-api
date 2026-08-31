@@ -62,7 +62,14 @@ jobs:
             python -m pip install --upgrade pip
             pip install -r requirements.txt
             pip install -r requirements_test.txt
+      # `pull_request_target` checks out the *base* branch, so the two setup
+      # steps below run the base branch's code with the password. That branch
+      # can only prepare the sessions it knows about: a base without the OAuth2
+      # login yields no .token, and one without test_1_setup_cookies.py yields
+      # no .cookies. Each batch is therefore skipped when its session file is
+      # missing, and the job fails if neither could be prepared.
       - name: Prepare token with pytest
+        continue-on-error: true
         run: pytest smoke_test/test_1_setup_token.py -v -x
         env:
           COUNTRY: ${{ matrix.country }}
@@ -75,9 +82,8 @@ jobs:
           CLIENT_ID: ${{ vars.OAUTH_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
           REDIRECT_URI: ${{ vars.OAUTH_REDIRECT_URI }}
-      - name: Preserve token
-        run: cp .token /tmp/.token
       - name: Prepare cookies with pytest
+        continue-on-error: true
         run: pytest smoke_test/test_1_setup_cookies.py -v -x
         env:
           COUNTRY: ${{ matrix.country }}
@@ -87,8 +93,28 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: ${{ secrets.PASSWORD }}
-      - name: Preserve cookies
-        run: cp .cookies /tmp/.cookies
+      - name: Preserve prepared sessions
+        id: sessions
+        run: |
+          if [[ -f .token ]]; then
+            cp .token /tmp/.token
+            echo "token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Base branch prepared no .token, skipping the OAuth2 batch"
+            echo "token=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ -f .cookies ]]; then
+            cp .cookies /tmp/.cookies
+            echo "cookies=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Base branch prepared no .cookies, skipping the cookie-session batch"
+            echo "cookies=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Check a session could be prepared
+        if: steps.sessions.outputs.token == 'false' && steps.sessions.outputs.cookies == 'false'
+        run: |
+          echo "Neither login method could prepare a session on the base branch."
+          exit 1
       # !!!!!!!!!!!!!!!!!!!!
       # From here on, we run new code which does not have access to the password, only the token/cookies
       # !!!!!!!!!!!!!!!!!!!!
@@ -98,9 +124,11 @@ jobs:
           ref: "${{ github.event.pull_request.merge_commit_sha }}"
           clean: false
       - name: Restore token
+        if: steps.sessions.outputs.token == 'true'
         run: cp /tmp/.token .token
       # OAuth2 login is the primary method, run its methods batch first.
       - name: Test OAuth2 login with pytest
+        if: steps.sessions.outputs.token == 'true'
         run: pytest smoke_test/test_2_methods.py -v -x
         env:
           COUNTRY: ${{ matrix.country }}
@@ -114,8 +142,10 @@ jobs:
       # completes (sequentially, in the same job) so the two login methods
       # don't clash by running concurrently against the same test account.
       - name: Restore cookies
+        if: steps.sessions.outputs.cookies == 'true'
         run: cp /tmp/.cookies .cookies
       - name: Test cookie-session login with pytest
+        if: steps.sessions.outputs.cookies == 'true'
         run: pytest smoke_test/test_2_methods.py -v -x
         env:
           COUNTRY: ${{ matrix.country }}
