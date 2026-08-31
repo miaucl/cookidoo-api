@@ -64,16 +64,26 @@ async def main():
             ),
         )
 
-        # Try to reuse a saved token, otherwise login fresh. If the OAuth2
-        # client credentials above are not set, login() falls back to the
-        # cookie-session flow instead; use save_cookies()/load_cookies() to
-        # persist that session in the same way.
+        # Try to reuse a saved session, otherwise login fresh. Which file holds
+        # it depends on the login method: the OAuth2 flow persists tokens with
+        # save_token()/load_token(), the cookie-session fallback (used when the
+        # OAuth2 client credentials above are not set) persists the session with
+        # save_cookies()/load_cookies().
         token_file = ".token"
+        cookie_file = ".cookies"
         try:
             cookidoo.load_token(token_file)
         except Exception:
-            await cookidoo.login()
-            cookidoo.save_token(token_file)
+            try:
+                cookidoo.load_cookies(cookie_file)
+            except Exception:
+                await cookidoo.login()
+                # The OAuth2 flow yields tokens, the cookie-session fallback
+                # does not (auth_data stays None), so persist accordingly.
+                if cookidoo.auth_data is not None:
+                    cookidoo.save_token(token_file)
+                else:
+                    cookidoo.save_cookies(cookie_file)
 
         # Info
         await cookidoo.get_user_info()
