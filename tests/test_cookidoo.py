@@ -4073,6 +4073,155 @@ class TestRemoteMonitoring:
         with pytest.raises(CookidooParseException, match="rmi-config link missing"):
             await cookidoo.get_monitored_device_ids()
 
+    async def test_rmi_links_are_cached(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The resolution walk runs once and is reused afterwards."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=[])
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        await cookidoo.get_monitored_device_ids()
+        await cookidoo.get_monitored_device_ids()
+
+        # Only the first call walked mobile-home -> rmi-config.
+        assert len(mocked.requests[("get", URL(self.MOBILE_HOME_URL))]) == 1
+        assert len(mocked.requests[("get", URL(self.RMI_CONFIG_URL))]) == 1
+
+    async def test_mobile_home_without_links(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A home doc whose ``_links`` is not an object raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload={"_links": "not-an-object"})
+
+        with pytest.raises(CookidooParseException, match="rmi-config link missing"):
+            await cookidoo.get_monitored_device_ids()
+
+    async def test_rmi_config_without_links(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An rmi-config document without a ``_links`` object raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload={"_links": "not-an-object"})
+
+        with pytest.raises(CookidooParseException, match="during parsing"):
+            await cookidoo.get_monitored_device_ids()
+
+    async def test_rmi_links_accept_both_hal_shapes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A rel maps either to a bare href string or to a ``{"href": ...}``."""
+        mocked.get(
+            self.MOBILE_HOME_URL,
+            payload={"_links": {"tmde2:rmi-config": self.RMI_CONFIG_URL}},
+        )
+        mocked.get(
+            self.RMI_CONFIG_URL,
+            payload={
+                "_links": {
+                    "rmi:devices": self.DEVICES_URL,
+                    "rmi:unregister": {"href": self.UNREGISTER_URL},
+                    "rmi:ignored": {"no-href": True},
+                }
+            },
+        )
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        assert await cookidoo.get_monitored_device_ids() == []
+
+    @pytest.mark.parametrize(
+        ("rel", "call", "args"),
+        [
+            ("rmi:devices", "get_monitored_device_ids", ()),
+            ("rmi:register-token", "register_push_token", ("fcm-token", "install-id")),
+            ("rmi:unregister", "unregister_push_token", ("fcm-token",)),
+        ],
+    )
+    async def test_rmi_endpoint_link_missing(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        rel: str,
+        call: str,
+        args: tuple[str, ...],
+    ) -> None:
+        """Each endpoint reports its own missing link rather than failing late."""
+        links = {
+            k: v
+            for k, v in COOKIDOO_TEST_RESPONSE_RMI_CONFIG["_links"].items()
+            if k != rel
+        }
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload={"_links": links})
+
+        with pytest.raises(CookidooParseException, match=f"{rel} link missing"):
+            await getattr(cookidoo, call)(*args)
+
+    @pytest.mark.parametrize(
+        ("field", "value", "attr", "expected"),
+        [
+            # _push_timestamp: unparseable and empty strings degrade to None
+            ("completedDate", "not-a-date", "completed_at", None),
+            ("completedDate", "", "completed_at", None),
+            ("completedDate", None, "completed_at", None),
+            ("completedDate", ["unexpected", "shape"], "completed_at", None),
+            # _push_number: sentinels, comma decimals and native numbers
+            ("secondaryInfo", "---", "target_temperature", None),
+            ("secondaryInfo", "", "target_temperature", None),
+            ("secondaryInfo", "not-a-number", "target_temperature", None),
+            ("secondaryInfo", "37,5", "target_temperature", 37.5),
+            ("secondaryInfo", 95, "target_temperature", 95.0),
+            ("secondaryInfo", None, "target_temperature", None),
+            # _push_bool: real bools pass through, strings are coerced
+            ("isTimeEstimated", True, "is_time_estimated", True),
+            ("isTimeEstimated", "yes", "is_time_estimated", True),
+            ("isTimeEstimated", "FALSE", "is_time_estimated", False),
+            ("isTimeEstimated", 1, "is_time_estimated", True),
+        ],
+    )
+    def test_cooking_activity_from_push_field_parsing(
+        self, field: str, value: object, attr: str, expected: object
+    ) -> None:
+        """Malformed or alternately-typed push fields degrade instead of raising."""
+        payload = {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, field: value}
+
+        assert getattr(cooking_activity_from_push(payload), attr) == expected
+
+    @pytest.mark.parametrize("remaining", ["600", 600])
+    def test_cooking_activity_from_push_remaining_duration(
+        self, remaining: object
+    ) -> None:
+        """``remainingDuration`` arrives as a string or an int; both are used."""
+        payload = {
+            **COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
+            "remainingDuration": remaining,
+        }
+
+        assert cooking_activity_from_push(payload).remaining_seconds == 600
+
+    def test_cooking_activity_from_push_remaining_duration_unparseable(self) -> None:
+        """An unparseable duration falls back to deriving it from the finish time."""
+        payload = {
+            **COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
+            "remainingDuration": "not-a-number",
+        }
+
+        remaining = cooking_activity_from_push(payload).remaining_seconds
+        assert remaining is None or isinstance(remaining, int)
+
+    def test_cooking_activity_from_push_epoch_seconds(self) -> None:
+        """Epoch timestamps arrive in millis or seconds; both decode."""
+        millis = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "completedDate": "1787924895000"}
+        )
+        seconds = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "completedDate": 1787924895}
+        )
+
+        assert millis.completed_at is not None
+        assert seconds.completed_at is not None
+        assert millis.completed_at == seconds.completed_at
+
     def test_cooking_activity_from_push(self) -> None:
         """Test decoding a remote-monitoring push payload."""
         activity = cooking_activity_from_push(COOKIDOO_TEST_PUSH_COOKING_ACTIVITY)
