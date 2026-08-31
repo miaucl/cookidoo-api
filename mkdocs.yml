@@ -68,3 +68,4 @@ nav:
     - License: license.md
     - Reference: reference.md
     - Localization: localization.md
+    - OAuth2 client: oauth-client.md

@@ -14,7 +14,7 @@ from cookidoo_api.types import CookidooConfig
 
 load_dotenv()
 
-COOKIE_FILE = Path(".cookies")
+TOKEN_FILE = Path(".token")
 
 
 @pytest.fixture(name="session")
@@ -47,7 +47,7 @@ async def cookidoo_api_client_no_auth(session: ClientSession) -> Cookidoo:
 async def cookidoo_authenticated_api_client(
     session: ClientSession,
 ) -> Cookidoo:
-    """Create authenticated Cookidoo instance from saved cookies."""
+    """Create authenticated Cookidoo instance from a saved token."""
 
     country = os.environ["COUNTRY"]
     localizations = await get_localization_options(country=country)
@@ -61,7 +61,7 @@ async def cookidoo_authenticated_api_client(
         ),
     )
 
-    # Restore session from saved cookies
-    cookidoo.load_cookies(COOKIE_FILE)
+    # Restore session from a saved token
+    cookidoo.load_token(TOKEN_FILE)
 
     return cookidoo

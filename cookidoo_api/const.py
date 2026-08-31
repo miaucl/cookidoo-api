@@ -20,9 +20,36 @@ LOGIN_HEADERS: Final = {
     ),
 }
 
-CIAM_LOGIN_SRV_URL: Final = (
-    "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login"
-)
+CIAM_BASE_URL: Final = "https://ciam.prod.cookidoo.vorwerk-digital.com"
+CIAM_LOGIN_SRV_URL: Final = f"{CIAM_BASE_URL}/login-srv/login"
+OIDC_DISCOVERY_URL: Final = f"{CIAM_BASE_URL}/.well-known/openid-configuration"
+
+# OAuth2 / OIDC client. The bearer token it yields works against the same
+# api_endpoint as the previous cookie session, and additionally reaches the
+# remote-monitoring backend (which the cookie session could not).
+#
+# The login runs as a *public* client: authorization code + PKCE, with the
+# client id sent in the token request body and no client secret anywhere. CIAM
+# accepts that -- with a `code_verifier` present it does not verify a client
+# secret at all (a request carrying a deliberately wrong secret is accepted just
+# the same), and it rejects the exchange only when neither PKCE nor a secret is
+# supplied. So the secret the mobile app happens to ship is not a credential
+# this flow needs, and nothing secret is embedded here:
+#
+# * the client id is a public identifier by definition -- RFC 6749 sec. 2.2:
+#   "The client identifier is not a secret; it is exposed to the resource owner
+#   and MUST NOT be used alone for client authentication."
+# * the redirect uri is the app's public URL scheme; it travels in the query
+#   string of every authorize request and is declared in the app manifest.
+#
+# Both are overridable via `CookidooConfig` should the app's registration ever
+# change, but callers are not expected to supply anything.
+OAUTH_CLIENT_ID: Final = "mobile-android"
+OAUTH_REDIRECT_URI: Final = "com.vorwerk.cookidoo://code-grant"
+OAUTH_SCOPE: Final = "openid profile email offline offline_access"
+# Refresh a little before the (12h) access token actually expires.
+TOKEN_EXPIRY_MARGIN_S: Final = 300
+
 LOGIN_PATH: Final = "profile/{language}/login"
 LOGIN_REDIRECT: Final = "%2Ffoundation%2F{language}%2Ffor-you"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
