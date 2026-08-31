@@ -436,6 +436,52 @@ class TestLoginCookie:
         await cookidoo_cookie.login()
 
         assert cookidoo_cookie._logged_in
+        assert cookidoo_cookie._auth_mode == "cookie"
+        # Nothing to persist as a token, the session lives in the cookie jar.
+        assert cookidoo_cookie.auth_data is None
+
+    async def test_login_discards_stale_token_state(
+        self, mocked: aioresponses, cookidoo_cookie: Cookidoo
+    ) -> None:
+        """A cookie login clears token state left over from a previous OAuth2 login.
+
+        Otherwise the stale bearer header shadows the cookie session and
+        ``_ensure_token`` tries to refresh a token this flow cannot renew,
+        failing every subsequent request with a ``CookidooConfigException``.
+        """
+        cookidoo_cookie.apply_auth_data(
+            CookidooAuthData(
+                access_token="stale-access-token",
+                refresh_token="stale-refresh-token",
+                expires_at=1.0,  # already expired, would trigger a refresh
+            )
+        )
+
+        mocked.get(
+            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
+            status=HTTPStatus.OK,
+            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
+        )
+        mocked.post(CIAM_LOGIN_SRV_URL, status=HTTPStatus.OK)
+        cookidoo_cookie._session.cookie_jar.update_cookies(
+            {"_oauth2_proxy": "test-proxy-value", "v-authenticated": "test-auth-value"}
+        )
+
+        await cookidoo_cookie.login()
+
+        assert cookidoo_cookie._auth_mode == "cookie"
+        assert "Authorization" not in cookidoo_cookie._api_headers
+        assert cookidoo_cookie._refresh_token is None
+        assert cookidoo_cookie.auth_data is None
+
+        # The next request must go out on the cookie session alone, without
+        # attempting (and failing) a token refresh.
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            status=HTTPStatus.OK,
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+        )
+        await cookidoo_cookie.get_user_info()
 
     async def test_login_page_unreachable(
         self, mocked: aioresponses, cookidoo_cookie: Cookidoo

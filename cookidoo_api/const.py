@@ -35,6 +35,9 @@ OAUTH_SCOPE: Final = "openid profile email offline offline_access"
 # Refresh a little before the (12h) access token actually expires.
 TOKEN_EXPIRY_MARGIN_S: Final = 300
 
+# Cookies the legacy cookie-session login must end up with to be authenticated.
+REQUIRED_AUTH_COOKIES: Final = frozenset({"_oauth2_proxy", "v-authenticated"})
+
 LOGIN_PATH: Final = "profile/{language}/login"
 LOGIN_REDIRECT: Final = "%2Ffoundation%2F{language}%2Ffor-you"
 RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"

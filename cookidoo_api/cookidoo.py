@@ -15,7 +15,7 @@ import re
 import secrets
 import time
 import traceback
-from typing import TypeVar, cast
+from typing import Literal, TypeVar, cast
 from urllib.parse import parse_qs, urljoin, urlparse
 
 from aiohttp import ClientError, ClientSession
@@ -59,6 +59,7 @@ from cookidoo_api.const import (
     REMOVE_MANAGED_COLLECTION_PATH,
     REMOVE_RECIPE_FROM_CALENDER_PATH,
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
+    REQUIRED_AUTH_COOKIES,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_EXPIRY_MARGIN_S,
@@ -128,6 +129,7 @@ class Cookidoo:
     _cfg: CookidooConfig
     _api_headers: dict[str, str]
     _logged_in: bool
+    _auth_mode: Literal["oauth", "cookie"] | None
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
@@ -153,6 +155,7 @@ class Cookidoo:
         self._cfg = cfg
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self._logged_in = False
+        self._auth_mode = None
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
@@ -345,8 +348,16 @@ class Cookidoo:
 
     @property
     def auth_data(self) -> CookidooAuthData | None:
-        """The current OAuth2 tokens, for persistence. ``None`` until logged in."""
-        if not self._logged_in or self._refresh_token is None:
+        """The current OAuth2 tokens, for persistence.
+
+        ``None`` until logged in, and always ``None`` for the cookie-session
+        login, which has no tokens to persist (use :meth:`save_cookies` there).
+        """
+        if (
+            not self._logged_in
+            or self._auth_mode != "oauth"
+            or self._refresh_token is None
+        ):
             return None
         return CookidooAuthData(
             access_token=self._api_headers["Authorization"].removeprefix("Bearer "),
@@ -363,6 +374,7 @@ class Cookidoo:
         self._api_headers["Authorization"] = f"Bearer {auth_data.access_token}"
         self._refresh_token = auth_data.refresh_token
         self._expires_at = auth_data.expires_at
+        self._auth_mode = "oauth"
         self._logged_in = True
 
     async def login(self) -> None:
@@ -473,6 +485,7 @@ class Cookidoo:
 
             # Step 5: exchange the code for tokens
             await self._exchange_code(oidc["token_endpoint"], code, verifier)
+            self._auth_mode = "oauth"
             self._logged_in = True
 
         except (CookidooAuthException, CookidooParseException):
@@ -510,6 +523,12 @@ class Cookidoo:
             If the login fails due to invalid credentials.
 
         """
+        # Drop any OAuth2 token state left over from a previous login or from
+        # apply_auth_data()/load_token(), so the cookie session is not shadowed
+        # by a stale bearer header and _ensure_token() does not try to refresh
+        # a token this flow can neither use nor renew.
+        self._discard_token_state()
+
         language = self._cfg.localization.language
         login_path = LOGIN_PATH.format(language=language)
         redirect = LOGIN_REDIRECT.format(language=language)
@@ -549,6 +568,7 @@ class Cookidoo:
 
             # Step 4: Verify authentication cookies were set
             self._verify_auth_cookies()
+            self._auth_mode = "cookie"
             self._logged_in = True
 
         except CookidooAuthException:
@@ -566,11 +586,20 @@ class Cookidoo:
                 "Authentication failed due to request exception."
             ) from e
 
+    def _discard_token_state(self) -> None:
+        """Drop all OAuth2 token state, leaving the session cookies untouched."""
+        self._api_headers.pop("Authorization", None)
+        self._refresh_token = None
+        self._expires_at = 0.0
+
+    def _has_auth_cookies(self) -> bool:
+        """Whether the session cookie jar holds the required auth cookies."""
+        cookie_names = {c.key for c in self._session.cookie_jar}
+        return REQUIRED_AUTH_COOKIES.issubset(cookie_names)
+
     def _verify_auth_cookies(self) -> None:
         """Verify that required authentication cookies are present."""
-        cookie_names = {c.key for c in self._session.cookie_jar}
-        required_cookies = {"_oauth2_proxy", "v-authenticated"}
-        if not required_cookies.issubset(cookie_names):
+        if not self._has_auth_cookies():
             raise CookidooAuthException(
                 "Login failed: authentication cookies were not set. "
                 "Please check your email and password."
@@ -701,9 +730,9 @@ class Cookidoo:
             )
 
         # Check if required auth cookies are present
-        cookie_names = {c.key for c in self._session.cookie_jar}
-        required_cookies = {"_oauth2_proxy", "v-authenticated"}
-        if required_cookies.issubset(cookie_names):
+        if self._has_auth_cookies():
+            self._discard_token_state()
+            self._auth_mode = "cookie"
             self._logged_in = True
 
     # -- internal auth helpers --------------------------------------------
@@ -804,10 +833,10 @@ class Cookidoo:
     async def _ensure_token(self) -> None:
         """Refresh the access token if it is missing or about to expire.
 
-        A no-op for the cookie-session login (no refresh token is ever set),
-        since that flow authenticates via the session's cookie jar instead.
+        A no-op for the cookie-session login, since that flow authenticates via
+        the session's cookie jar and has no token to refresh.
         """
-        if not self._logged_in or self._refresh_token is None:
+        if not self._logged_in or self._auth_mode != "oauth":
             return
         if time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S:
             await self.refresh()
