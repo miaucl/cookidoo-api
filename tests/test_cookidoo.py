@@ -1,12 +1,14 @@
 """Unit tests for cookidoo-api."""
 
+from collections.abc import Callable
 from datetime import datetime
 from http import HTTPStatus
 import pathlib
 import re
+from typing import Any
 
 from aiohttp import ClientError, ClientSession
-from aioresponses import aioresponses
+from aioresponses import CallbackResult, aioresponses
 from dotenv import load_dotenv
 import pytest
 from yarl import URL
@@ -125,23 +127,48 @@ class TestLogin:
     """Tests for the OAuth2 authorization-code login flow."""
 
     @staticmethod
+    def _mock_authorize(
+        mocked: aioresponses, *, body: str = COOKIDOO_TEST_LOGIN_PAGE_HTML
+    ) -> dict[str, str]:
+        """Serve the login page and capture the ``state`` the client sent."""
+        captured: dict[str, str] = {}
+
+        def _serve(url: URL, **kwargs: Any) -> CallbackResult:
+            captured["state"] = url.query["state"]
+            return CallbackResult(status=HTTPStatus.OK, body=body)
+
+        mocked.get(AUTHZ_RE, callback=_serve, repeat=True)
+        return captured
+
+    @staticmethod
+    def _app_redirect(
+        captured: dict[str, str], *, code: str | None = "test-code"
+    ) -> Callable[..., CallbackResult]:
+        """Redirect to the app scheme, echoing the state like CIAM does."""
+
+        def _redirect(url: URL, **kwargs: Any) -> CallbackResult:
+            query = [f"code={code}"] if code else []
+            query.append(f"state={captured['state']}")
+            return CallbackResult(
+                status=HTTPStatus.FOUND,
+                headers={"Location": f"{TEST_REDIRECT_URI}?{'&'.join(query)}"},
+            )
+
+        return _redirect
+
+    @classmethod
     def _mock_login_flow(
+        cls,
         mocked: aioresponses,
         *,
         page_body: str = COOKIDOO_TEST_LOGIN_PAGE_HTML,
         code: str | None = "test-code",
-    ) -> None:
+    ) -> dict[str, str]:
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=page_body)
-        location = TEST_REDIRECT_URI
-        if code:
-            location += f"?code={code}"
-        mocked.post(
-            CIAM_LOGIN_SRV_URL,
-            status=HTTPStatus.FOUND,
-            headers={"Location": location},
-        )
+        captured = cls._mock_authorize(mocked, body=page_body)
+        mocked.post(CIAM_LOGIN_SRV_URL, callback=cls._app_redirect(captured, code=code))
         mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
+        return captured
 
     async def test_login_success(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -231,7 +258,7 @@ class TestLogin:
     ) -> None:
         """Redirects before the app scheme are followed to capture the code."""
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        captured = self._mock_authorize(mocked)
         interstitial = (
             "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/continue"
         )
@@ -240,23 +267,36 @@ class TestLogin:
             status=HTTPStatus.FOUND,
             headers={"Location": interstitial},
         )
-        mocked.get(
-            interstitial,
-            status=HTTPStatus.FOUND,
-            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
-        )
+        mocked.get(interstitial, callback=self._app_redirect(captured))
         mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
 
         await cookidoo.login()
 
         assert cookidoo._logged_in
 
+    async def test_login_refuses_redirect_off_the_auth_host(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A redirect leaving the CIAM origin is refused instead of followed."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        self._mock_authorize(mocked)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": "https://evil.example/login-srv/continue"},
+        )
+
+        with pytest.raises(
+            CookidooAuthException, match="redirected off the authentication host"
+        ):
+            await cookidoo.login()
+
     async def test_login_state_mismatch(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """A state that does not match the one sent aborts the login."""
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
+        self._mock_authorize(mocked)
         mocked.post(
             CIAM_LOGIN_SRV_URL,
             status=HTTPStatus.FOUND,
@@ -265,6 +305,35 @@ class TestLogin:
 
         with pytest.raises(CookidooAuthException, match="state mismatch"):
             await cookidoo.login()
+
+    async def test_login_state_missing(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A callback that omits the state entirely counts as a mismatch."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        self._mock_authorize(mocked)
+        mocked.post(
+            CIAM_LOGIN_SRV_URL,
+            status=HTTPStatus.FOUND,
+            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
+        )
+
+        with pytest.raises(CookidooAuthException, match="state mismatch"):
+            await cookidoo.login()
+
+    async def test_login_sends_the_state_it_verifies(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The state accepted on the callback is the one the client sent."""
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        captured = self._mock_authorize(mocked)
+        mocked.post(CIAM_LOGIN_SRV_URL, callback=self._app_redirect(captured))
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
+
+        await cookidoo.login()
+
+        assert captured["state"]
+        assert cookidoo._logged_in
 
     async def test_login_redirect_loop(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -293,12 +362,8 @@ class TestLogin:
     ) -> None:
         """A rejected code exchange surfaces as an auth exception."""
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
-        mocked.post(
-            CIAM_LOGIN_SRV_URL,
-            status=HTTPStatus.FOUND,
-            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
-        )
+        captured = self._mock_authorize(mocked)
+        mocked.post(CIAM_LOGIN_SRV_URL, callback=self._app_redirect(captured))
         mocked.post(TOKEN_ENDPOINT, status=HTTPStatus.BAD_REQUEST)
 
         with pytest.raises(CookidooAuthException, match="Token exchange failed"):
@@ -309,12 +374,8 @@ class TestLogin:
     ) -> None:
         """A token response without an access token surfaces as an auth exception."""
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
-        mocked.post(
-            CIAM_LOGIN_SRV_URL,
-            status=HTTPStatus.FOUND,
-            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
-        )
+        captured = self._mock_authorize(mocked)
+        mocked.post(CIAM_LOGIN_SRV_URL, callback=self._app_redirect(captured))
         mocked.post(TOKEN_ENDPOINT, payload={"token_type": "Bearer"})
 
         with pytest.raises(CookidooAuthException, match="Unexpected token response"):
@@ -324,17 +385,12 @@ class TestLogin:
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """The OIDC discovery document is only fetched once."""
-        self._mock_login_flow(mocked)
+        captured = self._mock_login_flow(mocked)
 
         await cookidoo.login()
         # A second login must not hit the discovery endpoint again, it is only
         # mocked once and a second request would fail.
-        mocked.get(AUTHZ_RE, status=HTTPStatus.OK, body=COOKIDOO_TEST_LOGIN_PAGE_HTML)
-        mocked.post(
-            CIAM_LOGIN_SRV_URL,
-            status=HTTPStatus.FOUND,
-            headers={"Location": f"{TEST_REDIRECT_URI}?code=test-code"},
-        )
+        mocked.post(CIAM_LOGIN_SRV_URL, callback=self._app_redirect(captured))
         mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_TOKEN_RESPONSE)
 
         await cookidoo.login()
@@ -447,8 +503,8 @@ class TestTokenPersistenceAndRefresh:
         assert cookidoo.auth_data.refresh_token == "refreshed-refresh-token"
 
     async def test_refresh_without_login(self, cookidoo: Cookidoo) -> None:
-        """Refreshing without a login raises."""
-        with pytest.raises(CookidooAuthException, match="not logged in"):
+        """Refreshing without a refresh token raises."""
+        with pytest.raises(CookidooAuthException, match="no refresh token available"):
             await cookidoo.refresh()
 
     async def test_refresh_rejected(

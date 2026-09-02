@@ -29,6 +29,7 @@ from cookidoo_api.const import (
     ADD_RECIPES_TO_CALENDER_PATH,
     ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
+    CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
     COMMUNITY_PROFILE_PATH,
     CUSTOM_COLLECTIONS_PATH,
@@ -457,7 +458,7 @@ class Cookidoo:
 
         """
         if self._refresh_token is None:
-            raise CookidooAuthException("Cannot refresh: not logged in.")
+            raise CookidooAuthException("Cannot refresh: no refresh token available.")
         self._assert_oauth_client()
         oidc = await self._discovery()
         try:
@@ -551,12 +552,16 @@ class Cookidoo:
                 if resp.status in (301, 302, 303, 307, 308) and location:
                     if location.startswith(self._cfg.redirect_uri):
                         query = parse_qs(urlparse(location).query)
-                        if query.get("state", [state])[0] != state:
+                        # A missing state is a mismatch: the callback must echo
+                        # the value we sent (RFC 6749 §10.12).
+                        if query.get("state") != [state]:
                             raise CookidooAuthException("OAuth state mismatch.")
                         codes = query.get("code")
                         code = codes[0] if codes else None
                         break
-                    url, method, data = urljoin(url, location), "get", None
+                    url = urljoin(url, location)
+                    self._assert_ciam_origin(url)
+                    method, data = "get", None
                     continue
                 break
         if code is None:
@@ -565,6 +570,20 @@ class Cookidoo:
                 "returned). Please check your email and password."
             )
         return code
+
+    @staticmethod
+    def _assert_ciam_origin(url: str) -> None:
+        """Ensure the login flow never leaves CIAM's own origin.
+
+        The redirect chain carries the session cookies of an in-flight login, so
+        a redirect to a foreign host is refused rather than followed.
+        """
+        origin = urlparse(url)
+        expected = urlparse(CIAM_BASE_URL)
+        if (origin.scheme, origin.netloc) != (expected.scheme, expected.netloc):
+            raise CookidooAuthException(
+                f"Login flow redirected off the authentication host: {url}"
+            )
 
     @staticmethod
     def _check_login_page_status(status: int) -> None:
