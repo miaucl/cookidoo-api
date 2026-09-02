@@ -7,8 +7,15 @@ import pytest
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.types import (
     CookidooAdditionalItem,
+    CookidooCreateCustomRecipe,
+    CookidooIngredientAnnotation,
     CookidooIngredientItem,
+    CookidooInstruction,
+    CookidooStepSettings,
+    CookidooTTSAnnotation,
+    CookidooUpdateCustomRecipe,
     ThermomixMachineType,
+    ThermomixSpeed,
 )
 
 
@@ -78,6 +85,140 @@ class TestMethods:
         for recipe in recipes:
             assert recipe.id
             assert recipe.name
+
+    async def test_cookidoo_create_custom_recipe(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo create custom recipe from scratch, get and remove."""
+        created = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Smoke test recipe",
+                ingredients=["100g flour", "1 egg"],
+                instructions=["Mix ingredients", "Bake 20 min"],
+                serving_size=2,
+                active_time=300,
+                total_time=1200,
+            )
+        )
+        try:
+            assert created.id
+            assert created.name == "Smoke test recipe"
+            assert created.serving_size == 2
+            assert created.ingredients == ["100g flour", "1 egg"]
+            fetched = await cookidoo.get_custom_recipe(created.id)
+            assert fetched.id == created.id
+            assert fetched.name == "Smoke test recipe"
+            edited = await cookidoo.update_custom_recipe(
+                created.id,
+                CookidooUpdateCustomRecipe(name="Edited smoke test recipe"),
+            )
+            assert edited.id == created.id
+            assert edited.name == "Edited smoke test recipe"
+            listed = await cookidoo.list_custom_recipes()
+            assert any(recipe.id == created.id for recipe in listed)
+        finally:
+            await cookidoo.remove_custom_recipe(created.id)
+
+    async def test_cookidoo_create_custom_recipe_with_annotations(
+        self, cookidoo: Cookidoo
+    ) -> None:
+        """Test create/update with structured steps, annotations, and machine tools."""
+        created = await cookidoo.create_custom_recipe(
+            CookidooCreateCustomRecipe(
+                name="Smoke annotated recipe",
+                ingredients=["100g flour", "1 egg"],
+                instructions=[
+                    CookidooInstruction(
+                        "Add 100g flour",
+                        annotations=[
+                            CookidooIngredientAnnotation("100g flour", "100g flour")
+                        ],
+                    ),
+                    CookidooInstruction(
+                        "Mix 1 min/speed 4",
+                        settings=CookidooStepSettings(
+                            time=60,
+                            speed=ThermomixSpeed.SPEED_4,
+                        ),
+                        annotations=[
+                            CookidooTTSAnnotation(
+                                "1 min/speed 4",
+                                time=60,
+                                speed=ThermomixSpeed.SPEED_4,
+                            )
+                        ],
+                    ),
+                    "Serve warm",
+                ],
+                serving_size=2,
+                active_time=180,
+                total_time=600,
+                tools=[ThermomixMachineType.TM6, ThermomixMachineType.TM7],
+                hints=["Smoke test hint"],
+            )
+        )
+        try:
+            assert created.id
+            assert created.name == "Smoke annotated recipe"
+            assert set(created.tools) >= {"TM6", "TM7"}
+            assert len(created.instructions) == 3
+            assert created.hints == ["Smoke test hint"]
+
+            updated = await cookidoo.update_custom_recipe(
+                created.id,
+                CookidooUpdateCustomRecipe(
+                    name="Edited annotated smoke recipe",
+                    serving_size=4,
+                    instructions=[
+                        CookidooInstruction(
+                            "Mix 2 min/speed 5",
+                            settings=CookidooStepSettings(
+                                time=120,
+                                speed=ThermomixSpeed.SPEED_5,
+                            ),
+                            annotations=[
+                                CookidooTTSAnnotation(
+                                    "2 min/speed 5",
+                                    time=120,
+                                    speed=ThermomixSpeed.SPEED_5,
+                                )
+                            ],
+                        )
+                    ],
+                    hints=["Updated smoke hint"],
+                ),
+            )
+            assert updated.id == created.id
+            assert updated.name == "Edited annotated smoke recipe"
+            assert updated.serving_size == 4
+            assert len(updated.instructions) == 1
+            assert updated.hints == ["Updated smoke hint"]
+
+            fetched = await cookidoo.get_custom_recipe(created.id)
+            assert fetched.name == "Edited annotated smoke recipe"
+            assert fetched.serving_size == 4
+            assert fetched.hints == ["Updated smoke hint"]
+        finally:
+            await cookidoo.remove_custom_recipe(created.id)
+
+    async def test_cookidoo_add_custom_recipe_from(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo create a custom recipe by copying an existing recipe."""
+        search = await cookidoo.search_recipes("Brötchen", page_size=1)
+        assert search.recipes, "Expected at least one searchable recipe to copy"
+        source_recipe_id = search.recipes[0].id
+
+        created = await cookidoo.add_custom_recipe_from(source_recipe_id, 4)
+        try:
+            assert created.id
+            assert created.serving_size == 4
+            assert created.name
+
+            fetched = await cookidoo.get_custom_recipe(created.id)
+            assert fetched.id == created.id
+            assert fetched.name == created.name
+
+            listed = await cookidoo.list_custom_recipes()
+            assert any(recipe.id == created.id for recipe in listed)
+        finally:
+            await cookidoo.remove_custom_recipe(created.id)
 
     async def test_cookidoo_shopping_list_recipe_and_ingredients(
         self, cookidoo: Cookidoo

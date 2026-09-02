@@ -1,6 +1,6 @@
 """Cookidoo API helpers."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 import json
 import logging
 import os
@@ -26,8 +26,6 @@ from cookidoo_api.raw_types import (
     QuantityJSON,
     RecipeDetailsJSON,
     RecipeJSON,
-    SearchRecipeHitJSON,
-    SearchResultJSON,
     SubscriptionJSON,
 )
 from cookidoo_api.types import (
@@ -38,11 +36,15 @@ from cookidoo_api.types import (
     CookidooChapter,
     CookidooChapterRecipe,
     CookidooCollection,
+    CookidooCustomAnnotation,
     CookidooCustomRecipe,
     CookidooDevice,
     CookidooIngredient,
+    CookidooIngredientAnnotation,
     CookidooIngredientItem,
+    CookidooInstruction,
     CookidooLocalizationConfig,
+    CookidooModeAnnotation,
     CookidooNutrition,
     CookidooNutritionGroup,
     CookidooRecipeCollection,
@@ -51,7 +53,10 @@ from cookidoo_api.types import (
     CookidooSearchResult,
     CookidooShoppingRecipe,
     CookidooShoppingRecipeDetails,
+    CookidooStepSettings,
     CookidooSubscription,
+    CookidooTemperatureSetting,
+    CookidooTTSAnnotation,
     CookidooUserInfo,
     ThermomixMachineType,
 )
@@ -248,7 +253,7 @@ def cookidoo_recipe_from_json(
 
 
 def cookidoo_search_result_from_json(
-    data: SearchResultJSON,
+    data: Mapping[str, object],
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooSearchResult:
     """Convert a search result received from the API to a CookidooSearchResult.
@@ -270,19 +275,21 @@ def cookidoo_search_result_from_json(
 
     """
     if "data" in data:
-        raw_recipes: list[SearchRecipeHitJSON] = data["data"] or []
+        raw_recipes = data["data"]
     elif "recipes" in data:
-        raw_recipes = data["recipes"] or []
+        raw_recipes = data["recipes"]
     else:
         raw_recipes = []
-    recipes_data: list[object] = list(raw_recipes)
+    recipes_data: list[object] = raw_recipes if isinstance(raw_recipes, list) else []
     total_raw = data.get("total")
     hits: list[CookidooSearchRecipeHit] = []
     for item in recipes_data:
         if not isinstance(item, dict):
             continue
-        recipe_id = item.get("id", "")
-        name = item.get("title") or item.get("name", "")
+        recipe_id_raw = item.get("id", "")
+        name_raw = item.get("title") or item.get("name", "")
+        recipe_id = recipe_id_raw if isinstance(recipe_id_raw, str) else ""
+        name = name_raw if isinstance(name_raw, str) else ""
         thumbnail, image = None, None
         descriptive_assets = item.get("descriptiveAssets")
         if descriptive_assets and isinstance(descriptive_assets, list):
@@ -394,26 +401,169 @@ def cookidoo_recipe_details_from_json(
     )
 
 
+def _duration_to_seconds(value: str | int | float | None) -> int:
+    """Convert API duration variants to seconds."""
+    if value is None:
+        return 0
+    if isinstance(value, int | float):
+        return int(value)
+    if not value:
+        return 0
+    duration = isodate.parse_duration(value).total_seconds()
+    return int(duration) if isinstance(duration, float) else 0
+
+
+def _extract_custom_recipe_ingredients(
+    value: Sequence[str | CustomRecipeTextJSON] | None,
+) -> list[str]:
+    """Extract ingredient text from API string and object variants."""
+    if value is None:
+        return []
+    return [
+        text
+        for item in value
+        if isinstance(text := item.get("text") if isinstance(item, dict) else item, str)
+    ]
+
+
+def _parse_annotation_temperature(
+    value: object,
+) -> CookidooTemperatureSetting | None:
+    """Parse an annotation temperature object."""
+    if not isinstance(value, Mapping):
+        return None
+    temperature = value.get("value")
+    if not isinstance(temperature, int | str):
+        return None
+    unit = value.get("unit")
+    return CookidooTemperatureSetting(
+        value=temperature,
+        unit=unit if isinstance(unit, str) else None,
+    )
+
+
+def _parse_custom_recipe_annotation(
+    value: object, instruction_text: str
+) -> (
+    CookidooIngredientAnnotation
+    | CookidooTTSAnnotation
+    | CookidooModeAnnotation
+    | CookidooCustomAnnotation
+    | None
+):
+    """Parse a typed annotation while preserving unknown annotation data."""
+    if not isinstance(value, Mapping):
+        return None
+    annotation_type = value.get("type")
+    data = value.get("data")
+    position = value.get("position")
+    if not isinstance(annotation_type, str) or not isinstance(data, Mapping):
+        return None
+
+    slot = ""
+    if isinstance(position, Mapping):
+        offset = position.get("offset")
+        length = position.get("length")
+        if isinstance(offset, int) and isinstance(length, int):
+            slot = instruction_text[offset : offset + length]
+    name_value = value.get("name")
+    name = name_value if isinstance(name_value, str) else None
+    annotation_data = dict(data)
+
+    if annotation_type == "INGREDIENT":
+        description = annotation_data.get("description")
+        if isinstance(description, str):
+            return CookidooIngredientAnnotation(slot, description, name)
+    if annotation_type == "TTS":
+        time = annotation_data.get("time")
+        speed = annotation_data.get("speed")
+        direction = annotation_data.get("direction")
+        return CookidooTTSAnnotation(
+            slot=slot,
+            time=time if isinstance(time, int) else None,
+            temperature=_parse_annotation_temperature(
+                annotation_data.get("temperature")
+            ),
+            speed=speed if isinstance(speed, str) else None,
+            direction=direction if isinstance(direction, str) else None,
+            name=name,
+        )
+    if annotation_type == "MODE":
+        mode = name or annotation_data.get("mode") or ""
+        time = annotation_data.get("time")
+        speed = annotation_data.get("speed")
+        direction = annotation_data.get("direction")
+        power = annotation_data.get("power")
+        accessory = annotation_data.get("accessory")
+        return CookidooModeAnnotation(
+            slot=slot,
+            mode=mode if isinstance(mode, str) else str(mode),
+            time=time if isinstance(time, int) else None,
+            temperature=_parse_annotation_temperature(
+                annotation_data.get("temperature")
+            ),
+            speed=speed if isinstance(speed, str) else None,
+            direction=direction if isinstance(direction, str) else None,
+            power=power if isinstance(power, str) else None,
+            accessory=accessory if isinstance(accessory, str) else None,
+            name=name,
+        )
+    return CookidooCustomAnnotation(
+        type=annotation_type,
+        slot=slot,
+        data=annotation_data,
+        name=name,
+    )
+
+
+def _parse_custom_recipe_instructions(
+    value: object,
+) -> list[str | CookidooInstruction]:
+    """Parse plain and structured instruction response variants."""
+    if not isinstance(value, Sequence) or isinstance(value, str):
+        return []
+    result: list[str | CookidooInstruction] = []
+    for item in value:
+        if isinstance(item, str):
+            result.append(item)
+            continue
+        if not isinstance(item, Mapping):
+            continue
+        text = item.get("text")
+        if not isinstance(text, str):
+            continue
+        time = item.get("time")
+        temperature = item.get("temperature")
+        speed = item.get("speed")
+        settings = None
+        if any(field is not None for field in (time, temperature, speed)):
+            settings = CookidooStepSettings(
+                time=time if isinstance(time, int) else None,
+                temperature=(
+                    temperature if isinstance(temperature, int | str) else None
+                ),
+                speed=speed if isinstance(speed, int | float | str) else None,
+            )
+        raw_annotations = item.get("annotations", [])
+        annotations = (
+            [
+                annotation
+                for raw_annotation in raw_annotations
+                if (annotation := _parse_custom_recipe_annotation(raw_annotation, text))
+                is not None
+            ]
+            if isinstance(raw_annotations, list)
+            else []
+        )
+        result.append(CookidooInstruction(text, settings, annotations))
+    return result
+
+
 def cookidoo_custom_recipe_from_json(
     recipe: CustomRecipeJSON,
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCustomRecipe:
     """Convert a custom recipe received from the API to a cookidoo custom recipe."""
-    def _duration_to_seconds(value: str | int | float | None) -> int:
-        if value is None:
-            return 0
-
-        if isinstance(value, int | float):
-            return int(value)
-
-        duration = isodate.parse_duration(value).total_seconds()
-        return int(duration) if isinstance(duration, float) else 0
-
-    def _extract_text_list(
-        value: Sequence[str | CustomRecipeTextJSON],
-    ) -> list[str]:
-        return [item["text"] if isinstance(item, dict) else item for item in value]
-
     recipe_content: CustomRecipeContentJSON = recipe["recipeContent"]
     total_time = _duration_to_seconds(recipe_content.get("totalTime"))
     active_time = _duration_to_seconds(recipe_content.get("prepTime"))
@@ -426,30 +576,56 @@ def cookidoo_custom_recipe_from_json(
         thumbnail, image = _process_image_url(image)
 
     url = _construct_recipe_url(localization, recipe["recipeId"], "created-recipes")
-    recipe_yield = (
-        recipe_content.get("recipeYield")
-        or recipe_content.get("yield")
-        or {"value": 0, "unitText": ""}
+    raw_recipe_yield = recipe_content.get("recipeYield") or recipe_content.get("yield")
+    recipe_yield: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_recipe_yield)
+        if isinstance(raw_recipe_yield, Mapping)
+        else {}
     )
+    serving_size = recipe_yield.get("value", 0)
+    unit_text = recipe_yield.get("unitText", "portion")
+
+    raw_hints = recipe_content.get("hints")
+    if isinstance(raw_hints, str):
+        hints = raw_hints.splitlines()
+    elif isinstance(raw_hints, list):
+        hints = [hint for hint in raw_hints if isinstance(hint, str)]
+    else:
+        hints = []
+
+    raw_metadata = recipe_content.get("recipeMetadata")
+    metadata: Mapping[str, object] = (
+        cast(Mapping[str, object], raw_metadata)
+        if isinstance(raw_metadata, Mapping)
+        else {}
+    )
+    raw_work_status = recipe.get("workStatus", "PRIVATE")
 
     return CookidooCustomRecipe(
         id=recipe["recipeId"],
         name=recipe_content["name"],
-        ingredients=_extract_text_list(
+        ingredients=_extract_custom_recipe_ingredients(
             recipe_content.get("recipeIngredient")
             or recipe_content.get("ingredients", [])
         ),
-        instructions=_extract_text_list(
-            recipe_content.get("recipeInstructions")
-            or recipe_content.get("instructions", [])
+        instructions=_parse_custom_recipe_instructions(
+            recipe_content.get("instructions")
+            or recipe_content.get("recipeInstructions", [])
         ),
-        serving_size=recipe_yield["value"],
+        serving_size=serving_size if isinstance(serving_size, int) else 0,
         total_time=total_time,
         active_time=active_time,
         tools=recipe_content.get("tool") or recipe_content.get("tools", []),
         thumbnail=thumbnail,
         image=image,
         url=url,
+        hints=hints,
+        unit_text=unit_text if isinstance(unit_text, str) else "portion",
+        image_owned_by_user=bool(recipe_content.get("isImageOwnedByUser", False)),
+        work_status=raw_work_status if isinstance(raw_work_status, str) else "PRIVATE",
+        requires_annotations_check=bool(
+            metadata.get("requiresAnnotationsCheck", False)
+        ),
     )
 
 
