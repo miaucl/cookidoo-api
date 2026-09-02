@@ -45,7 +45,9 @@ async def main():
         _localizations_ch = await get_localization_options(country="ch")
         _localizations_en = await get_localization_options(language="en")
 
-        # Create Cookidoo instance with email and password
+        # Create Cookidoo instance with email and password. The OAuth2 client
+        # identifiers default to the mobile app's public ones, nothing else to
+        # configure (see docs/oauth-client.md)
         cookidoo = Cookidoo(
             session,
             cfg=CookidooConfig(
@@ -57,17 +59,20 @@ async def main():
             ),
         )
 
-        # Try to load saved cookies, otherwise login fresh
-        cookie_file = ".cookies"
+        # Try to reuse a saved token, otherwise login fresh
+        token_file = ".token"
         try:
-            cookidoo.load_cookies(cookie_file)
+            cookidoo.load_token(token_file)
         except Exception:
             await cookidoo.login()
-            cookidoo.save_cookies(cookie_file)
+            cookidoo.save_token(token_file)
 
         # Info
         await cookidoo.get_user_info()
         subscription = await cookidoo.get_active_subscription()
+
+        # Paired Thermomix appliances on the account
+        _devices = await cookidoo.get_devices()
 
         # Some features are only available for premium accounts. To get a premium account, you need to subscribe to the Cookidoo service. When creating a new account, you get 1 month of premium for free which is enough to test the premium features :)
         ENABLE_PREMIUM = subscription and subscription.active

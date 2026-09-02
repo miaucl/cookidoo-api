@@ -521,44 +521,35 @@ class TestRecipeImagesAndUrls:
             )
             is None
         )
-        assert (
-            _parse_custom_recipe_annotation(
-                {
-                    "type": "INGREDIENT",
-                    "data": {"description": 42},
-                    "position": {"offset": 0, "length": 1},
-                },
-                "text",
-            )
-            == CookidooCustomAnnotation(
-                type="INGREDIENT",
-                slot="t",
-                data={"description": 42},
-            )
+        assert _parse_custom_recipe_annotation(
+            {
+                "type": "INGREDIENT",
+                "data": {"description": 42},
+                "position": {"offset": 0, "length": 1},
+            },
+            "text",
+        ) == CookidooCustomAnnotation(
+            type="INGREDIENT",
+            slot="t",
+            data={"description": 42},
         )
         assert _parse_annotation_temperature({"value": 1.5}) is None
-        assert (
-            _parse_custom_recipe_annotation(
-                {
-                    "type": "INGREDIENT",
-                    "data": {"description": "flour"},
-                    "position": {"offset": 0, "length": "bad"},
-                },
-                "flour",
-            )
-            == CookidooIngredientAnnotation("", "flour")
-        )
-        assert (
-            _parse_custom_recipe_annotation(
-                {
-                    "type": "INGREDIENT",
-                    "data": {"description": "flour"},
-                    "position": "bad",
-                },
-                "flour",
-            )
-            == CookidooIngredientAnnotation("", "flour")
-        )
+        assert _parse_custom_recipe_annotation(
+            {
+                "type": "INGREDIENT",
+                "data": {"description": "flour"},
+                "position": {"offset": 0, "length": "bad"},
+            },
+            "flour",
+        ) == CookidooIngredientAnnotation("", "flour")
+        assert _parse_custom_recipe_annotation(
+            {
+                "type": "INGREDIENT",
+                "data": {"description": "flour"},
+                "position": "bad",
+            },
+            "flour",
+        ) == CookidooIngredientAnnotation("", "flour")
 
     def test_custom_recipe_tolerates_malformed_optional_metadata(self) -> None:
         """Optional response metadata cannot prevent a recipe from being edited."""

@@ -40,6 +40,13 @@ class TestMethods:
         else:
             assert sub is None
 
+    async def test_cookidoo_get_devices(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo get devices."""
+        devices = await cookidoo.get_devices()
+        # The test account may or may not have a paired appliance.
+        for device in devices:
+            assert device.type in ThermomixMachineType
+
     @pytest.mark.parametrize(
         (
             "recipe_id",
@@ -375,18 +382,20 @@ class TestMethods:
             datetime.now().date(), ["r907015", "r59322"]
         )
         assert len(added_day_recipes.recipes) == 2
-        assert [recipe.id for recipe in added_day_recipes.recipes] == [
+        # The API does not guarantee a stable order for the recipes of a
+        # calendar day, so compare as a set instead of an exact sequence.
+        assert {recipe.id for recipe in added_day_recipes.recipes} == {
             "r907015",
             "r59322",
-        ]
+        }
 
         day_recipes = await cookidoo.get_recipes_in_calendar_week(datetime.now().date())
         assert isinstance(day_recipes, list)
         assert len(day_recipes) == 1
-        assert [recipe.id for recipe in day_recipes[0].recipes] == [
+        assert {recipe.id for recipe in day_recipes[0].recipes} == {
             "r907015",
             "r59322",
-        ]
+        }
 
         await cookidoo.remove_recipe_from_calendar(datetime.now().date(), "r907015")
         await cookidoo.remove_recipe_from_calendar(datetime.now().date(), "r59322")

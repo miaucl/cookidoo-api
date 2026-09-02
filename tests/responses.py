@@ -86,6 +86,36 @@ COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION: Final = [
     }
 ]
 
+COOKIDOO_TEST_OIDC_DISCOVERY: Final = {
+    "authorization_endpoint": (
+        "https://ciam.prod.cookidoo.vorwerk-digital.com/authz-srv/authz"
+    ),
+    "token_endpoint": (
+        "https://ciam.prod.cookidoo.vorwerk-digital.com/token-srv/token"
+    ),
+}
+
+COOKIDOO_TEST_TOKEN_RESPONSE: Final = {
+    "access_token": "test-access-token",
+    "refresh_token": "test-refresh-token",
+    "id_token": "test-id-token",
+    "token_type": "Bearer",
+    "expires_in": 43200,
+}
+
+COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE: Final = {
+    "access_token": "refreshed-access-token",
+    "refresh_token": "refreshed-refresh-token",
+    "token_type": "Bearer",
+    "expires_in": 43200,
+}
+
+COOKIDOO_TEST_RESPONSE_DEVICES: Final = ["TM7"]
+
+COOKIDOO_TEST_RESPONSE_DEVICES_MULTIPLE: Final = ["TM7", "TM6"]
+
+COOKIDOO_TEST_RESPONSE_DEVICES_EMPTY: Final[list[str]] = []
+
 COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES: Final = {
     "recipes": [
         {
@@ -362,7 +392,10 @@ COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES: Final = {
                 "yield": {"value": 6, "unitText": "portion"},
                 "ingredients": [
                     {"type": "INGREDIENT", "text": "130 g di cipolla"},
-                    {"type": "INGREDIENT", "text": "65 g di olio extravergine di oliva"},
+                    {
+                        "type": "INGREDIENT",
+                        "text": "65 g di olio extravergine di oliva",
+                    },
                 ],
                 "instructions": [
                     {"type": "STEP", "text": "Mettere nel boccale le cipolle."},

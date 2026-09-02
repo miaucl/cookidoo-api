@@ -38,6 +38,7 @@ from cookidoo_api.types import (
     CookidooCollection,
     CookidooCustomAnnotation,
     CookidooCustomRecipe,
+    CookidooDevice,
     CookidooIngredient,
     CookidooIngredientAnnotation,
     CookidooIngredientItem,
@@ -117,6 +118,14 @@ def cookidoo_subscription_from_json(
         type=subscription["type"],
         extended_type=subscription["extendedType"],
     )
+
+
+def cookidoo_device_from_json(model: str) -> CookidooDevice:
+    """Convert a device machine type received from the API to a cookidoo device.
+
+    The devices endpoint returns bare machine-type strings (e.g. ``"TM7"``).
+    """
+    return CookidooDevice(type=ThermomixMachineType(model))
 
 
 def cookidoo_collection_from_json(
@@ -271,9 +280,7 @@ def cookidoo_search_result_from_json(
         raw_recipes = data["recipes"]
     else:
         raw_recipes = []
-    recipes_data: list[object] = (
-        raw_recipes if isinstance(raw_recipes, list) else []
-    )
+    recipes_data: list[object] = raw_recipes if isinstance(raw_recipes, list) else []
     total_raw = data.get("total")
     hits: list[CookidooSearchRecipeHit] = []
     for item in recipes_data:
