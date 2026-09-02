@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from cookidoo_api.const import OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI
+
 
 class ThermomixMachineType(StrEnum):
     """Thermomix machine types."""
@@ -34,6 +36,15 @@ class CookidooConfig:
         The email to login
     password
         The password to login
+    client_id
+        The OAuth2 client id to run the login flow as
+    redirect_uri
+        The OAuth2 redirect uri registered for ``client_id``
+
+    The login runs as a public client (authorization code + PKCE, no client
+    secret), so both values are public identifiers rather than credentials and
+    they default to the ones of the Cookidoo mobile app. Callers do not need to
+    set them; see ``docs/oauth-client.md``.
 
     """
 
@@ -42,6 +53,8 @@ class CookidooConfig:
     )
     email: str = "your@email"
     password: str = "1234password!"
+    client_id: str = OAUTH_CLIENT_ID
+    redirect_uri: str = OAUTH_REDIRECT_URI
 
 
 @dataclass
@@ -73,6 +86,18 @@ class CookidooDevice:
     """A paired Thermomix appliance on the account."""
 
     type: ThermomixMachineType
+
+
+@dataclass
+class CookidooAuthData:
+    """OAuth2 tokens obtained from a login, for persistence and restore.
+
+    ``expires_at`` is a POSIX timestamp (seconds) for the access token.
+    """
+
+    access_token: str
+    refresh_token: str
+    expires_at: float
 
 
 @dataclass

@@ -1,18 +1,21 @@
 """Cookidoo api implementation."""
 
+import base64
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
+import hashlib
 from http import HTTPStatus
-from http.cookies import SimpleCookie
 import json
 from json import JSONDecodeError
 import logging
+import os
 from pathlib import Path
 import re
+import secrets
 import time
 import traceback
 from typing import TypeVar, cast
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urljoin, urlparse
 
 from aiohttp import ClientError, ClientSession
 from yarl import URL
@@ -26,6 +29,7 @@ from cookidoo_api.const import (
     ADD_RECIPES_TO_CALENDER_PATH,
     ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
     ADDITIONAL_ITEMS_PATH,
+    CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
     COMMUNITY_PROFILE_PATH,
     CUSTOM_COLLECTIONS_PATH,
@@ -40,10 +44,10 @@ from cookidoo_api.const import (
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
     INGREDIENT_ITEMS_PATH,
     LOGIN_HEADERS,
-    LOGIN_PATH,
-    LOGIN_REDIRECT,
     MANAGED_COLLECTIONS_PATH,
     MANAGED_COLLECTIONS_PATH_ACCEPT,
+    OAUTH_SCOPE,
+    OIDC_DISCOVERY_URL,
     RECIPE_PATH,
     RECIPES_IN_CALENDAR_WEEK_PATH,
     REMOVE_ADDITIONAL_ITEMS_PATH,
@@ -55,6 +59,7 @@ from cookidoo_api.const import (
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
+    TOKEN_EXPIRY_MARGIN_S,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -94,6 +99,7 @@ from cookidoo_api.raw_types import (
 )
 from cookidoo_api.types import (
     CookidooAdditionalItem,
+    CookidooAuthData,
     CookidooCalendarDay,
     CookidooCollection,
     CookidooConfig,
@@ -120,6 +126,9 @@ class Cookidoo:
     _cfg: CookidooConfig
     _api_headers: dict[str, str]
     _logged_in: bool
+    _refresh_token: str | None
+    _expires_at: float
+    _oidc: dict[str, str] | None
 
     def __init__(
         self,
@@ -142,6 +151,9 @@ class Cookidoo:
         self._cfg = cfg
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self._logged_in = False
+        self._refresh_token = None
+        self._expires_at = 0.0
+        self._oidc = None
 
     @property
     def localization(self) -> CookidooLocalizationConfig:
@@ -210,6 +222,7 @@ class Cookidoo:
             When the response body cannot be parsed as JSON.
 
         """
+        await self._ensure_token()
         merged_headers = {**self._api_headers, **(headers or {})}
 
         try:
@@ -328,26 +341,51 @@ class Cookidoo:
             recipes=[],
         )
 
+    @property
+    def auth_data(self) -> CookidooAuthData | None:
+        """The current OAuth2 tokens, for persistence. ``None`` until logged in."""
+        if not self._logged_in or self._refresh_token is None:
+            return None
+        return CookidooAuthData(
+            access_token=self._api_headers["Authorization"].removeprefix("Bearer "),
+            refresh_token=self._refresh_token,
+            expires_at=self._expires_at,
+        )
+
+    def apply_auth_data(self, auth_data: CookidooAuthData) -> None:
+        """Restore a previous login from persisted tokens (no network call).
+
+        The access token is refreshed automatically on the next request if it
+        has expired.
+        """
+        self._api_headers["Authorization"] = f"Bearer {auth_data.access_token}"
+        self._refresh_token = auth_data.refresh_token
+        self._expires_at = auth_data.expires_at
+        self._logged_in = True
+
     async def login(self) -> None:
-        """Perform browser-based OAuth2 login.
+        """Perform an OAuth2 authorization-code + PKCE login.
 
-        Follows the same redirect chain as the Cookidoo web app:
-        1. Initiate login at ``cookidoo.{tld}/profile/{lang}/login``
-        2. Follow redirects through OAuth2/PKCE to the CIAM login page
-        3. POST credentials to the CIAM login service
-        4. Follow callback redirects to capture session cookies
+        Signs in with the configured email/password against the CIAM identity
+        provider, exchanges the resulting code for an access/refresh token, and
+        authenticates all subsequent API calls via a ``Bearer`` header:
 
-        After login, the session's cookie jar contains the authentication
-        cookies and all subsequent API calls are authenticated automatically.
+        1. discover the OIDC endpoints
+        2. open the authorize endpoint to reach the CIAM login form
+        3. POST the credentials to the CIAM login service
+        4. capture the ``code`` from the redirect to the app scheme
+        5. exchange the code for tokens (public client, PKCE, no secret)
 
-        The login requests are sent with a browser-like ``User-Agent``
-        (request-scoped only, the session's own defaults are left untouched)
-        since the login flow is served behind Cloudflare, which is more
-        likely to challenge/block requests carrying a non-browser
-        User-Agent (e.g. a generic HTTP client's default).
+        The login redirects still rely on the session cookie jar, so a
+        ``CookieJar(unsafe=True)`` session is required. The login requests carry
+        a browser-like ``User-Agent`` (request-scoped only) since the flow is
+        served behind Cloudflare.
 
         Raises
         ------
+        CookidooConfigException
+            If the OAuth2 client id or redirect uri was overridden with an
+            empty value.
         CookidooRequestException
             If the request fails.
         CookidooParseException
@@ -356,50 +394,43 @@ class Cookidoo:
             If the login fails due to invalid credentials.
 
         """
-        language = self._cfg.localization.language
-        login_path = LOGIN_PATH.format(language=language)
-        redirect = LOGIN_REDIRECT.format(language=language)
-        login_url = URL(
-            str(self.api_endpoint / login_path) + f"?redirectAfterLogin={redirect}",
-            encoded=True,
-        )
-
+        self._assert_oauth_client()
         try:
-            # Step 1: Follow redirect chain to reach the CIAM login page
+            oidc = await self._discovery()
+            verifier, challenge = self._pkce_pair()
+            state = secrets.token_urlsafe(12)
+            language = self._cfg.localization.language
+            params = {
+                "response_type": "code",
+                "client_id": self._cfg.client_id,
+                "redirect_uri": self._cfg.redirect_uri,
+                "market": self._cfg.localization.country_code,
+                "scope": OAUTH_SCOPE,
+                "state": state,
+                "code_challenge": challenge,
+                "code_challenge_method": "S256",
+                "ui_locales": language,
+            }
+
+            # Step 2: reach the CIAM login form (follows redirects, sets cookies)
             async with self._session.get(
-                login_url, allow_redirects=True, headers=LOGIN_HEADERS
+                URL(oidc["authorization_endpoint"]),
+                params=params,
+                allow_redirects=True,
+                headers=LOGIN_HEADERS,
             ) as resp:
                 self._check_login_page_status(resp.status)
                 login_html = await resp.text()
 
-            # Step 2: Extract requestId from the login form
+            # Step 3: submit credentials, Step 4: capture the authorization code
             request_id = self._extract_request_id(login_html)
+            code = await self._submit_credentials(request_id, state)
 
-            # Step 3: POST credentials to CIAM login service
-            login_data = {
-                "requestId": request_id,
-                "username": self._cfg.email,
-                "password": self._cfg.password,
-            }
-            async with self._session.post(
-                CIAM_LOGIN_SRV_URL,
-                data=login_data,
-                allow_redirects=True,
-                headers=LOGIN_HEADERS,
-            ) as resp:
-                _LOGGER.debug(
-                    "Login POST completed, final URL: %s (status: %s)",
-                    resp.url,
-                    resp.status,
-                )
-
-            # Step 4: Verify authentication cookies were set
-            self._verify_auth_cookies()
+            # Step 5: exchange the code for tokens
+            await self._exchange_code(oidc["token_endpoint"], code, verifier)
             self._logged_in = True
 
-        except CookidooAuthException:
-            raise
-        except CookidooParseException:
+        except (CookidooAuthException, CookidooParseException):
             raise
         except TimeoutError as e:
             _LOGGER.debug("Exception: Login failed:\n %s", traceback.format_exc())
@@ -412,12 +443,231 @@ class Cookidoo:
                 "Authentication failed due to request exception."
             ) from e
 
+    async def refresh(self) -> None:
+        """Refresh the access token using the stored refresh token.
+
+        Raises
+        ------
+        CookidooAuthException
+            If there is no refresh token or the refresh is rejected.
+        CookidooConfigException
+            If the OAuth2 client id or redirect uri was overridden with an
+            empty value.
+        CookidooRequestException
+            If the request fails.
+
+        """
+        if self._refresh_token is None:
+            raise CookidooAuthException("Cannot refresh: no refresh token available.")
+        self._assert_oauth_client()
+        oidc = await self._discovery()
+        try:
+            async with self._session.post(
+                URL(oidc["token_endpoint"]),
+                data={
+                    "grant_type": "refresh_token",
+                    "refresh_token": self._refresh_token,
+                    "client_id": self._cfg.client_id,
+                },
+                headers=LOGIN_HEADERS,
+            ) as resp:
+                if resp.status != HTTPStatus.OK:
+                    raise CookidooAuthException(
+                        f"Token refresh failed (status {resp.status})."
+                    )
+                payload = cast(dict[str, object], await resp.json())
+        except ClientError as e:
+            raise CookidooRequestException(
+                "Token refresh failed due to request exception."
+            ) from e
+        self._apply_tokens(payload)
+
+    def save_token(self, path: str | Path) -> None:
+        """Save the OAuth2 tokens to a file for later reuse.
+
+        Parameters
+        ----------
+        path
+            Path to the file where the tokens will be saved.
+
+        """
+        if (auth_data := self.auth_data) is None:
+            raise CookidooConfigException("Cannot save token: not logged in.")
+        Path(path).write_text(json.dumps(vars(auth_data)), encoding="utf-8")
+
+    def load_token(self, path: str | Path) -> None:
+        """Restore the OAuth2 tokens from a file saved with :meth:`save_token`.
+
+        Parameters
+        ----------
+        path
+            Path to the file containing the saved tokens.
+
+        Raises
+        ------
+        CookidooConfigException
+            If the token file cannot be read or parsed.
+
+        """
+        try:
+            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.apply_auth_data(CookidooAuthData(**data))
+        except (OSError, json.JSONDecodeError, TypeError) as e:
+            raise CookidooConfigException(f"Cannot load token from {path}.") from e
+
+    # -- internal auth helpers --------------------------------------------
+    async def _discovery(self) -> dict[str, str]:
+        """Fetch and cache the OIDC discovery document."""
+        if self._oidc is None:
+            async with self._session.get(
+                URL(OIDC_DISCOVERY_URL), headers=LOGIN_HEADERS
+            ) as resp:
+                resp.raise_for_status()
+                self._oidc = cast(dict[str, str], await resp.json())
+        return self._oidc
+
+    async def _submit_credentials(self, request_id: str, state: str) -> str:
+        """POST credentials and follow the redirect chain to capture the code.
+
+        Raises ``CookidooAuthException`` when no authorization code is returned
+        (i.e. the credentials were rejected).
+        """
+        url: str = CIAM_LOGIN_SRV_URL
+        data: dict[str, str] | None = {
+            "requestId": request_id,
+            "username": self._cfg.email,
+            "password": self._cfg.password,
+        }
+        method = "post"
+        code: str | None = None
+        for _ in range(10):
+            async with self._session.request(
+                method,
+                URL(url),
+                data=data,
+                headers=LOGIN_HEADERS,
+                allow_redirects=False,
+            ) as resp:
+                location = resp.headers.get("Location")
+                if resp.status in (301, 302, 303, 307, 308) and location:
+                    if location.startswith(self._cfg.redirect_uri):
+                        query = parse_qs(urlparse(location).query)
+                        # A missing state is a mismatch: the callback must echo
+                        # the value we sent (RFC 6749 §10.12).
+                        if query.get("state") != [state]:
+                            raise CookidooAuthException("OAuth state mismatch.")
+                        codes = query.get("code")
+                        code = codes[0] if codes else None
+                        break
+                    url = urljoin(url, location)
+                    self._assert_ciam_origin(url)
+                    method, data = "get", None
+                    continue
+                break
+        if code is None:
+            raise CookidooAuthException(
+                "Login failed: invalid credentials (no authorization code "
+                "returned). Please check your email and password."
+            )
+        return code
+
+    @staticmethod
+    def _assert_ciam_origin(url: str) -> None:
+        """Ensure the login flow never leaves CIAM's own origin.
+
+        The redirect chain carries the session cookies of an in-flight login, so
+        a redirect to a foreign host is refused rather than followed.
+        """
+        origin = urlparse(url)
+        expected = urlparse(CIAM_BASE_URL)
+        if (origin.scheme, origin.netloc) != (expected.scheme, expected.netloc):
+            raise CookidooAuthException(
+                f"Login flow redirected off the authentication host: {url}"
+            )
+
     @staticmethod
     def _check_login_page_status(status: int) -> None:
         """Check login page response status."""
         if status != HTTPStatus.OK:
             raise CookidooAuthException(
                 f"Login flow failed: could not reach login page (status {status})."
+            )
+
+    async def _exchange_code(
+        self, token_endpoint: str, code: str, verifier: str
+    ) -> None:
+        """Exchange an authorization code for tokens."""
+        async with self._session.post(
+            URL(token_endpoint),
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": self._cfg.redirect_uri,
+                "code_verifier": verifier,
+                "client_id": self._cfg.client_id,
+            },
+            headers=LOGIN_HEADERS,
+        ) as resp:
+            if resp.status != HTTPStatus.OK:
+                raise CookidooAuthException(
+                    f"Token exchange failed (status {resp.status})."
+                )
+            payload = cast(dict[str, object], await resp.json())
+        self._apply_tokens(payload)
+
+    def _apply_tokens(self, payload: dict[str, object]) -> None:
+        """Store tokens from a token-endpoint response and set the auth header."""
+        try:
+            access_token = cast(str, payload["access_token"])
+            # A refresh response may omit a new refresh token; keep the old one.
+            self._refresh_token = cast(
+                str, payload.get("refresh_token", self._refresh_token)
+            )
+            expires_in = int(cast(int, payload.get("expires_in", 43200)))
+        except (KeyError, TypeError, ValueError) as e:
+            raise CookidooAuthException(f"Unexpected token response: {payload}") from e
+        self._api_headers["Authorization"] = f"Bearer {access_token}"
+        self._expires_at = time.time() + expires_in
+
+    async def _ensure_token(self) -> None:
+        """Refresh the access token if it is missing or about to expire."""
+        if not self._logged_in:
+            return
+        if time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S:
+            await self.refresh()
+
+    @staticmethod
+    def _pkce_pair() -> tuple[str, str]:
+        """Return a (code_verifier, code_challenge) PKCE S256 pair."""
+        verifier = base64.urlsafe_b64encode(os.urandom(48)).rstrip(b"=").decode()
+        challenge = (
+            base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+            .rstrip(b"=")
+            .decode()
+        )
+        return verifier, challenge
+
+    def _assert_oauth_client(self) -> None:
+        """Ensure the OAuth2 client identifiers are set.
+
+        Both default to the mobile app's public identifiers, so this only trips
+        when a caller overrides one of them with an empty value.
+
+        Raises
+        ------
+        CookidooConfigException
+            If the client id or the redirect uri is missing.
+
+        """
+        missing = [
+            name
+            for name in ("client_id", "redirect_uri")
+            if not getattr(self._cfg, name)
+        ]
+        if missing:
+            raise CookidooConfigException(
+                f"Missing OAuth2 client configuration: {', '.join(missing)}. "
+                "Leave these unset to use the defaults, see docs/oauth-client.md."
             )
 
     @staticmethod
@@ -435,71 +685,6 @@ class Cookidoo:
                 "Login flow failed: could not extract requestId from login page."
             )
         return match.group(1)
-
-    def _verify_auth_cookies(self) -> None:
-        """Verify that required authentication cookies are present."""
-        cookie_names = {c.key for c in self._session.cookie_jar}
-        required_cookies = {"_oauth2_proxy", "v-authenticated"}
-        if not required_cookies.issubset(cookie_names):
-            raise CookidooAuthException(
-                "Login failed: authentication cookies were not set. "
-                "Please check your email and password."
-            )
-
-    def save_cookies(self, path: str | Path) -> None:
-        """Save session cookies to a file for later reuse.
-
-        Parameters
-        ----------
-        path
-            Path to the file where cookies will be saved.
-
-        """
-        cookies: list[dict[str, str]] = []
-        for cookie in self._session.cookie_jar:
-            cookies.append(
-                {
-                    "key": cookie.key,
-                    "value": cookie.value,
-                    "domain": cookie["domain"],
-                    "path": cookie["path"],
-                }
-            )
-        Path(path).write_text(json.dumps(cookies), encoding="utf-8")
-
-    def load_cookies(self, path: str | Path) -> None:
-        """Load session cookies from a file to restore a previous session.
-
-        Parameters
-        ----------
-        path
-            Path to the file containing saved cookies.
-
-        Raises
-        ------
-        CookidooConfigException
-            If the cookie file cannot be read or parsed.
-
-        """
-        try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as e:
-            raise CookidooConfigException(f"Cannot load cookies from {path}.") from e
-
-        for entry in data:
-            cookie: SimpleCookie = SimpleCookie()
-            cookie[entry["key"]] = entry["value"]
-            cookie[entry["key"]]["domain"] = entry.get("domain", "")
-            cookie[entry["key"]]["path"] = entry.get("path", "/")
-            self._session.cookie_jar.update_cookies(
-                cookie, URL(f"https://{entry.get('domain', '')}")
-            )
-
-        # Check if required auth cookies are present
-        cookie_names = {c.key for c in self._session.cookie_jar}
-        required_cookies = {"_oauth2_proxy", "v-authenticated"}
-        if required_cookies.issubset(cookie_names):
-            self._logged_in = True
 
     async def get_user_info(
         self,
