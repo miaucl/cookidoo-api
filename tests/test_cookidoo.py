@@ -217,42 +217,6 @@ class TestLogin:
         assert "client_secret" not in kwargs["data"]
         assert "Authorization" not in kwargs["headers"]
 
-    async def test_login_endpoint_discovery_failure_is_non_fatal(
-        self,
-        mocked: aioresponses,
-        cookidoo: Cookidoo,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """An unexpected error during endpoint discovery must not break login."""
-        import re
-
-        async def _raise(*_args: object, **_kwargs: object) -> dict[str, str]:
-            raise RuntimeError("boom")
-
-        monkeypatch.setattr(
-            "cookidoo_api.cookidoo.resolve_endpoint_paths",
-            _raise,
-        )
-
-        mocked.get(
-            re.compile(r"https://cookidoo\.ch/profile/de-CH/login.*"),
-            status=HTTPStatus.OK,
-            body=COOKIDOO_TEST_LOGIN_PAGE_HTML,
-        )
-        mocked.post(
-            "https://ciam.prod.cookidoo.vorwerk-digital.com/login-srv/login",
-            status=HTTPStatus.OK,
-        )
-        cookidoo._session.cookie_jar.update_cookies(
-            {"_oauth2_proxy": "test-proxy-value", "v-authenticated": "test-auth-value"}
-        )
-
-        await cookidoo.login()
-
-        assert cookidoo._logged_in
-        assert cookidoo._endpoint_overrides == {}
-        assert cookidoo._endpoints_resolved
-
     async def test_login_page_unreachable(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
@@ -647,6 +611,32 @@ class TestGetUserInfo:
 
         with pytest.raises(CookidooRequestException):
             await cookidoo.get_user_info()
+
+    async def test_endpoint_discovery_failure_is_non_fatal(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An unexpected error during endpoint discovery must not break requests."""
+
+        async def _raise(*_args: object, **_kwargs: object) -> dict[str, str]:
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _raise,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert cookidoo._endpoint_overrides == {}
+        assert cookidoo._endpoints_resolved
 
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
