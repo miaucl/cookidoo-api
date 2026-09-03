@@ -33,12 +33,12 @@ def fetch_json(url: str) -> dict:
 def crawl() -> dict:
     """Fetch only the services/rels declared in ENDPOINT_RELS.
 
-    Returns a flat mapping of ``"{name} ({service}#{rel})" -> href`` for
-    every constant we could resolve, plus an ``"_errors"`` bookkeeping entry
-    listing services that couldn't be fetched at all (not treated as an
-    endpoint change by itself, see :func:`diff_links`).
+    Returns a flat mapping of ``"{rel} ({service})" -> href`` for every rel
+    we could resolve, plus an ``"_errors"`` bookkeeping entry listing
+    services that couldn't be fetched at all (not treated as an endpoint
+    change by itself, see :func:`diff_links`).
     """
-    services = sorted({service for service, _rel in ENDPOINT_RELS.values()})
+    services = sorted({service for service, _template in ENDPOINT_RELS.values()})
     service_links: dict[str, dict] = {}
     errors: dict[str, str] = {}
 
@@ -53,7 +53,7 @@ def crawl() -> dict:
         service_links[service] = doc.get("_links", {})
 
     result: dict[str, object] = {}
-    for name, (service, rel) in sorted(ENDPOINT_RELS.items()):
+    for rel, (service, _template) in sorted(ENDPOINT_RELS.items()):
         links = service_links.get(service)
         if links is None:
             continue
@@ -64,7 +64,7 @@ def crawl() -> dict:
             href = value[0].get("href")
         else:
             href = None
-        result[f"{name} ({service}#{rel})"] = href
+        result[f"{rel} ({service})"] = href
 
     if errors:
         result["_errors"] = errors

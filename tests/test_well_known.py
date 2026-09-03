@@ -5,8 +5,9 @@ from aioresponses import aioresponses
 import pytest
 from yarl import URL
 
+from cookidoo_api.exceptions import CookidooParseException, CookidooRequestException
 from cookidoo_api.well_known import (
-    _ENDPOINT_DEFAULTS,
+    _TOKEN_RE,
     ENDPOINT_RELS,
     _fetch_service_links,
     _normalize_href,
@@ -14,11 +15,6 @@ from cookidoo_api.well_known import (
 )
 
 API_ENDPOINT = URL("https://cookidoo.ch")
-
-
-def test_endpoint_rels_have_matching_defaults() -> None:
-    """Every configured rel must have a matching hardcoded default template."""
-    assert set(ENDPOINT_RELS) == set(_ENDPOINT_DEFAULTS)
 
 
 @pytest.mark.parametrize(
@@ -136,40 +132,86 @@ async def test_fetch_service_links_no_links_key(
     assert await _fetch_service_links(session, service_url) is None
 
 
-async def test_resolve_endpoint_paths_mixed_results(
+def _mock_all_services(
+    mocked: aioresponses, overrides: dict[str, dict[str, object]] | None = None
+) -> None:
+    """Mock every service's .well-known/home with a valid response for every rel.
+
+    ``overrides`` can replace individual service mocks (e.g. with a 404, or a
+    payload missing/mismatching a specific rel) by service name.
+    """
+    overrides = overrides or {}
+    rels_by_service: dict[str, list[str]] = {}
+    for rel, (service, _template) in ENDPOINT_RELS.items():
+        rels_by_service.setdefault(service, []).append(rel)
+
+    for service, rels in rels_by_service.items():
+        service_url = API_ENDPOINT / service / ".well-known/home"
+        if service in overrides:
+            mocked.get(service_url, **overrides[service])
+            continue
+        links = {}
+        for rel in rels:
+            _, template = ENDPOINT_RELS[rel]
+            placeholder_count = len(_TOKEN_RE.findall(template))
+            tokens = "".join(f"/{{var{i}}}" for i in range(placeholder_count))
+            links[rel] = {"href": f"/{service}{tokens}"}
+        mocked.get(service_url, payload={"_links": links})
+
+
+async def test_resolve_endpoint_paths_success(
     session: ClientSession, mocked: aioresponses
 ) -> None:
-    """Discovery mixes successful overrides, mismatches, and fallbacks gracefully."""
-    for service in {service for service, _rel in ENDPOINT_RELS.values()}:
-        service_url = API_ENDPOINT / service / ".well-known/home"
-        if service == "profile":
-            mocked.get(
-                service_url,
-                payload={
-                    "_links": {
-                        "fint:login": {
-                            "href": "/profile/{lang}/login{?redirectAfterLogin}"
-                        }
-                    }
-                },
-            )
-        elif service == "community/profile":
-            # Shape mismatch: our const has no placeholder, discovery adds one.
-            mocked.get(
-                service_url,
-                payload={
-                    "_links": {
-                        "community-profile:user-private-profile": {
-                            "href": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/community/profile/{lang}"
-                        }
-                    }
-                },
-            )
-        else:
-            mocked.get(service_url, status=404)
+    """Every rel resolves successfully, returning a full overrides mapping."""
+    _mock_all_services(mocked)
 
     overrides = await resolve_endpoint_paths(session, API_ENDPOINT)
 
-    assert overrides["LOGIN_PATH"] == "profile/{language}/login"
-    assert "COMMUNITY_PROFILE_PATH" not in overrides
-    assert "RECIPE_PATH" not in overrides
+    assert set(overrides) == set(ENDPOINT_RELS)
+    assert overrides["fint:login"] == "profile/{language}"
+    assert overrides["recipe:details"] == "recipes/recipe/{language}/{id}"
+
+
+async def test_resolve_endpoint_paths_unreachable_service_raises(
+    session: ClientSession, mocked: aioresponses
+) -> None:
+    """An unreachable service raises CookidooRequestException."""
+    _mock_all_services(mocked, {"profile": {"status": 404}})
+
+    with pytest.raises(CookidooRequestException):
+        await resolve_endpoint_paths(session, API_ENDPOINT)
+
+
+async def test_resolve_endpoint_paths_missing_rel_raises(
+    session: ClientSession, mocked: aioresponses
+) -> None:
+    """A service reachable but no longer exposing our rel raises a parse error."""
+    _mock_all_services(
+        mocked, {"profile": {"payload": {"_links": {"other:rel": {"href": "/x"}}}}}
+    )
+
+    with pytest.raises(CookidooParseException):
+        await resolve_endpoint_paths(session, API_ENDPOINT)
+
+
+async def test_resolve_endpoint_paths_shape_mismatch_raises(
+    session: ClientSession, mocked: aioresponses
+) -> None:
+    """A discovered href with an incompatible shape raises a parse error."""
+    _mock_all_services(
+        mocked,
+        {
+            "community/profile": {
+                "payload": {
+                    "_links": {
+                        "community-profile:user-private-profile": {
+                            "href": "https://de.web.production-eu.cookidoo.vorwerk-digital.com/community/profile"
+                        }
+                    }
+                }
+            }
+        },
+    )
+
+    with pytest.raises(CookidooParseException):
+        await resolve_endpoint_paths(session, API_ENDPOINT)

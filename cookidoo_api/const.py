@@ -73,7 +73,7 @@ EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH: Final = (
 )
 REMOVE_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/remove"
 
-COMMUNITY_PROFILE_PATH: Final = "community/profile"
+COMMUNITY_PROFILE_PATH: Final = "community/profile/{language}"
 SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 
 # Paired Thermomix appliances on the account. Returns the machine types, e.g.

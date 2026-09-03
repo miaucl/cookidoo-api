@@ -535,7 +535,7 @@ class TestTokenPersistenceAndRefresh:
         """A still valid access token is used as is, without a refresh."""
         cookidoo.apply_auth_data(CookidooAuthData("valid", "ref", 9999999999.0))
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -554,7 +554,7 @@ class TestTokenPersistenceAndRefresh:
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
         mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -574,7 +574,7 @@ class TestGetUserInfo:
         """Test for get_user_info."""
 
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -605,43 +605,107 @@ class TestGetUserInfo:
         """Test request exceptions."""
 
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             exception=exception,
         )
 
         with pytest.raises(CookidooRequestException):
             await cookidoo.get_user_info()
 
-    async def test_endpoint_discovery_failure_is_non_fatal(
+    async def test_endpoint_discovery_retries_once_and_succeeds(
         self,
         mocked: aioresponses,
         cookidoo: Cookidoo,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """An unexpected error during endpoint discovery must not break requests."""
+        """A transient discovery failure is retried once and can still succeed."""
+        calls = 0
 
-        async def _raise(*_args: object, **_kwargs: object) -> dict[str, str]:
-            raise RuntimeError("boom")
+        async def _flaky(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise CookidooRequestException("boom")
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}"
+            }
 
         monkeypatch.setattr(
             "cookidoo_api.cookidoo.resolve_endpoint_paths",
-            _raise,
+            _flaky,
         )
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
 
         await cookidoo.get_user_info()
 
-        assert cookidoo._endpoint_overrides == {}
+        assert calls == 2
         assert cookidoo._endpoints_resolved
+        assert (
+            cookidoo._endpoint_overrides["community-profile:user-private-profile"]
+            == "community/profile/{language}"
+        )
+
+    async def test_endpoint_discovery_failure_raises_after_retry(
+        self,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A discovery failure that persists through the retry propagates."""
+
+        async def _raise(*_args: object, **_kwargs: object) -> dict[str, str]:
+            raise CookidooParseException("boom")
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _raise,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_user_info()
+
+        assert not cookidoo._endpoints_resolved
+
+    async def test_endpoint_discovery_runs_only_once_per_instance(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Once resolved, discovery is not repeated on subsequent calls."""
+        calls = 0
+
+        async def _resolve(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}",
+                "ownership:subscriptions": "ownership/subscriptions",
+            }
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _resolve,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await cookidoo.get_user_info()
+        await cookidoo.get_user_info()
+
+        assert calls == 1
 
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -653,7 +717,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test response shape validation."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.OK,
             payload=[],
         )
@@ -666,7 +730,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test converter parse exception for missing keys."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.OK,
             payload={},
         )
@@ -690,7 +754,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
