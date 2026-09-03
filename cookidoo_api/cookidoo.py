@@ -57,6 +57,7 @@ from cookidoo_api.const import (
     REMOVE_MANAGED_COLLECTION_PATH,
     REMOVE_RECIPE_FROM_CALENDER_PATH,
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
+    SEARCH_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
     TOKEN_EXPIRY_MARGIN_S,
@@ -822,7 +823,10 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / DEVICES_PATH
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("DEVICES_PATH", DEVICES_PATH).format(
+            **self._cfg.localization.__dict__
+        )
         result = await self._request_json("get", url, "loading devices")
         if result is None:
             # An account without a paired appliance gets a 204 No Content.
@@ -959,7 +963,10 @@ class Cookidoo:
         """
         if locale is None:
             locale = self._cfg.localization.language.split("-")[0]
-        url = self.api_endpoint / "search" / locale
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("SEARCH_PATH", SEARCH_PATH).format(
+            locale=locale
+        )
         params: dict[str, str] = {}
         if query is not None:
             params["query"] = query

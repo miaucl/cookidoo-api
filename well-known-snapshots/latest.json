@@ -11,6 +11,7 @@
   "CUSTOM_COLLECTIONS_PATH (organize#organize:api-custom-list)": "https://cookidoo.de/organize/{lang}/api/custom-list",
   "CUSTOM_RECIPES_PATH (created-recipes#customer-recipes:recipe-create)": "https://cookidoo.de/created-recipes/{lang}",
   "CUSTOM_RECIPE_PATH (created-recipes#customer-recipes:recipe-details)": "https://cookidoo.de/created-recipes/{lang}/{id}",
+  "DEVICES_PATH (customer-devices#customer-devices:thermomix-versions)": "https://cookidoo.de/customer-devices/api/my-devices/versions",
   "EDIT_ADDITIONAL_ITEMS_PATH (shopping#pantry:edit-additional-items)": "https://cookidoo.de/shopping/{lang}/additional-items/edit",
   "EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH (shopping#pantry:edit-additional-items-ownership)": "https://cookidoo.de/shopping/{lang}/additional-items/ownership/edit",
   "EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH (shopping#pantry:edit-ingredients-ownership)": "https://cookidoo.de/shopping/{lang}/owned-ingredients/ownership/edit",
@@ -26,6 +27,7 @@
   "REMOVE_MANAGED_COLLECTION_PATH (organize#organize:api-managed-list-single)": "https://cookidoo.de/organize/{lang}/api/managed-list/{id}",
   "REMOVE_RECIPE_FROM_CALENDER_PATH (planning#planning:api-my-day-recipes)": "https://cookidoo.de/planning/{lang}/api/my-day/{dayKey}/recipes/{recipeId}",
   "REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH (organize#organize:api-custom-list-recipe)": "https://cookidoo.de/organize/{lang}/api/custom-list/{id}/recipes/{recipeId}",
+  "SEARCH_PATH (search#search:home)": "https://cookidoo.de/search/{lang}{?query,context,filters*,focus,pagination,limit}",
   "SHOPPING_LIST_RECIPES_PATH (shopping#pantry:home)": "https://cookidoo.de/shopping/{lang}{?excludeComponent}",
   "SUBSCRIPTIONS_PATH (ownership#ownership:subscriptions)": "https://cookidoo.de/ownership/subscriptions"
 }

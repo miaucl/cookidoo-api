@@ -80,6 +80,8 @@ SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 # ``["TM7"]``. Language-independent path (customer-devices service).
 DEVICES_PATH: Final = "customer-devices/api/my-devices/versions"
 
+SEARCH_PATH: Final = "search/{locale}"
+
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
 CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.custom-list.mobile+json"

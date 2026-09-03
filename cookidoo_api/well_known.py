@@ -35,6 +35,7 @@ from cookidoo_api.const import (
     CUSTOM_COLLECTIONS_PATH,
     CUSTOM_RECIPE_PATH,
     CUSTOM_RECIPES_PATH,
+    DEVICES_PATH,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
@@ -50,6 +51,7 @@ from cookidoo_api.const import (
     REMOVE_MANAGED_COLLECTION_PATH,
     REMOVE_RECIPE_FROM_CALENDER_PATH,
     REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
+    SEARCH_PATH,
     SHOPPING_LIST_RECIPES_PATH,
     SUBSCRIPTIONS_PATH,
 )
@@ -114,6 +116,8 @@ ENDPOINT_RELS: Final[dict[str, tuple[str, str]]] = {
     "RECIPES_IN_CALENDAR_WEEK_PATH": ("planning", "planning:api-my-week-from-date"),
     "ADD_RECIPES_TO_CALENDER_PATH": ("planning", "planning:api-my-day"),
     "REMOVE_RECIPE_FROM_CALENDER_PATH": ("planning", "planning:api-my-day-recipes"),
+    "DEVICES_PATH": ("customer-devices", "customer-devices:thermomix-versions"),
+    "SEARCH_PATH": ("search", "search:home"),
 }
 
 # Hardcoded defaults, used both as the fallback when discovery fails/mismatches
@@ -149,6 +153,8 @@ _ENDPOINT_DEFAULTS: Final[dict[str, str]] = {
     "RECIPES_IN_CALENDAR_WEEK_PATH": RECIPES_IN_CALENDAR_WEEK_PATH,
     "ADD_RECIPES_TO_CALENDER_PATH": ADD_RECIPES_TO_CALENDER_PATH,
     "REMOVE_RECIPE_FROM_CALENDER_PATH": REMOVE_RECIPE_FROM_CALENDER_PATH,
+    "DEVICES_PATH": DEVICES_PATH,
+    "SEARCH_PATH": SEARCH_PATH,
 }
 
 _DOMAIN_PREFIX_RE = re.compile(r"^https?://[^/]+")

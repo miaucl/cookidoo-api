@@ -48,6 +48,13 @@ def test_endpoint_rels_have_matching_defaults() -> None:
             "ownership/subscriptions",
             "ownership/subscriptions",
         ),
+        # Absolute href with a single {var} token plus a trailing RFC 6570
+        # query template to strip (search:home).
+        (
+            "https://de.web.production-eu.cookidoo.vorwerk-digital.com/search/{lang}{?query,context,filters*,focus,pagination,limit}",
+            "search/{locale}",
+            "search/{locale}",
+        ),
     ],
 )
 def test_normalize_href_success(href: str, const_template: str, expected: str) -> None:
