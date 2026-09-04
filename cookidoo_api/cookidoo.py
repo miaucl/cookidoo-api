@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+import asyncio
 import base64
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
@@ -100,6 +101,7 @@ class Cookidoo:
     _logged_in: bool
     _endpoint_overrides: dict[str, str]
     _endpoints_resolved: bool
+    _endpoints_lock: asyncio.Lock
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
@@ -127,6 +129,7 @@ class Cookidoo:
         self._logged_in = False
         self._endpoint_overrides = {}
         self._endpoints_resolved = False
+        self._endpoints_lock = asyncio.Lock()
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
@@ -303,6 +306,15 @@ class Cookidoo:
                 f"{operation.capitalize()} failed during parsing of request response."
             ) from e
 
+    def _is_endpoints_resolved(self) -> bool:
+        """Return whether endpoint discovery has already completed.
+
+        Kept as a method (rather than a direct attribute read) so mypy
+        doesn't narrow ``_endpoints_resolved`` to a stale literal across the
+        ``await`` on ``_endpoints_lock`` in ``_ensure_endpoints``.
+        """
+        return self._endpoints_resolved
+
     async def _ensure_endpoints(self) -> None:
         """Resolve live endpoint paths via ``.well-known/home`` discovery.
 
@@ -314,6 +326,11 @@ class Cookidoo:
         exception propagates to the caller and the next call starts over
         from scratch.
 
+        Guarded by a lock (checked both before and inside it) so concurrent
+        callers -- e.g. an ``asyncio.gather`` of several API methods on a
+        fresh instance -- await a single in-flight resolution instead of
+        each kicking off their own full discovery round.
+
         Raises
         ------
         CookidooRequestException
@@ -324,19 +341,26 @@ class Cookidoo:
         """
         if self._endpoints_resolved:
             return
-        try:
-            self._endpoint_overrides = await resolve_endpoint_paths(
-                self._session, self.api_endpoint
-            )
-        except (CookidooRequestException, CookidooParseException):
-            _LOGGER.debug(
-                "Well-known endpoint discovery failed, retrying once:\n%s",
-                traceback.format_exc(),
-            )
-            self._endpoint_overrides = await resolve_endpoint_paths(
-                self._session, self.api_endpoint
-            )
-        self._endpoints_resolved = True
+        async with self._endpoints_lock:
+            # Re-check via a helper: a direct attribute re-check here is
+            # (correctly) flagged as unreachable by mypy, since it can't
+            # know the `await` above (waiting on the lock) may let another
+            # coroutine change `_endpoints_resolved` in the meantime.
+            if self._is_endpoints_resolved():
+                return
+            try:
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            except (CookidooRequestException, CookidooParseException):
+                _LOGGER.debug(
+                    "Well-known endpoint discovery failed, retrying once:\n%s",
+                    traceback.format_exc(),
+                )
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            self._endpoints_resolved = True
 
     def _path(self, name: str) -> str:
         """Return the live path template resolved via well-known discovery."""

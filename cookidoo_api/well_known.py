@@ -16,6 +16,7 @@ single source of truth for narrowing the CI drift-check in
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from typing import Final
@@ -31,11 +32,12 @@ from cookidoo_api.const import (
     CUSTOM_COLLECTIONS_PATH,
     CUSTOM_RECIPE_PATH,
     CUSTOM_RECIPES_PATH,
+    DEFAULT_API_HEADERS,
     DEVICES_PATH,
     EDIT_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
     EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
-    LOGIN_PATH,
+    LOGIN_HEADERS,
     MANAGED_COLLECTIONS_PATH,
     RECIPE_PATH,
     RECIPES_IN_CALENDAR_WEEK_PATH,
@@ -55,6 +57,14 @@ _LOGGER = logging.getLogger(__name__)
 
 WELL_KNOWN_HOME_PATH: Final = ".well-known/home"
 
+# Sent with every discovery request. The login flow's own Cloudflare-bot
+# hazard (see LOGIN_HEADERS/const.py, issue #230) applies just as much
+# here: these are unauthenticated GETs against the same cookidoo.* domain,
+# and since there is no hardcoded fallback, a 403 here is a total outage
+# for every method of the client, not just degraded behaviour.
+_DISCOVERY_HEADERS: Final = {**DEFAULT_API_HEADERS, **LOGIN_HEADERS}
+
+
 # Maps each well-known "rel" this library depends on to the HAL service
 # document exposing it and the shape (placeholder names, matching our
 # `.format(language=..., id=...)` call sites) a discovered href is
@@ -62,10 +72,16 @@ WELL_KNOWN_HOME_PATH: Final = ".well-known/home"
 # (Cookidoo._path(rel)), so a rel backing more than one call site (e.g.
 # ``pantry:home`` is shared by the shopping list, ingredient items, and
 # additional items screens) is declared once here, not once per caller.
-# Keep this in sync with scripts/well-known-discovery.py's allow-list so
-# the CI drift-check only watches endpoints we actually use.
+#
+# Only rels actually resolved via _path() belong here: resolve_endpoint_paths()
+# is all-or-nothing, so an extra unused rel would make every API call
+# depend on a service/rel the library never calls (e.g. ``fint:login``,
+# which login() never uses since auth goes through the OAuth2/CIAM flow,
+# not this HAL document -- that one is instead watched separately by
+# scripts/well-known-discovery.py's drift-check, since we still want a
+# heads-up if it disappears, without it being a hard runtime dependency).
+# Keep this in sync with scripts/well-known-discovery.py's own allow-list.
 ENDPOINT_RELS: Final[dict[str, tuple[str, str]]] = {
-    "fint:login": ("profile", LOGIN_PATH),
     "recipe:details": ("recipes/recipe", RECIPE_PATH),
     "customer-recipes:recipe-create": ("created-recipes", CUSTOM_RECIPES_PATH),
     "customer-recipes:recipe-details": ("created-recipes", CUSTOM_RECIPE_PATH),
@@ -107,6 +123,23 @@ _DOMAIN_PREFIX_RE = re.compile(r"^https?://[^/]+")
 _QUERY_SUFFIX_RE = re.compile(r"\{[?&].*$")
 _TOKEN_RE = re.compile(r"(\{/?)([A-Za-z0-9_]+)(\})")
 
+# Cookidoo's own token names, as observed live, mapped to the set of our
+# names they may legitimately stand for (``lang`` backs both our
+# ``language`` and, for the search endpoint, ``locale``). A discovered
+# token whose name is in here MUST line up (at its position) with one of
+# these our-names, or normalization fails -- this catches a silent
+# reordering (e.g. two same-shaped placeholders swapped) that a purely
+# positional substitution would otherwise wave through. A discovered token
+# whose name we don't recognize at all falls back to positional
+# substitution, on the assumption it's simply a token Cookidoo hasn't
+# renamed since we last looked.
+_KNOWN_TOKEN_ALIASES: Final[dict[str, frozenset[str]]] = {
+    "lang": frozenset({"language", "locale"}),
+    "id": frozenset({"id"}),
+    "dayKey": frozenset({"day"}),
+    "recipeId": frozenset({"recipe"}),
+}
+
 
 def _normalize_href(href: str, shape_template: str) -> str | None:
     """Normalize a discovered HAL href into our own template shape.
@@ -116,20 +149,29 @@ def _normalize_href(href: str, shape_template: str) -> str | None:
     that differ from ours (e.g. ``{lang}``/``{dayKey}`` instead of
     ``{language}``/``{day}``). We keep the *literal* path segments from the
     live document (so a renamed segment is picked up automatically) but
-    always substitute our own variable names, positionally, so existing
+    always substitute our own variable names, so existing
     ``.format(language=..., id=...)`` call sites elsewhere keep working
-    unchanged.
+    unchanged. A token we recognize (see :data:`_KNOWN_TOKEN_ALIASES`) must
+    line up with one of our expected names at that position; an unknown
+    token name falls back to positional substitution.
 
-    Returns ``None`` if the number of variables doesn't match, since that
-    indicates a shape change too significant to reconcile automatically.
+    Returns ``None`` if the number of variables doesn't match, or a known
+    token's position doesn't match one of its expected names, since that
+    indicates a shape/order change too significant to reconcile
+    automatically.
     """
     path = _DOMAIN_PREFIX_RE.sub("", href)
     path = _QUERY_SUFFIX_RE.sub("", path)
 
     our_tokens = [m.group(2) for m in _TOKEN_RE.finditer(shape_template)]
-    discovered_tokens = list(_TOKEN_RE.finditer(path))
+    discovered_tokens = [m.group(2) for m in _TOKEN_RE.finditer(path)]
     if len(our_tokens) != len(discovered_tokens):
         return None
+
+    for discovered_name, our_name in zip(discovered_tokens, our_tokens, strict=True):
+        expected = _KNOWN_TOKEN_ALIASES.get(discovered_name)
+        if expected is not None and our_name not in expected:
+            return None
 
     it = iter(our_tokens)
 
@@ -146,7 +188,7 @@ async def _fetch_service_links(
 ) -> dict[str, str] | None:
     """Fetch a single ``.well-known/home`` HAL document's rel -> href links."""
     try:
-        async with session.get(service_url) as resp:
+        async with session.get(service_url, headers=_DISCOVERY_HEADERS) as resp:
             if resp.status != 200:
                 _LOGGER.debug(
                     "Well-known discovery: %s returned status %s, skipping.",
@@ -181,8 +223,8 @@ async def resolve_endpoint_paths(
     """Resolve live endpoint path templates via ``.well-known/home`` discovery.
 
     Fetches only the services referenced in :data:`ENDPOINT_RELS` (not a full
-    recursive crawl), extracts only the rels we use, and normalizes them into
-    our template shape.
+    recursive crawl, and concurrently rather than one at a time), extracts
+    only the rels we use, and normalizes them into our template shape.
 
     Parameters
     ----------
@@ -209,16 +251,21 @@ async def resolve_endpoint_paths(
         href's shape can't be reconciled with ours.
 
     """
-    services = {service for service, _shape in ENDPOINT_RELS.values()}
-    service_links: dict[str, dict[str, str] | None] = {}
-    for service in services:
-        service_url = api_endpoint / service / WELL_KNOWN_HOME_PATH
-        service_links[service] = await _fetch_service_links(session, service_url)
+    services = sorted({service for service, _shape in ENDPOINT_RELS.values()})
+    fetched = await asyncio.gather(
+        *(
+            _fetch_service_links(session, api_endpoint / service / WELL_KNOWN_HOME_PATH)
+            for service in services
+        )
+    )
+    service_links: dict[str, dict[str, str] | None] = dict(
+        zip(services, fetched, strict=True)
+    )
 
     overrides: dict[str, str] = {}
     for rel, (service, shape_template) in ENDPOINT_RELS.items():
         links = service_links.get(service)
-        if not links:
+        if links is None:
             raise CookidooRequestException(
                 f"Endpoint discovery failed: could not reach the '{service}' "
                 f"service's .well-known/home document (needed to resolve "

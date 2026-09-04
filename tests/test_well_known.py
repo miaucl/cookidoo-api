@@ -69,6 +69,45 @@ def test_normalize_href_shape_mismatch_returns_none() -> None:
     )
 
 
+def test_normalize_href_known_token_reorder_returns_none() -> None:
+    """A known-name token in the wrong position signals a silent reorder."""
+    # {dayKey}/{recipeId} swapped relative to our {recipe}/{day}: same count,
+    # both names recognized, but lined up against the wrong our-name.
+    assert (
+        _normalize_href(
+            "https://de.web.production-eu.cookidoo.vorwerk-digital.com/planning/{lang}/api/my-day/{recipeId}/recipes/{dayKey}",
+            "planning/{language}/api/my-day/{day}/recipes/{recipe}",
+        )
+        is None
+    )
+
+
+def test_normalize_href_unknown_token_falls_back_to_positional() -> None:
+    """A token name we don't recognize still substitutes positionally."""
+    assert (
+        _normalize_href(
+            "https://de.web.production-eu.cookidoo.vorwerk-digital.com/ownership/{someNewToken}",
+            "ownership/{language}",
+        )
+        == "ownership/{language}"
+    )
+
+
+async def test_fetch_service_links_sends_discovery_headers(
+    session: ClientSession, mocked: aioresponses
+) -> None:
+    """Discovery GETs carry a browser User-Agent to avoid Cloudflare bot-filtering."""
+    service_url = API_ENDPOINT / "shopping/.well-known/home"
+    mocked.get(service_url, payload={"_links": {}})
+
+    await _fetch_service_links(session, service_url)
+
+    request = next(iter(mocked.requests.values()))[0]
+    sent_headers = request.kwargs["headers"]
+    assert sent_headers["ACCEPT"] == "application/json"
+    assert "Mozilla" in sent_headers["User-Agent"]
+
+
 async def test_fetch_service_links_success(
     session: ClientSession, mocked: aioresponses
 ) -> None:
@@ -168,7 +207,6 @@ async def test_resolve_endpoint_paths_success(
     overrides = await resolve_endpoint_paths(session, API_ENDPOINT)
 
     assert set(overrides) == set(ENDPOINT_RELS)
-    assert overrides["fint:login"] == "profile/{language}"
     assert overrides["recipe:details"] == "recipes/recipe/{language}/{id}"
 
 
@@ -176,9 +214,28 @@ async def test_resolve_endpoint_paths_unreachable_service_raises(
     session: ClientSession, mocked: aioresponses
 ) -> None:
     """An unreachable service raises CookidooRequestException."""
-    _mock_all_services(mocked, {"profile": {"status": 404}})
+    _mock_all_services(mocked, {"ownership": {"status": 404}})
 
     with pytest.raises(CookidooRequestException):
+        await resolve_endpoint_paths(session, API_ENDPOINT)
+
+
+async def test_resolve_endpoint_paths_reachable_but_no_usable_links_raises_parse_error(
+    session: ClientSession, mocked: aioresponses
+) -> None:
+    """A reachable service with no usable hrefs is a parse error, not a request one.
+
+    ``_fetch_service_links`` returns an empty (not ``None``) dict when the
+    document parsed fine but no link had a usable string href -- that's a
+    shape problem, and mustn't be misreported as "could not reach the
+    service" (which callers, incl. the retry-once logic, may treat as more
+    likely to be transient).
+    """
+    _mock_all_services(
+        mocked, {"ownership": {"payload": {"_links": {"broken": {"notAnHref": True}}}}}
+    )
+
+    with pytest.raises(CookidooParseException):
         await resolve_endpoint_paths(session, API_ENDPOINT)
 
 
@@ -187,7 +244,8 @@ async def test_resolve_endpoint_paths_missing_rel_raises(
 ) -> None:
     """A service reachable but no longer exposing our rel raises a parse error."""
     _mock_all_services(
-        mocked, {"profile": {"payload": {"_links": {"other:rel": {"href": "/x"}}}}}
+        mocked,
+        {"ownership": {"payload": {"_links": {"other:rel": {"href": "/x"}}}}},
     )
 
     with pytest.raises(CookidooParseException):

@@ -4,9 +4,11 @@
 Unlike a full recursive crawl of every Cookidoo microservice, this only
 fetches the services/rels listed in ``cookidoo_api.well_known.ENDPOINT_RELS``
 -- the same allow-list the library itself uses at runtime to resolve its
-path templates. This keeps the drift-check (and the PRs it opens) scoped to
-endpoints cookidoo-api actually consumes, instead of firing on unrelated
-changes anywhere in Cookidoo's ~27 microservices.
+path templates -- plus a small number of rels in :data:`WATCH_ONLY_RELS`
+that the library doesn't call but still wants a heads-up on. This keeps the
+drift-check (and the PRs it opens) scoped to endpoints cookidoo-api cares
+about, instead of firing on unrelated changes anywhere in Cookidoo's ~27
+microservices.
 """
 
 import json
@@ -15,11 +17,23 @@ import sys
 
 import requests
 
+from cookidoo_api.const import LOGIN_PATH
 from cookidoo_api.well_known import ENDPOINT_RELS
 
 API_ENDPOINT = "https://cookidoo.de"
 OUT_DIR = Path("well-known-snapshots")
 TIMEOUT = 10
+
+# Rels the drift-check watches for a heads-up even though the library has
+# no runtime call site for them (see well_known.ENDPOINT_RELS' docstring
+# for why: resolve_endpoint_paths() is all-or-nothing, so an endpoint we
+# don't actually call can't live in that runtime allow-list without making
+# every API call depend on it). Declared in the same
+# ``rel -> (service, shape_template)`` shape so they're handled identically
+# by crawl()/diff_links(), just merged in separately from the runtime one.
+WATCH_ONLY_RELS: dict[str, tuple[str, str]] = {
+    "fint:login": ("profile", LOGIN_PATH),
+}
 
 
 def fetch_json(url: str) -> dict:
@@ -30,15 +44,21 @@ def fetch_json(url: str) -> dict:
     return result
 
 
-def crawl() -> dict:
-    """Fetch only the services/rels declared in ENDPOINT_RELS.
+def crawl(old_snapshot: dict) -> dict:
+    """Fetch the services/rels declared in ENDPOINT_RELS and WATCH_ONLY_RELS.
 
     Returns a flat mapping of ``"{rel} ({service})" -> href`` for every rel
     we could resolve, plus an ``"_errors"`` bookkeeping entry listing
     services that couldn't be fetched at all (not treated as an endpoint
     change by itself, see :func:`diff_links`).
+
+    When a service's fetch fails, that service's rels are carried over
+    verbatim from ``old_snapshot`` instead of being dropped: a transient
+    outage must not make every one of that service's rels look "removed"
+    (and, once the service recovers, "added" again) to :func:`diff_links`.
     """
-    services = sorted({service for service, _template in ENDPOINT_RELS.values()})
+    all_rels = {**ENDPOINT_RELS, **WATCH_ONLY_RELS}
+    services = sorted({service for service, _template in all_rels.values()})
     service_links: dict[str, dict] = {}
     errors: dict[str, str] = {}
 
@@ -53,7 +73,12 @@ def crawl() -> dict:
         service_links[service] = doc.get("_links", {})
 
     result: dict[str, object] = {}
-    for rel, (service, _template) in sorted(ENDPOINT_RELS.items()):
+    for rel, (service, _template) in sorted(all_rels.items()):
+        key = f"{rel} ({service})"
+        if service in errors:
+            if key in old_snapshot:
+                result[key] = old_snapshot[key]
+            continue
         links = service_links.get(service)
         if links is None:
             continue
@@ -64,7 +89,7 @@ def crawl() -> dict:
             href = value[0].get("href")
         else:
             href = None
-        result[f"{rel} ({service})"] = href
+        result[key] = href
 
     if errors:
         result["_errors"] = errors
@@ -101,11 +126,11 @@ def diff_links(old: dict, new: dict) -> dict:
 
 def main() -> None:
     """Crawl and snapshot the used well-known endpoints."""
-    snapshot = crawl()
-
     latest_path = OUT_DIR / "latest.json"
     is_first_run = not latest_path.exists()
     old_snapshot = json.loads(latest_path.read_text()) if not is_first_run else {}
+
+    snapshot = crawl(old_snapshot)
 
     diff = diff_links(old_snapshot, snapshot)
     Path("diff-summary.json").write_text(json.dumps(diff, indent=2), encoding="utf-8")

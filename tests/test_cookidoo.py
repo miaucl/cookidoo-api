@@ -1,5 +1,6 @@
 """Unit tests for cookidoo-api."""
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime
 from http import HTTPStatus
@@ -699,6 +700,43 @@ class TestGetUserInfo:
 
         await cookidoo.get_user_info()
         await cookidoo.get_user_info()
+
+        assert calls == 1
+
+    async def test_endpoint_discovery_is_concurrency_safe(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Concurrent callers on a fresh instance share a single discovery run."""
+        calls = 0
+
+        async def _resolve(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0)  # yield, so concurrent callers can interleave
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}",
+                "ownership:subscriptions": "ownership/subscriptions",
+            }
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _resolve,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await asyncio.gather(
+            cookidoo.get_user_info(),
+            cookidoo.get_user_info(),
+            cookidoo.get_user_info(),
+        )
 
         assert calls == 1
 
