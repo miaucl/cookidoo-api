@@ -239,13 +239,10 @@ class TestRecipeImagesAndUrls:
 
     def test_cookidoo_recipe_details_from_json_without_step_groups(self) -> None:
         """Test cookidoo_recipe_details_from_json handles a missing recipeStepGroups key."""
-        recipe_json = cast(
-            RecipeDetailsJSON,
-            COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy(),
-        )
+        recipe_json = dict(COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS)
         del recipe_json["recipeStepGroups"]
 
-        result = cookidoo_recipe_details_from_json(recipe_json)
+        result = cookidoo_recipe_details_from_json(cast(RecipeDetailsJSON, recipe_json))
 
         assert result.step_groups == []
 
