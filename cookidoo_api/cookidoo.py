@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+import asyncio
 import base64
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
@@ -21,44 +22,15 @@ from aiohttp import ClientError, ClientSession
 from yarl import URL
 
 from cookidoo_api.const import (
-    ADD_ADDITIONAL_ITEMS_PATH,
-    ADD_CUSTOM_COLLECTION_PATH,
-    ADD_CUSTOM_RECIPE_PATH,
-    ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
-    ADD_MANAGED_COLLECTION_PATH,
-    ADD_RECIPES_TO_CALENDER_PATH,
-    ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
-    ADDITIONAL_ITEMS_PATH,
     CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
-    COMMUNITY_PROFILE_PATH,
-    CUSTOM_COLLECTIONS_PATH,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
-    CUSTOM_RECIPE_PATH,
-    CUSTOM_RECIPES_PATH,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
-    DEVICES_PATH,
-    EDIT_ADDITIONAL_ITEMS_PATH,
-    EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
-    EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
-    INGREDIENT_ITEMS_PATH,
     LOGIN_HEADERS,
-    MANAGED_COLLECTIONS_PATH,
     MANAGED_COLLECTIONS_PATH_ACCEPT,
     OAUTH_SCOPE,
     OIDC_DISCOVERY_URL,
-    RECIPE_PATH,
-    RECIPES_IN_CALENDAR_WEEK_PATH,
-    REMOVE_ADDITIONAL_ITEMS_PATH,
-    REMOVE_CUSTOM_COLLECTION_PATH,
-    REMOVE_CUSTOM_RECIPE_PATH,
-    REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
-    REMOVE_MANAGED_COLLECTION_PATH,
-    REMOVE_RECIPE_FROM_CALENDER_PATH,
-    REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
-    SHOPPING_LIST_RECIPES_PATH,
-    SUBSCRIPTIONS_PATH,
     TOKEN_EXPIRY_MARGIN_S,
 )
 from cookidoo_api.exceptions import (
@@ -114,6 +86,7 @@ from cookidoo_api.types import (
     CookidooUserInfo,
     ThermomixMachineType,
 )
+from cookidoo_api.well_known import resolve_endpoint_paths
 
 _LOGGER = logging.getLogger(__name__)
 _T = TypeVar("_T")
@@ -126,6 +99,9 @@ class Cookidoo:
     _cfg: CookidooConfig
     _api_headers: dict[str, str]
     _logged_in: bool
+    _endpoint_overrides: dict[str, str]
+    _endpoints_resolved: bool
+    _endpoints_lock: asyncio.Lock
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
@@ -151,6 +127,9 @@ class Cookidoo:
         self._cfg = cfg
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self._logged_in = False
+        self._endpoint_overrides = {}
+        self._endpoints_resolved = False
+        self._endpoints_lock = asyncio.Lock()
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
@@ -326,6 +305,66 @@ class Cookidoo:
             raise CookidooParseException(
                 f"{operation.capitalize()} failed during parsing of request response."
             ) from e
+
+    def _is_endpoints_resolved(self) -> bool:
+        """Return whether endpoint discovery has already completed.
+
+        Kept as a method (rather than a direct attribute read) so mypy
+        doesn't narrow ``_endpoints_resolved`` to a stale literal across the
+        ``await`` on ``_endpoints_lock`` in ``_ensure_endpoints``.
+        """
+        return self._endpoints_resolved
+
+    async def _ensure_endpoints(self) -> None:
+        """Resolve live endpoint paths via ``.well-known/home`` discovery.
+
+        Runs once per instance. There is no hardcoded fallback: a stale
+        path is worse than a clear failure, since it can look successful
+        right up until Cookidoo actually removes the old one. Discovery is
+        retried once (a transient network hiccup shouldn't need a whole new
+        request cycle to recover from); if the retry also fails, the
+        exception propagates to the caller and the next call starts over
+        from scratch.
+
+        Guarded by a lock (checked both before and inside it) so concurrent
+        callers -- e.g. an ``asyncio.gather`` of several API methods on a
+        fresh instance -- await a single in-flight resolution instead of
+        each kicking off their own full discovery round.
+
+        Raises
+        ------
+        CookidooRequestException
+            If a service's discovery document could not be reached.
+        CookidooParseException
+            If a discovered endpoint's shape can't be reconciled with ours.
+
+        """
+        if self._endpoints_resolved:
+            return
+        async with self._endpoints_lock:
+            # Re-check via a helper: a direct attribute re-check here is
+            # (correctly) flagged as unreachable by mypy, since it can't
+            # know the `await` above (waiting on the lock) may let another
+            # coroutine change `_endpoints_resolved` in the meantime.
+            if self._is_endpoints_resolved():
+                return
+            try:
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            except (CookidooRequestException, CookidooParseException):
+                _LOGGER.debug(
+                    "Well-known endpoint discovery failed, retrying once:\n%s",
+                    traceback.format_exc(),
+                )
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            self._endpoints_resolved = True
+
+    def _path(self, name: str) -> str:
+        """Return the live path template resolved via well-known discovery."""
+        return self._endpoint_overrides[name]
 
     @staticmethod
     def _empty_calendar_day(day: date) -> CookidooCalendarDay:
@@ -707,9 +746,10 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
-            **self._cfg.localization.__dict__
-        )
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "community-profile:user-private-profile"
+        ).format(**self._cfg.localization.__dict__)
         result = self._ensure_mapping(
             await self._request_json("get", url, "loading user info"),
             "loading user info",
@@ -740,7 +780,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("ownership:subscriptions").format(
             **self._cfg.localization.__dict__
         )
         subscriptions = self._ensure_sequence(
@@ -787,7 +828,10 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / DEVICES_PATH
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "customer-devices:thermomix-versions"
+        ).format(**self._cfg.localization.__dict__)
         result = await self._request_json("get", url, "loading devices")
         if result is None:
             # An account without a paired appliance gets a 204 No Content.
@@ -822,7 +866,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("recipe:details").format(
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
@@ -923,7 +968,8 @@ class Cookidoo:
         """
         if locale is None:
             locale = self._cfg.localization.language.split("-")[0]
-        url = self.api_endpoint / "search" / locale
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("search:home").format(locale=locale)
         params: dict[str, str] = {}
         if query is not None:
             params["query"] = query
@@ -998,7 +1044,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / CUSTOM_RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-details").format(
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
@@ -1015,7 +1062,8 @@ class Cookidoo:
 
     async def list_custom_recipes(self) -> list[CookidooCustomRecipe]:
         """List custom recipes."""
-        url = self.api_endpoint / CUSTOM_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-create").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1068,14 +1116,17 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
+        await self._ensure_endpoints()
         json_data = {
             "recipeUrl": str(
                 self.api_endpoint
-                / RECIPE_PATH.format(**self._cfg.localization.__dict__, id=recipeId)
+                / self._path("recipe:details").format(
+                    **self._cfg.localization.__dict__, id=recipeId
+                )
             ),
             "servingSize": servingSize,
         }
-        url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+        url = self.api_endpoint / self._path("customer-recipes:recipe-create").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1111,7 +1162,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_CUSTOM_RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-details").format(
             **self._cfg.localization.__dict__, id=custom_recipe_id
         )
         await self._request_json(
@@ -1139,7 +1191,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / SHOPPING_LIST_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1180,7 +1233,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1228,7 +1282,8 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:recipe-ingredients").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1270,7 +1325,8 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-recipe").format(
             **self._cfg.localization.__dict__
         )
         await self._request_json(
@@ -1317,9 +1373,10 @@ class Cookidoo:
                 for ingredient_item in ingredient_items
             ]
         }
-        url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "pantry:edit-ingredients-ownership"
+        ).format(**self._cfg.localization.__dict__)
         result = self._ensure_mapping(
             await self._request_json(
                 "post", url, "edit ingredient items ownership", json=json_data
@@ -1365,7 +1422,8 @@ class Cookidoo:
                 {"id": recipe_id, "source": "CUSTOMER"} for recipe_id in recipe_ids
             ]
         }
-        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:recipe-ingredients").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1407,7 +1465,8 @@ class Cookidoo:
 
         """
         json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-recipe").format(
             **self._cfg.localization.__dict__
         )
         await self._request_json(
@@ -1439,7 +1498,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1483,7 +1543,8 @@ class Cookidoo:
 
         """
         json_data = {"itemsValue": additional_item_names}
-        url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:add-additional-items-v2").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1537,7 +1598,8 @@ class Cookidoo:
                 for additional_item in additional_items
             ]
         }
-        url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:edit-additional-items").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1592,9 +1654,10 @@ class Cookidoo:
                 for additional_item in additional_items
             ]
         }
-        url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "pantry:edit-additional-items-ownership"
+        ).format(**self._cfg.localization.__dict__)
         result = self._ensure_mapping(
             await self._request_json(
                 "post", url, "edit additional items ownership", json=json_data
@@ -1633,7 +1696,8 @@ class Cookidoo:
 
         """
         json_data = {"additionalItemIDs": additional_item_ids}
-        url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-additional-items").format(
             **self._cfg.localization.__dict__
         )
         await self._request_json(
@@ -1659,7 +1723,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
             **self._cfg.localization.__dict__
         )
         await self._request_json(
@@ -1685,7 +1750,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1729,7 +1795,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1777,7 +1844,8 @@ class Cookidoo:
 
         """
         json_data = {"collectionId": managed_collection_id}
-        url = self.api_endpoint / ADD_MANAGED_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1818,7 +1886,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list-single").format(
             **self._cfg.localization.__dict__, id=managed_collection_id
         )
         await self._request_json(
@@ -1848,7 +1917,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1892,7 +1962,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1940,7 +2011,8 @@ class Cookidoo:
 
         """
         json_data = {"title": custom_collection_name}
-        url = self.api_endpoint / ADD_CUSTOM_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1981,7 +2053,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_CUSTOM_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-modify").format(
             **self._cfg.localization.__dict__, id=custom_collection_id
         )
         await self._request_json(
@@ -2022,7 +2095,8 @@ class Cookidoo:
 
         """
         json_data = {"recipeIds": recipe_ids}
-        url = self.api_endpoint / ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-modify").format(
             **self._cfg.localization.__dict__, id=custom_collection_id
         )
         result = self._ensure_mapping(
@@ -2067,7 +2141,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-recipe").format(
             **self._cfg.localization.__dict__,
             id=custom_collection_id,
             recipe=recipe_id,
@@ -2111,7 +2186,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / RECIPES_IN_CALENDAR_WEEK_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-week-from-date").format(
             **self._cfg.localization.__dict__, day=day.isoformat()
         )
         result = self._ensure_mapping(
@@ -2158,7 +2234,8 @@ class Cookidoo:
 
         """
         json_data = {"recipeIds": recipe_ids, "dayKey": day.isoformat()}
-        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -2204,7 +2281,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day-recipes").format(
             **self._cfg.localization.__dict__,
             day=day.isoformat(),
             recipe=recipe_id,
@@ -2260,7 +2338,8 @@ class Cookidoo:
             "dayKey": day.isoformat(),
             "recipeSource": "CUSTOMER",
         }
-        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -2306,7 +2385,8 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day-recipes").format(
             **self._cfg.localization.__dict__,
             day=day.isoformat(),
             recipe=recipe_id,
