@@ -328,6 +328,31 @@ def cookidoo_recipe_details_from_json(
         thumbnail, image = _extract_images_from_descriptive_assets(descriptive_assets)
     url = _construct_recipe_url(localization, recipe["id"])
 
+    active_time = next(
+        (
+            time_["quantity"]["value"]
+            for time_ in recipe["times"]
+            if time_["type"] == "activeTime" and time_["quantity"]["value"]
+        ),
+        None,
+    )
+    if active_time is None:
+        raise ValueError(
+            "Recipe details response is missing a non-null 'activeTime' entry in 'times'."
+        )
+    total_time = next(
+        (
+            time_["quantity"]["value"]
+            for time_ in recipe["times"]
+            if time_["type"] == "totalTime" and time_["quantity"]["value"]
+        ),
+        None,
+    )
+    if total_time is None:
+        raise ValueError(
+            "Recipe details response is missing a non-null 'totalTime' entry in 'times'."
+        )
+
     return CookidooShoppingRecipeDetails(
         id=recipe["id"],
         name=recipe["title"],
@@ -357,16 +382,8 @@ def cookidoo_recipe_details_from_json(
         ],
         utensils=[utensil["utensilNotation"] for utensil in recipe["recipeUtensils"]],
         serving_size=recipe["servingSize"]["quantity"]["value"] or 0,
-        active_time=next(
-            time_["quantity"]["value"]
-            for time_ in recipe["times"]
-            if time_["type"] == "activeTime" and time_["quantity"]["value"]
-        ),
-        total_time=next(
-            time_["quantity"]["value"]
-            for time_ in recipe["times"]
-            if time_["type"] == "totalTime" and time_["quantity"]["value"]
-        ),
+        active_time=active_time,
+        total_time=total_time,
         nutrition_groups=[
             CookidooNutritionGroup(
                 name=ng["name"],
