@@ -11,6 +11,7 @@ authors = [
 ]
 dependencies = [
   "aiohttp~=3.13",
+  "firebase-messaging~=0.4",
   "aiofiles~=25.1",
   "isodate~=0.7.2",
 ]
