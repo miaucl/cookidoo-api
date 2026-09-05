@@ -74,6 +74,14 @@ async def main():
         # Paired Thermomix appliances on the account
         _devices = await cookidoo.get_devices()
 
+        # Appliances currently available for remote monitoring
+        _monitored = await cookidoo.get_monitored_device_ids()
+        # To receive live cook state, register a push token obtained from your own
+        # FCM client, then decode incoming data messages with
+        # cooking_activity_from_push(...):
+        #   await cookidoo.register_push_token(fcm_token, mobile_app_id)
+        #   activity = cooking_activity_from_push(message_data)
+
         # Some features are only available for premium accounts. To get a premium account, you need to subscribe to the Cookidoo service. When creating a new account, you get 1 month of premium for free which is enough to test the premium features :)
         ENABLE_PREMIUM = subscription and subscription.active
 

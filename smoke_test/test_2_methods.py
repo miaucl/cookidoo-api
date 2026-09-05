@@ -40,6 +40,11 @@ class TestMethods:
         for device in devices:
             assert device.type in ThermomixMachineType
 
+    async def test_cookidoo_get_monitored_device_ids(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo get monitored device ids (empty unless an appliance is online)."""
+        ids = await cookidoo.get_monitored_device_ids()
+        assert isinstance(ids, list)
+
     @pytest.mark.parametrize(
         (
             "recipe_id",

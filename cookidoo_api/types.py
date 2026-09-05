@@ -1,6 +1,7 @@
 """Cookidoo API types."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 
 from cookidoo_api.const import OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI
@@ -86,6 +87,47 @@ class CookidooDevice:
     """A paired Thermomix appliance on the account."""
 
     type: ThermomixMachineType
+
+
+class CookidooCookState(StrEnum):
+    """State of an ongoing remote-monitored cook."""
+
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    DONE = "DONE"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    STALE = "STALE"
+
+
+@dataclass
+class CookidooCookingActivity:
+    """Live cook state pushed by an appliance's remote monitoring.
+
+    Values the recipe does not provide are ``None`` (the app renders ``"---"``
+    for an unset current temperature, which is normalised to ``None`` here).
+    """
+
+    device_id: str
+    cooking_activity_id: str | None = None
+    state: CookidooCookState | None = None
+    recipe_id: str | None = None
+    recipe_type: str | None = None
+    recipe_name: str | None = None
+    step: str | None = None
+    remaining_seconds: int | None = None
+    is_time_estimated: bool = False
+    current_temperature: float | None = None
+    target_temperature: float | None = None
+    message_title: str | None = None
+    message_body: str | None = None
+    message_criticality: str | None = None
+    completed_at: datetime | None = None
+    stale_at: datetime | None = None
+
+    @property
+    def is_active(self) -> bool:
+        """Whether a cook is currently running or paused."""
+        return self.state in (CookidooCookState.RUNNING, CookidooCookState.PAUSED)
 
 
 @dataclass

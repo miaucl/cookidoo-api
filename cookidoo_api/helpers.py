@@ -1,6 +1,7 @@
 """Cookidoo API helpers."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 import json
 import logging
 import os
@@ -38,6 +39,8 @@ from cookidoo_api.types import (
     CookidooChapter,
     CookidooChapterRecipe,
     CookidooCollection,
+    CookidooCookingActivity,
+    CookidooCookState,
     CookidooCustomRecipe,
     CookidooDevice,
     CookidooIngredient,
@@ -123,6 +126,107 @@ def cookidoo_device_from_json(model: str) -> CookidooDevice:
     The devices endpoint returns bare machine-type strings (e.g. ``"TM7"``).
     """
     return CookidooDevice(type=ThermomixMachineType(model))
+
+
+def _push_timestamp(value: object) -> datetime | None:
+    """Parse a push timestamp (ISO-8601 or epoch millis/seconds)."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        seconds = value / 1000.0 if value > 1e12 else float(value)
+        return datetime.fromtimestamp(seconds, tz=UTC)
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            return _push_timestamp(int(text))
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def _push_number(value: object) -> float | None:
+    """Parse a numeric display field; the app uses ``"---"`` for 'no value'."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    text = str(value).strip()
+    if not text or set(text) <= {"-", "–", "—"}:
+        return None
+    try:
+        return float(text.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _push_bool(value: object) -> bool:
+    """Parse a boolean; push values are strings, so ``"false"`` must be falsy."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "yes")
+    return bool(value)
+
+
+def cooking_activity_from_push(
+    data: Mapping[str, object],
+) -> CookidooCookingActivity:
+    """Convert a remote-monitoring push payload into a cooking activity.
+
+    Appliance state is delivered out of band (a Firebase Cloud Messaging data
+    message) rather than as an HTTP response, so consumers receive it via their
+    own push channel and decode it here. Both the on-the-wire field names
+    (``leadingText``/``trailingText``/``completedDate``/``staleDate``/…) and the
+    app's parsed names are accepted.
+    """
+
+    def first(*keys: str) -> object:
+        for key in keys:
+            if key in data and data[key] is not None:
+                return data[key]
+        return None
+
+    remaining_raw = first("remainingDuration")
+    remaining: int | None = None
+    if isinstance(remaining_raw, (int, str)):
+        try:
+            remaining = int(remaining_raw)
+        except ValueError:
+            remaining = None
+    completed_at = _push_timestamp(first("completedDate", "completedTimestamp"))
+    end_at = _push_timestamp(first("endTimestamp"))
+    # The wire payload has no remainingDuration; derive it from the finish time.
+    if remaining is None:
+        finish = completed_at or end_at
+        if finish is not None:
+            remaining = max(0, int((finish - datetime.now(UTC)).total_seconds()))
+
+    state_raw = first("state")
+    state = CookidooCookState(str(state_raw).upper()) if state_raw is not None else None
+    recipe_type = first("recipeType")
+
+    return CookidooCookingActivity(
+        device_id=str(first("deviceId") or ""),
+        cooking_activity_id=cast("str | None", first("cookingActivityId")),
+        state=state,
+        recipe_id=cast("str | None", first("recipeId")),
+        recipe_type=str(recipe_type).upper() if recipe_type is not None else None,
+        recipe_name=cast(
+            "str | None", first("leadingText", "leadingInfoText", "infoText")
+        ),
+        step=cast("str | None", first("trailingText", "trailingInfoText")),
+        remaining_seconds=remaining,
+        is_time_estimated=_push_bool(data.get("isTimeEstimated", False)),
+        current_temperature=_push_number(first("primaryInfo")),
+        target_temperature=_push_number(first("secondaryInfo")),
+        message_title=cast("str | None", first("messageTitle")),
+        message_body=cast("str | None", first("messageBody")),
+        message_criticality=cast("str | None", first("messageCriticality")),
+        completed_at=completed_at,
+        stale_at=_push_timestamp(first("staleDate", "staleTimestamp")),
+    )
 
 
 def cookidoo_collection_from_json(
