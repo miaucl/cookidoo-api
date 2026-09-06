@@ -571,6 +571,43 @@ class TestTokenPersistenceAndRefresh:
         assert cookidoo.auth_data is not None
         assert cookidoo.auth_data.access_token == "refreshed-access-token"
 
+    async def test_concurrent_requests_refresh_once(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Concurrent requests across an expiry share a single refresh.
+
+        The server may rotate the refresh token, retiring the one a second
+        concurrent refresh would spend, so only one may be in flight.
+        """
+        refreshes = 0
+
+        async def _token_callback(url: Any, **kwargs: Any) -> CallbackResult:
+            nonlocal refreshes
+            refreshes += 1
+            # Suspend so the other callers reach _ensure_token meanwhile
+            await asyncio.sleep(0)
+            return CallbackResult(payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(
+            OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY, repeat=True
+        )
+        mocked.post(TOKEN_ENDPOINT, callback=_token_callback, repeat=True)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await asyncio.gather(*(cookidoo.get_user_info() for _ in range(3)))
+
+        assert refreshes == 1
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
+        assert cookidoo.auth_data.refresh_token == "refreshed-refresh-token"
+
 
 class TestGetUserInfo:
     """Tests for get_user_info method."""
