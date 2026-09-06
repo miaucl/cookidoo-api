@@ -535,6 +535,7 @@ def cookidoo_custom_recipe_from_json(
     localization: CookidooLocalizationConfig | None = None,
 ) -> CookidooCustomRecipe:
     """Convert a custom recipe received from the API to a cookidoo custom recipe."""
+
     def _duration_to_seconds(value: str | int | float | None) -> int:
         if value is None:
             return 0
