@@ -111,6 +111,7 @@ class Cookidoo:
     _endpoint_overrides: dict[str, str]
     _endpoints_resolved: bool
     _endpoints_lock: asyncio.Lock
+    _token_lock: asyncio.Lock
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
@@ -140,6 +141,7 @@ class Cookidoo:
         self._endpoint_overrides = {}
         self._endpoints_resolved = False
         self._endpoints_lock = asyncio.Lock()
+        self._token_lock = asyncio.Lock()
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
@@ -679,12 +681,24 @@ class Cookidoo:
         self._api_headers["Authorization"] = f"Bearer {access_token}"
         self._expires_at = time.time() + expires_in
 
+    def _is_token_expiring(self) -> bool:
+        """Whether the access token is missing or within the expiry margin."""
+        return time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S
+
     async def _ensure_token(self) -> None:
-        """Refresh the access token if it is missing or about to expire."""
-        if not self._logged_in:
+        """Refresh the access token if it is missing or about to expire.
+
+        Guarded by a lock (checked both before and inside it) so concurrent
+        callers -- e.g. an ``asyncio.gather`` of several API methods across an
+        expiry -- await a single refresh instead of each spending the same
+        refresh token. The server may rotate that token and retire the old one,
+        so a second concurrent refresh can be rejected outright.
+        """
+        if not self._logged_in or not self._is_token_expiring():
             return
-        if time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S:
-            await self.refresh()
+        async with self._token_lock:
+            if self._is_token_expiring():
+                await self.refresh()
 
     @staticmethod
     def _pkce_pair() -> tuple[str, str]:
