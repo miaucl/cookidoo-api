@@ -506,14 +506,16 @@ class Cookidoo:
             If the OAuth2 client id or redirect uri was overridden with an
             empty value.
         CookidooRequestException
-            If the request fails.
+            If the discovery or token request fails or times out.
 
         """
         if self._refresh_token is None:
             raise CookidooAuthException("Cannot refresh: no refresh token available.")
         self._assert_oauth_client()
-        oidc = await self._discovery()
         try:
+            # Inside the try: the discovery request can fail the same way the
+            # token request can, and callers only expect CookidooException.
+            oidc = await self._discovery()
             async with self._session.post(
                 URL(oidc["token_endpoint"]),
                 data={
@@ -528,7 +530,17 @@ class Cookidoo:
                         f"Token refresh failed (status {resp.status})."
                     )
                 payload = cast(dict[str, object], await resp.json())
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Token refresh failed:\n %s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Token refresh failed due to connection timeout."
+            ) from e
         except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Token refresh failed:\n %s", traceback.format_exc()
+            )
             raise CookidooRequestException(
                 "Token refresh failed due to request exception."
             ) from e
