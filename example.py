@@ -105,6 +105,9 @@ async def main():
         _managed_collections = await cookidoo.get_managed_collections()
         await cookidoo.remove_managed_collection("col500401")
 
+        # Cooking history ("last cooked")
+        _cooking_history = await cookidoo.get_cooking_history()
+
         # Recipe details
         _recipe_details = await cookidoo.get_recipe_details("r59322")
 

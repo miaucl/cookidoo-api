@@ -208,6 +208,21 @@ class TestMethods:
         assert isinstance(managed_collections, list)
         assert len(managed_collections) == 0
 
+    async def test_cookidoo_cooking_history(self, cookidoo: Cookidoo) -> None:
+        """Test cookidoo cooking history."""
+        cooking_history = await cookidoo.get_cooking_history()
+        assert isinstance(cooking_history, list)
+
+        # The account may legitimately have never cooked anything; only assert
+        # the shape and ordering when there is something to look at.
+        for entry in cooking_history:
+            assert entry.id
+            assert entry.name
+            assert entry.cooked_at.tzinfo is not None
+
+        timestamps = [entry.cooked_at for entry in cooking_history]
+        assert timestamps == sorted(timestamps, reverse=True)
+
     async def test_cookidoo_custom_collections(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo custom collections."""
         added_custom_collection = await cookidoo.add_custom_collection(

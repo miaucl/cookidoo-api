@@ -16,6 +16,7 @@ from cookidoo_api.raw_types import (
     CalendarDayJSON,
     CalenderDayRecipeJSON,
     CommunityProfileJSON,
+    CookingHistoryEntryJSON,
     CustomCollectionJSON,
     CustomRecipeContentJSON,
     CustomRecipeJSON,
@@ -40,6 +41,7 @@ from cookidoo_api.types import (
     CookidooChapterRecipe,
     CookidooCollection,
     CookidooCookingActivity,
+    CookidooCookingHistoryEntry,
     CookidooCookState,
     CookidooCustomRecipe,
     CookidooDevice,
@@ -674,6 +676,44 @@ def cookidoo_calendar_day_from_json(
         title=calendar_day["title"],
         recipes=[*regular_recipes, *custom_recipes],
         customer_recipe_ids=list(calendar_day.get("customerRecipeIds", [])),
+    )
+
+
+def cookidoo_cooking_history_entry_from_json(
+    entry: CookingHistoryEntryJSON,
+    localization: CookidooLocalizationConfig | None = None,
+) -> CookidooCookingHistoryEntry:
+    """Convert a cooking history entry received from the API to a cookidoo item."""
+    recipe = entry["recipe"]
+
+    assets = recipe.get("assets")
+    thumbnail, image = None, None
+    descriptive_assets = [assets["images"]] if assets and assets["images"] else None
+    if descriptive_assets is not None:
+        thumbnail, image = _extract_images_from_descriptive_assets(descriptive_assets)
+
+    # The service reports the duration as a stringified float of seconds
+    # (e.g. ``"5100.0"``), unlike the planning endpoints' plain int.
+    try:
+        total_time = int(float(recipe["totalTime"]))
+    except (TypeError, ValueError):
+        total_time = 0
+
+    cooked_at = _push_timestamp(entry["details"]["timestamp"])
+    if cooked_at is None:
+        raise ValueError(
+            f"Cooking history entry for recipe {recipe['id']} has an "
+            f"unparsable timestamp: {entry['details']['timestamp']!r}"
+        )
+
+    return CookidooCookingHistoryEntry(
+        id=recipe["id"],
+        name=recipe["title"],
+        cooked_at=cooked_at,
+        total_time=total_time,
+        thumbnail=thumbnail,
+        image=image,
+        url=_construct_recipe_url(localization, recipe["id"]),
     )
 
 

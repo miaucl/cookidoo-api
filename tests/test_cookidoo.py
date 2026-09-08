@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from http import HTTPStatus
 import pathlib
 import re
@@ -63,6 +63,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_EDIT_INGREDIENTS_OWNERSHIP,
     COOKIDOO_TEST_RESPONSE_GET_ADDITIONAL_ITEMS,
+    COOKIDOO_TEST_RESPONSE_GET_COOKING_HISTORY,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_COLLECTIONS,
     COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
     COOKIDOO_TEST_RESPONSE_GET_INGREDIENTS_FOR_CUSTOM_RECIPES,
@@ -2976,6 +2977,139 @@ class TestGetManagedLists:
 
         with pytest.raises(exception):
             await cookidoo.get_managed_collections()
+
+
+class TestGetCookingHistory:
+    """Tests for get_cooking_history method."""
+
+    async def test_get_cooking_history(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test for get_cooking_history."""
+
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            payload=COOKIDOO_TEST_RESPONSE_GET_COOKING_HISTORY,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_cooking_history()
+        assert isinstance(data, list)
+        assert len(data) == 2
+
+        first = data[0]
+        assert first.id == "r59322"
+        assert first.name == "Vollkorn-Toastbrötchen"
+        assert first.cooked_at == datetime(2026, 9, 5, 5, 31, 47, 529000, tzinfo=UTC)
+        # "5100.0" seconds, normalised to a plain int
+        assert first.total_time == 5100
+        assert first.thumbnail
+        assert first.image
+        assert first.url == "https://cookidoo.ch/recipes/recipe/de-CH/r59322"
+
+        # An entry without images still parses, with both URLs unset.
+        second = data[1]
+        assert second.id == "r54743"
+        assert second.total_time == 900
+        assert second.thumbnail is None
+        assert second.image is None
+
+    async def test_get_cooking_history_empty(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test an account that has not cooked anything yet."""
+
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            payload={"userId": "00000000-0000-0000-0000-000000000000", "entries": []},
+            status=HTTPStatus.OK,
+        )
+
+        assert await cookidoo.get_cooking_history() == []
+
+    async def test_get_cooking_history_bad_timestamp(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An unparsable timestamp surfaces as a parse exception, not a crash."""
+
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            payload={
+                "userId": "00000000-0000-0000-0000-000000000000",
+                "entries": [
+                    {
+                        "details": {"timestamp": "not-a-timestamp"},
+                        "recipe": {
+                            "id": "r59322",
+                            "title": "Vollkorn-Toastbrötchen",
+                            "totalTime": "5100.0",
+                            "type": "VORWERK",
+                            "locale": "",
+                            "assets": {"images": None},
+                        },
+                    }
+                ],
+            },
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_cooking_history()
+
+    @pytest.mark.parametrize(
+        "exception",
+        [
+            TimeoutError,
+            ClientError,
+        ],
+    )
+    async def test_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo, exception: Exception
+    ) -> None:
+        """Test request exceptions."""
+
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            exception=exception,
+        )
+
+        with pytest.raises(CookidooRequestException):
+            await cookidoo.get_cooking_history()
+
+    async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
+        """Test unauthorized exception."""
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            status=HTTPStatus.UNAUTHORIZED,
+            payload={"error_description": ""},
+        )
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_cooking_history()
+
+    @pytest.mark.parametrize(
+        ("status", "exception"),
+        [
+            (HTTPStatus.OK, CookidooParseException),
+            (HTTPStatus.UNAUTHORIZED, CookidooAuthException),
+        ],
+    )
+    async def test_parse_exception(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        status: HTTPStatus,
+        exception: type[CookidooException],
+    ) -> None:
+        """Test parse exceptions."""
+        mocked.get(
+            "https://cookidoo.ch/organize/de-CH/api/cooking-history",
+            status=status,
+            body="not json",
+            content_type="application/json",
+        )
+
+        with pytest.raises(exception):
+            await cookidoo.get_cooking_history()
 
 
 class TestAddManagedCollection:
