@@ -536,6 +536,51 @@ class TestTokenPersistenceAndRefresh:
         with pytest.raises(CookidooRequestException, match="Token refresh failed"):
             await cookidoo.refresh()
 
+    async def test_refresh_timeout(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A timeout during refresh surfaces as a request exception."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.refresh()
+
+    async def test_refresh_discovery_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A transport error while discovering the token endpoint is normalized."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=ClientError())
+
+        with pytest.raises(CookidooRequestException, match="Token refresh failed"):
+            await cookidoo.refresh()
+
+    async def test_refresh_discovery_timeout(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A timeout while discovering the token endpoint is normalized."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.refresh()
+
+    async def test_auto_refresh_failure_is_normalized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A failed implicit refresh raises a Cookidoo exception, not a raw one.
+
+        ``_ensure_token()`` runs before the request helper's own try block, so
+        anything it raises reaches the caller unchanged.
+        """
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.get_user_info()
+
     async def test_no_refresh_on_valid_token(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
