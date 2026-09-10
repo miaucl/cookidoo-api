@@ -116,11 +116,13 @@ class Cookidoo:
     _expires_at: float
     _oidc: dict[str, str] | None
     _rmi_links: dict[str, str] | None
+    _on_auth_data_update: Callable[[CookidooAuthData], None] | None
 
     def __init__(
         self,
         session: ClientSession,
         cfg: CookidooConfig = CookidooConfig(),
+        on_auth_data_update: Callable[[CookidooAuthData], None] | None = None,
     ) -> None:
         """Init function for Cookidoo API.
 
@@ -132,10 +134,17 @@ class Cookidoo:
             cookies during the OAuth2 login flow.
         cfg
             Cookidoo config
+        on_auth_data_update
+            Optional callback invoked with the new :class:`CookidooAuthData`
+            whenever the tokens change, i.e. after a login and after every
+            (transparent) refresh. Use it to keep a persisted copy in sync
+            without having to poll :attr:`auth_data` around every call. See
+            :attr:`on_auth_data_update`.
 
         """
         self._session = session
         self._cfg = cfg
+        self._on_auth_data_update = on_auth_data_update
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self._logged_in = False
         self._endpoint_overrides = {}
@@ -404,6 +413,33 @@ class Cookidoo:
             expires_at=self._expires_at,
         )
 
+    @property
+    def on_auth_data_update(self) -> Callable[[CookidooAuthData], None] | None:
+        """The callback notified whenever the tokens change.
+
+        Called with the new :class:`CookidooAuthData` after a login and after
+        every refresh, including the transparent one a request performs when
+        the access token has expired. The server rotates the refresh token
+        along with the access token, so a consumer that persists the tokens
+        should store what the callback hands it, rather than only the result of
+        an explicit :meth:`login`.
+
+        Not called by :meth:`apply_auth_data` or :meth:`load_token`, which
+        restore tokens the consumer already holds.
+
+        Exceptions raised by the callback are caught and logged: a consumer
+        failing to store the tokens must not break the request that triggered
+        the refresh.
+        """
+        return self._on_auth_data_update
+
+    @on_auth_data_update.setter
+    def on_auth_data_update(
+        self, callback: Callable[[CookidooAuthData], None] | None
+    ) -> None:
+        """Set the callback notified whenever the tokens change."""
+        self._on_auth_data_update = callback
+
     def apply_auth_data(self, auth_data: CookidooAuthData) -> None:
         """Restore a previous login from persisted tokens (no network call).
 
@@ -478,9 +514,8 @@ class Cookidoo:
             request_id = self._extract_request_id(login_html)
             code = await self._submit_credentials(request_id, state)
 
-            # Step 5: exchange the code for tokens
+            # Step 5: exchange the code for tokens, which marks us logged in
             await self._exchange_code(oidc["token_endpoint"], code, verifier)
-            self._logged_in = True
 
         except (CookidooAuthException, CookidooParseException):
             raise
@@ -692,6 +727,23 @@ class Cookidoo:
             raise CookidooAuthException(f"Unexpected token response: {payload}") from e
         self._api_headers["Authorization"] = f"Bearer {access_token}"
         self._expires_at = time.time() + expires_in
+        # Holding tokens is what being logged in means, and `auth_data` has to
+        # be readable by the time the callback below runs.
+        self._logged_in = True
+        self._notify_auth_data_update()
+
+    def _notify_auth_data_update(self) -> None:
+        """Hand the new tokens to the consumer, if one asked to be notified."""
+        if self._on_auth_data_update is None or (auth_data := self.auth_data) is None:
+            return
+        try:
+            # Broad on purpose: this is consumer code, it can raise anything.
+            self._on_auth_data_update(auth_data)
+        except Exception:
+            _LOGGER.warning(
+                "Exception: Cannot store the updated tokens:\n%s",
+                traceback.format_exc(),
+            )
 
     def _is_token_expiring(self) -> bool:
         """Whether the access token is missing or within the expiry margin."""

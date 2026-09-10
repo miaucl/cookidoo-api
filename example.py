@@ -59,13 +59,18 @@ async def main():
             ),
         )
 
-        # Try to reuse a saved token, otherwise login fresh
+        # Try to reuse a saved token, otherwise login fresh. The callback keeps
+        # the file in sync afterwards: the tokens change on every login and on
+        # every refresh, including the one a request performs on its own once
+        # the access token has expired, which also rotates the refresh token.
         token_file = ".token"
+        cookidoo.on_auth_data_update = lambda _auth_data: cookidoo.save_token(
+            token_file
+        )
         try:
             cookidoo.load_token(token_file)
         except Exception:
             await cookidoo.login()
-            cookidoo.save_token(token_file)
 
         # Info
         await cookidoo.get_user_info()

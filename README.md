@@ -30,7 +30,7 @@ See below for usage examples.
 
 ## Usage Example
 
-The API is based on the `aiohttp` library. Authentication uses the OAuth2 authorization-code flow (with PKCE) and authenticates requests with a bearer token; tokens can be persisted with `save_token`/`load_token`. A `CookieJar(unsafe=True)` is still required for the session, as the login redirect chain relies on cookies.
+The API is based on the `aiohttp` library. Authentication uses the OAuth2 authorization-code flow (with PKCE) and authenticates requests with a bearer token; tokens can be persisted with `save_token`/`load_token`, or kept in sync with a storage of your own through the `on_auth_data_update` callback, which is called whenever the tokens change -- including the refresh a request performs on its own once the access token has expired. A `CookieJar(unsafe=True)` is still required for the session, as the login redirect chain relies on cookies.
 
 Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 

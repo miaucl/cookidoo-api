@@ -654,6 +654,132 @@ class TestTokenPersistenceAndRefresh:
         assert cookidoo.auth_data.refresh_token == "refreshed-refresh-token"
 
 
+class TestAuthDataUpdateCallback:
+    """Tests for the callback notified whenever the tokens change."""
+
+    async def test_called_after_login(
+        self, mocked: aioresponses, session: ClientSession
+    ) -> None:
+        """A login hands the fresh tokens to the callback."""
+        updates: list[CookidooAuthData] = []
+        cookidoo = Cookidoo(
+            session,
+            cfg=CookidooConfig(
+                client_id=TEST_CLIENT_ID, redirect_uri=TEST_REDIRECT_URI
+            ),
+            on_auth_data_update=updates.append,
+        )
+        TestLogin._mock_login_flow(mocked)
+
+        await cookidoo.login()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("test-access-token", "test-refresh-token")]
+
+    async def test_called_after_refresh(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An explicit refresh hands the rotated tokens to the callback."""
+        updates: list[CookidooAuthData] = []
+
+        def _record(auth_data: CookidooAuthData) -> None:
+            updates.append(auth_data)
+
+        cookidoo.on_auth_data_update = _record
+        assert cookidoo.on_auth_data_update is _record
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+
+        await cookidoo.refresh()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("refreshed-access-token", "refreshed-refresh-token")]
+
+    async def test_called_on_transparent_refresh(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The refresh a request performs on its own notifies as well.
+
+        This is the case a consumer cannot see: the server rotates the refresh
+        token mid-request, so persisting only what ``login()`` returned would
+        keep a token the server has already retired.
+        """
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("refreshed-access-token", "refreshed-refresh-token")]
+
+    async def test_not_called_when_restoring_tokens(
+        self, cookidoo: Cookidoo, tmp_path: pathlib.Path
+    ) -> None:
+        """Restoring tokens the consumer already holds notifies nothing."""
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+
+        cookidoo.apply_auth_data(CookidooAuthData("acc", "ref", 9999999999.0))
+        token_file = tmp_path / "token.json"
+        cookidoo.save_token(token_file)
+        cookidoo.load_token(token_file)
+
+        assert updates == []
+
+    async def test_not_called_on_a_valid_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A request on a still valid token changes nothing to notify about."""
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+        cookidoo.apply_auth_data(CookidooAuthData("valid", "ref", 9999999999.0))
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert updates == []
+
+    async def test_failure_does_not_break_the_request(
+        self, mocked: aioresponses, cookidoo: Cookidoo, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A consumer failing to store the tokens does not fail the request."""
+
+        def _raise(auth_data: CookidooAuthData) -> None:
+            raise RuntimeError("cannot store the tokens")
+
+        cookidoo.on_auth_data_update = _raise
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
+        assert "Cannot store the updated tokens" in caplog.text
+
+
 class TestGetUserInfo:
     """Tests for get_user_info method."""
 
