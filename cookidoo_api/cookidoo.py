@@ -24,6 +24,7 @@ from yarl import URL
 from cookidoo_api.const import (
     CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
+    COOKING_HISTORY_PATH_ACCEPT,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
@@ -52,6 +53,7 @@ from cookidoo_api.helpers import (
     cookidoo_additional_item_from_json,
     cookidoo_calendar_day_from_json,
     cookidoo_collection_from_json,
+    cookidoo_cooking_history_entry_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_device_from_json,
     cookidoo_ingredient_item_from_json,
@@ -67,6 +69,7 @@ from cookidoo_api.raw_types import (
     AdditionalItemJSON,
     CalendarDayJSON,
     CommunityProfileJSON,
+    CookingHistoryEntryJSON,
     CustomCollectionJSON,
     CustomRecipeJSON,
     CustomRecipesJSON,
@@ -84,6 +87,7 @@ from cookidoo_api.types import (
     CookidooCalendarDay,
     CookidooCollection,
     CookidooConfig,
+    CookidooCookingHistoryEntry,
     CookidooCustomRecipe,
     CookidooDevice,
     CookidooIngredientItem,
@@ -2026,6 +2030,51 @@ class Cookidoo:
             lambda: [
                 cookidoo_collection_from_json(cast(ManagedCollectionJSON, item))
                 for item in cast(Sequence[object], result["managedlists"])
+            ],
+        )
+
+    async def get_cooking_history(self) -> list[CookidooCookingHistoryEntry]:
+        """Get the cooking history ("last cooked") of the account.
+
+        The service returns the whole history in a single response, newest
+        entry first; it accepts no pagination parameters.
+
+        Returns
+        -------
+        list[CookidooCookingHistoryEntry]
+            The cooked recipes, most recently cooked first
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-cooking-history").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "loading cooking history",
+                headers={"ACCEPT": COOKING_HISTORY_PATH_ACCEPT},
+            ),
+            "loading cooking history",
+        )
+        return self._parse_result(
+            "loading cooking history",
+            lambda: [
+                cookidoo_cooking_history_entry_from_json(
+                    cast(CookingHistoryEntryJSON, entry), self._cfg.localization
+                )
+                for entry in cast(Sequence[object], result["entries"])
             ],
         )
 

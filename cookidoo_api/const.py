@@ -106,6 +106,12 @@ REMOVE_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list/{id}
 REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH: Final = (
     "organize/{language}/api/custom-list/{id}/recipes/{recipe}"
 )
+# "Last cooked": the recipes the account has cooked, newest first. The service
+# returns the whole history in one response (it takes no page/limit params).
+COOKING_HISTORY_PATH: Final = "organize/{language}/api/cooking-history"
+COOKING_HISTORY_PATH_ACCEPT: Final = (
+    "application/vnd.vorwerk.organize.cooking-history.mobile+json"
+)
 MANAGED_COLLECTIONS_PATH: Final = "organize/{language}/api/managed-list"
 MANAGED_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.managed-list.mobile+json"

@@ -1465,6 +1465,41 @@ COOKIDOO_TEST_RESPONSE_EDIT_ADDITIONAL_ITEMS = {
     ]
 }
 
+COOKIDOO_TEST_RESPONSE_GET_COOKING_HISTORY = {
+    "userId": "00000000-0000-0000-0000-000000000000",
+    "entries": [
+        {
+            "details": {"timestamp": "2026-09-05T05:31:47.529Z"},
+            "recipe": {
+                "id": "r59322",
+                "title": "Vollkorn-Toastbrötchen",
+                # The service reports seconds as a stringified float.
+                "totalTime": "5100.0",
+                "type": "VORWERK",
+                "locale": "",
+                "assets": {
+                    "images": {
+                        "square": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/square",
+                        "portrait": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/portrait",
+                        "landscape": "https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/landscape",
+                    }
+                },
+            },
+        },
+        {
+            "details": {"timestamp": "2026-08-28T13:56:30.168Z"},
+            "recipe": {
+                "id": "r54743",
+                "title": "Pizzateig",
+                "totalTime": "900.0",
+                "type": "VORWERK",
+                "locale": "",
+                "assets": {"images": None},
+            },
+        },
+    ],
+}
+
 COOKIDOO_TEST_RESPONSE_GET_MANAGED_COLLECTIONS = {
     "managedlists": [
         {

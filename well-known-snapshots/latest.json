@@ -4,6 +4,7 @@
   "customer-recipes:recipe-create (created-recipes)": "https://cookidoo.de/created-recipes/{lang}",
   "customer-recipes:recipe-details (created-recipes)": "https://cookidoo.de/created-recipes/{lang}/{id}",
   "fint:login (profile)": "/profile/{lang}/login{?redirectAfterLogin}",
+  "organize:api-cooking-history (organize)": "https://cookidoo.de/organize/{lang}/api/cooking-history",
   "organize:api-custom-list (organize)": "https://cookidoo.de/organize/{lang}/api/custom-list",
   "organize:api-custom-list-modify (organize)": "https://cookidoo.de/organize/{lang}/api/custom-list/{id}",
   "organize:api-custom-list-recipe (organize)": "https://cookidoo.de/organize/{lang}/api/custom-list/{id}/recipes/{recipeId}",
