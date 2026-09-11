@@ -43,6 +43,29 @@ Your account credentials are all that is needed. The library logs in as a *publi
 
 Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/example.py) and have a look at the inline comments for more explanation.
 
+## Remote Monitoring
+
+Appliance cook state is not something you can fetch: the appliance pushes it to
+the Cookidoo mobile app as a Firebase Cloud Messaging data message, and there is
+no endpoint that returns it. `CookidooRemoteMonitoring` registers a push token of
+its own with the remote-monitoring backend and decodes the messages that follow.
+
+```python
+monitoring = CookidooRemoteMonitoring(
+    cookidoo,
+    lambda activity: print(activity.state, activity.recipe_name),
+    mobile_app_id="a-stable-per-installation-uuid",
+    credentials=stored_credentials,          # optional, keeps the same push token
+    on_credentials=save_credentials,         # optional, called when they rotate
+)
+await monitoring.start()
+...
+await monitoring.stop()
+```
+
+Persisting the FCM credentials is worthwhile: reusing them keeps the same push
+token across restarts instead of leaving a new one registered every time.
+
 ## Exceptions
 
 In case something goes wrong during a request, several [exceptions](https://github.com/miaucl/cookidoo/blob/master/cookidoo_api/exceptions.py) can be thrown, all inheriting from `CookidooException`.

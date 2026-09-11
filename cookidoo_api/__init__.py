@@ -18,6 +18,7 @@ from .helpers import (
     get_language_options,
     get_localization_options,
 )
+from .remote_monitoring import CookidooRemoteMonitoring
 from .types import (
     CookidooAdditionalItem,
     CookidooAuthData,
@@ -45,6 +46,7 @@ from .types import (
 
 __all__ = [
     "Cookidoo",
+    "CookidooRemoteMonitoring",
     "get_country_options",
     "get_language_options",
     "get_localization_options",
