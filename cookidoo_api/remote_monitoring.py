@@ -152,6 +152,11 @@ class CookidooRemoteMonitoring:
         """The current FCM registration token. ``None`` until started."""
         return self._token
 
+    @property
+    def is_connected(self) -> bool:
+        """Whether the receiver is logged in and able to receive pushes."""
+        return self._client is not None and self._client.is_started()
+
     async def start(self) -> None:
         """Start listening and register for cook-state pushes.
 
@@ -165,7 +170,7 @@ class CookidooRemoteMonitoring:
             If the remote-monitoring endpoints cannot be resolved.
 
         """
-        self._client = FcmPushClient(
+        client = FcmPushClient(
             self._handle_message,
             FcmRegisterConfig(
                 project_id=FCM_PROJECT_ID,
@@ -177,8 +182,11 @@ class CookidooRemoteMonitoring:
             self._handle_credentials,
             http_client_session=self._session,
         )
-        self._token = await self._client.checkin_or_register()
-        await self._client.start()
+        self._token = await client.checkin_or_register()
+        await client.start()
+        # Only now is there something to shut down: a client that failed to
+        # check in cannot be stopped, and stop() must not mask that failure.
+        self._client = client
         await self._register(self._token)
 
     async def stop(self) -> None:

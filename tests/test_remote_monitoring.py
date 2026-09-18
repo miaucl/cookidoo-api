@@ -118,6 +118,26 @@ class TestRemoteMonitoring:
         push_client.return_value.start.assert_awaited_once()
         cookidoo.register_push_token.assert_awaited_once_with(TOKEN, MOBILE_APP_ID)
 
+    async def test_is_connected_follows_the_client(
+        self, cookidoo: Cookidoo, push_client: MagicMock
+    ) -> None:
+        """Connectivity is reported from the Firebase client, once there is one."""
+        cookidoo.register_push_token = AsyncMock()  # type: ignore[method-assign]
+        cookidoo.unregister_push_token = AsyncMock()  # type: ignore[method-assign]
+        push_client.return_value.is_started.return_value = True
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
+        )
+        before = monitoring.is_connected
+
+        await monitoring.start()
+        started = monitoring.is_connected
+
+        await monitoring.stop()
+        stopped = monitoring.is_connected
+
+        assert (before, started, stopped) == (False, True, False)
+
     async def test_stop_unregisters_the_token(
         self, cookidoo: Cookidoo, push_client: MagicMock
     ) -> None:
@@ -142,6 +162,23 @@ class TestRemoteMonitoring:
             cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
         ).stop()
 
+        cookidoo.unregister_push_token.assert_not_awaited()
+
+    async def test_stop_after_a_failed_start_is_a_noop(
+        self, cookidoo: Cookidoo, push_client: MagicMock
+    ) -> None:
+        """A start that never checked in leaves nothing for stop() to shut down."""
+        push_client.return_value.checkin_or_register.side_effect = Exception("nope")
+        cookidoo.unregister_push_token = AsyncMock()  # type: ignore[method-assign]
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
+        )
+        with pytest.raises(Exception, match="nope"):
+            await monitoring.start()
+
+        await monitoring.stop()
+
+        push_client.return_value.stop.assert_not_awaited()
         cookidoo.unregister_push_token.assert_not_awaited()
 
     async def test_stop_survives_a_failing_unregister(

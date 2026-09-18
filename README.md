@@ -55,8 +55,8 @@ monitoring = CookidooRemoteMonitoring(
     cookidoo,
     lambda activity: print(activity.state, activity.recipe_name),
     mobile_app_id="a-stable-per-installation-uuid",
-    credentials=stored_credentials,          # optional, keeps the same push token
-    on_credentials=save_credentials,         # optional, called when they rotate
+    credentials=stored_credentials,  # optional, keeps the same push token
+    on_credentials=save_credentials,  # optional, called when they rotate
 )
 await monitoring.start()
 ...
