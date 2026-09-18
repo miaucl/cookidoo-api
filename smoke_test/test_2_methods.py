@@ -1,10 +1,14 @@
 """Smoke test for cookidoo-api."""
 
+import asyncio
 from datetime import datetime
+from uuid import uuid4
 
+from aiohttp import ClientSession
 import pytest
 
 from cookidoo_api.cookidoo import Cookidoo
+from cookidoo_api.remote_monitoring import CookidooRemoteMonitoring
 from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooIngredientItem,
@@ -267,3 +271,33 @@ class TestMethods:
         day_recipes = await cookidoo.get_recipes_in_calendar_week(datetime.now().date())
         assert isinstance(day_recipes, list)
         assert len(day_recipes) == 0
+
+    async def test_cookidoo_remote_monitoring(
+        self, cookidoo: Cookidoo, session: ClientSession
+    ) -> None:
+        """Test the remote monitoring push registration round trip.
+
+        Receiving an actual cook state needs an appliance that is mid-cook, so
+        it cannot be asserted here. Everything that can rot without one is:
+        the app's Firebase identifiers still check in, the push connection
+        still logs in, and the backend still accepts and drops the token.
+        """
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo,
+            lambda _activity: None,
+            mobile_app_id=str(uuid4()),
+            session=session,
+        )
+
+        await monitoring.start()
+        try:
+            assert monitoring.token
+            assert monitoring.credentials is not None
+            # Logging in to the push connection happens on its own task.
+            for _ in range(50):
+                if monitoring.is_connected:
+                    break
+                await asyncio.sleep(0.2)
+            assert monitoring.is_connected
+        finally:
+            await monitoring.stop()
