@@ -581,6 +581,38 @@ class CookidooCalendarDayRecipe:
 
 
 @dataclass
+class CookidooCookingHistoryEntry:
+    """Cookidoo cooking history ("last cooked") entry.
+
+    Attributes
+    ----------
+    id
+        The id of the recipe
+    name
+        The label of the recipe
+    cooked_at
+        When the recipe was cooked (timezone-aware, UTC)
+    total_time
+        The time for the recipe, in seconds
+    thumbnail
+        The thumbnail image URL (small preview)
+    image
+        The full-size image URL
+    url
+        The URL of the recipe
+
+    """
+
+    id: str
+    name: str
+    cooked_at: datetime
+    total_time: int
+    thumbnail: str | None
+    image: str | None
+    url: str
+
+
+@dataclass
 class CookidooCalendarDay:
     """Cookidoo calendar day type.
 

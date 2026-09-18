@@ -297,6 +297,37 @@ class CalenderDayRecipeJSON(TypedDict):
     assets: CalenderDayRecipeAssetsJSON | None
 
 
+class CookingHistoryRecipeJSON(TypedDict):
+    """The json for a recipe in the cooking history in the API."""
+
+    id: str
+    title: str
+    totalTime: str
+    type: str
+    locale: str
+    assets: CalenderDayRecipeAssetsJSON | None
+
+
+class CookingHistoryDetailsJSON(TypedDict):
+    """The json for the details of a cooking history entry in the API."""
+
+    timestamp: str
+
+
+class CookingHistoryEntryJSON(TypedDict):
+    """The json for a cooking history entry in the API."""
+
+    details: CookingHistoryDetailsJSON
+    recipe: CookingHistoryRecipeJSON
+
+
+class CookingHistoryJSON(TypedDict):
+    """The json for the cooking history in the API."""
+
+    userId: str
+    entries: list[CookingHistoryEntryJSON]
+
+
 class CalendarDayJSON(TypedDict):
     """The json for a calendar day in the API."""
 
