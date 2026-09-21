@@ -98,6 +98,18 @@ RMI_DEVICES: Final = "rmi:devices"
 PUSH_BUNDLE_ID: Final = "com.vorwerk.cookidoo"
 PUSH_PLATFORM: Final = "AN"  # Android; the value the app sends
 
+# Firebase project of the Cookidoo Android app. Appliance state is delivered as
+# an FCM data message, so a client that wants to observe it has to register with
+# this project. These are the app's public client identifiers, not credentials.
+FCM_PROJECT_ID: Final = "cookidoo-app"
+FCM_APP_ID: Final = "1:447648593759:android:ebfbf2b01378844b"
+FCM_API_KEY: Final = "AIzaSyCPyZm8EAdpVhWhNLFv3cOw_Kx4iNxR_E4"
+FCM_SENDER_ID: Final = "447648593759"
+
+# The appliance flattens the cook state into the data message, but the app's push
+# service also reads it from one of these keys.
+PUSH_NESTED_PAYLOAD_KEYS: Final = ("cookingActivity", "remoteMonitoringInfo")
+
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
 CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.custom-list.mobile+json"
