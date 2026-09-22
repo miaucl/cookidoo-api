@@ -26,6 +26,8 @@ from firebase_messaging import FcmPushClient, FcmRegisterConfig
 from cookidoo_api.const import (
     FCM_API_KEY,
     FCM_APP_ID,
+    FCM_CHECKIN_ATTEMPTS,
+    FCM_CHECKIN_RETRY_DELAY_S,
     FCM_PROJECT_ID,
     FCM_SENDER_ID,
     PUSH_NESTED_PAYLOAD_KEYS,
@@ -74,6 +76,17 @@ def _nested_cook_state(data: dict[str, Any]) -> dict[str, Any] | None:
                 _LOGGER.debug("Could not decode the %s push payload", key)
                 return None
     return None
+
+
+async def _close_register(client: FcmPushClient) -> None:
+    """Close the session a rejected check-in leaves behind.
+
+    ``checkin_or_register()`` closes the session it opened only once it has
+    succeeded, so without this every retry would leak one.
+    """
+    register = getattr(client, "register", None)
+    if register is not None:
+        await register.close()
 
 
 def token_from_credentials(credentials: Any) -> str | None:
@@ -182,12 +195,41 @@ class CookidooRemoteMonitoring:
             self._handle_credentials,
             http_client_session=self._session,
         )
-        self._token = await client.checkin_or_register()
+        self._token = await self._checkin(client)
         await client.start()
         # Only now is there something to shut down: a client that failed to
         # check in cannot be stopped, and stop() must not mask that failure.
         self._client = client
         await self._register(self._token)
+
+    async def _checkin(self, client: FcmPushClient) -> str:
+        """Check in with Firebase, retrying a rejected GCM registration.
+
+        The registration Google hands out is reliable, getting one is not:
+        ``register3`` rejects a fresh check-in with ``PHONE_REGISTRATION_ERROR``
+        more often than not, and ``firebase-messaging`` gives up after two
+        attempts a second apart. Without retrying, roughly two starts in five
+        fail on an endpoint that works perfectly well a moment later.
+
+        Returns
+        -------
+        str
+            The FCM registration token.
+
+        Raises
+        ------
+        RuntimeError
+            If every attempt is rejected.
+
+        """
+        for attempt in range(1, FCM_CHECKIN_ATTEMPTS):
+            try:
+                return await client.checkin_or_register()
+            except RuntimeError as exc:
+                _LOGGER.debug("Firebase check-in attempt %s failed: %s", attempt, exc)
+                await _close_register(client)
+                await asyncio.sleep(FCM_CHECKIN_RETRY_DELAY_S)
+        return await client.checkin_or_register()
 
     async def stop(self) -> None:
         """Stop listening and drop the push token registration."""

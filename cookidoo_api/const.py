@@ -106,6 +106,13 @@ FCM_APP_ID: Final = "1:447648593759:android:ebfbf2b01378844b"
 FCM_API_KEY: Final = "AIzaSyCPyZm8EAdpVhWhNLFv3cOw_Kx4iNxR_E4"
 FCM_SENDER_ID: Final = "447648593759"
 
+# Google rejects a freshly checked-in device with PHONE_REGISTRATION_ERROR more
+# often than not, and firebase-messaging gives up after two attempts a second
+# apart, so a check-in fails outright about four times in ten. Retrying past
+# that is the difference between a working registration and a coin flip.
+FCM_CHECKIN_ATTEMPTS: Final = 4
+FCM_CHECKIN_RETRY_DELAY_S: Final = 2
+
 # The appliance flattens the cook state into the data message, but the app's push
 # service also reads it from one of these keys.
 PUSH_NESTED_PAYLOAD_KEYS: Final = ("cookingActivity", "remoteMonitoringInfo")
