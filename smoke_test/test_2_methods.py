@@ -272,6 +272,7 @@ class TestMethods:
         assert isinstance(day_recipes, list)
         assert len(day_recipes) == 0
 
+    @pytest.mark.firebase
     async def test_cookidoo_remote_monitoring(
         self, cookidoo: Cookidoo, session: ClientSession
     ) -> None:

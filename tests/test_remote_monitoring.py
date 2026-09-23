@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cookidoo_api.const import FCM_CHECKIN_ATTEMPTS
 from cookidoo_api.cookidoo import Cookidoo
 from cookidoo_api.remote_monitoring import (
     CookidooRemoteMonitoring,
@@ -38,6 +39,13 @@ def mock_push_client() -> Any:
         client = mock_client.return_value
         client.checkin_or_register.return_value = TOKEN
         yield mock_client
+
+
+@pytest.fixture(name="no_retry_delay", autouse=True)
+def mock_retry_delay() -> Any:
+    """Take the waiting out of the check-in retries."""
+    with patch("cookidoo_api.remote_monitoring.FCM_CHECKIN_RETRY_DELAY_S", 0):
+        yield
 
 
 class TestCookStatePayload:
@@ -117,6 +125,61 @@ class TestRemoteMonitoring:
         assert monitoring.token == TOKEN
         push_client.return_value.start.assert_awaited_once()
         cookidoo.register_push_token.assert_awaited_once_with(TOKEN, MOBILE_APP_ID)
+
+    async def test_start_retries_a_rejected_check_in(
+        self, cookidoo: Cookidoo, push_client: MagicMock
+    ) -> None:
+        """Google rejects most first check-ins, so one rejection is not the end."""
+        cookidoo.register_push_token = AsyncMock()  # type: ignore[method-assign]
+        push_client.return_value.checkin_or_register.side_effect = [
+            RuntimeError(
+                "Unable to establish subscription with Google Cloud Messaging."
+            ),
+            TOKEN,
+        ]
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
+        )
+
+        await monitoring.start()
+
+        assert monitoring.token == TOKEN
+        cookidoo.register_push_token.assert_awaited_once_with(TOKEN, MOBILE_APP_ID)
+
+    async def test_start_gives_up_on_a_check_in_that_keeps_failing(
+        self, cookidoo: Cookidoo, push_client: MagicMock
+    ) -> None:
+        """Retrying forever would hang a consumer waiting on start()."""
+        push_client.return_value.checkin_or_register.side_effect = RuntimeError("nope")
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
+        )
+
+        with pytest.raises(RuntimeError, match="nope"):
+            await monitoring.start()
+
+        assert (
+            push_client.return_value.checkin_or_register.await_count
+            == FCM_CHECKIN_ATTEMPTS
+        )
+
+    async def test_a_rejected_check_in_does_not_leak_its_session(
+        self, cookidoo: Cookidoo, push_client: MagicMock
+    ) -> None:
+        """The session a check-in opens is only closed once it has succeeded."""
+        cookidoo.register_push_token = AsyncMock()  # type: ignore[method-assign]
+        push_client.return_value.register = AsyncMock()
+        push_client.return_value.checkin_or_register.side_effect = [
+            RuntimeError("rejected"),
+            TOKEN,
+        ]
+        monitoring = CookidooRemoteMonitoring(
+            cookidoo, MagicMock(), mobile_app_id=MOBILE_APP_ID
+        )
+
+        await monitoring.start()
+
+        push_client.return_value.register.close.assert_awaited_once()
 
     async def test_is_connected_follows_the_client(
         self, cookidoo: Cookidoo, push_client: MagicMock
