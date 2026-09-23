@@ -1217,6 +1217,9 @@ class TestGetRecipeDetails:
         assert isinstance(data.categories, list)
         assert isinstance(data.collections, list)
         assert isinstance(data.ingredients, list)
+        assert data.ingredients[2].name == "Butter"
+        assert data.ingredients[2].preparation == ", in Stücken"
+        assert data.ingredients[0].preparation is None
         assert isinstance(data.notes, list)
         assert isinstance(data.utensils, list)
         assert isinstance(data.active_time, int)
@@ -1987,6 +1990,8 @@ class TestGetIngredients:
         assert data
         assert isinstance(data, list)
         assert len(data) == 14
+        assert data[1].preparation == ", kalt"
+        assert data[0].preparation is None
 
     async def test_get_ingredient_items_for_custom_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo

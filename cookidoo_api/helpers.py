@@ -605,6 +605,9 @@ def cookidoo_ingredient_from_json(
         else cookidoo_quantity_from_json(ingredient["quantity"])
         if "quantity" in ingredient and ingredient["quantity"]
         else "",
+        preparation=(ingredient["preparation"] or None)
+        if "preparation" in ingredient
+        else None,
     )
 
 
@@ -624,6 +627,7 @@ def cookidoo_ingredient_item_from_json(
         else str(cookidoo_quantity_from_json(item["quantity"]))
         if "quantity" in item and item["quantity"]
         else "",
+        preparation=(item["preparation"] or None) if "preparation" in item else None,
     )
 
 

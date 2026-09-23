@@ -154,12 +154,16 @@ class CookidooIngredient:
         The label of the ingredient
     description
         The description of the item, including the quantity or other helpful information
+    preparation
+        How the ingredient is to be prepared ("peeled", ", in pieces"), as sent
+        by the API. `None` when there is none — the API sends an empty string.
 
     """
 
     id: str
     name: str
     description: str
+    preparation: str | None = None
 
 
 @dataclass
@@ -188,10 +192,14 @@ class CookidooIngredientItem(CookidooItem):
     ----------
     description
         The description of the item, including the quantity or other helpful information
+    preparation
+        How the ingredient is to be prepared (", in pieces"), as sent by the API.
+        `None` when there is none — the API sends an empty string.
 
     """
 
     description: str
+    preparation: str | None = None
 
 
 @dataclass
