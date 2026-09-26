@@ -1,0 +1,29 @@
+GET https://cookidoo.de/organize/de-DE/api/cooking-history HTTP/2.0
+accept: application/vnd.vorwerk.organize.cooking-history.mobile+json
+authorization: Bearer <redacted>
+accept-encoding: gzip
+content-length: 0
+
+# Notes
+# - The service takes no pagination parameters: `?page=` / `?limit=` are
+#   accepted but ignored, and the full history comes back in one response.
+# - Entries are ordered newest-cooked first.
+# - `totalTime` is seconds, serialised as a stringified float ("5100.0").
+# - Requesting any other representation yields 406 with:
+#     Acceptable representations: [
+#       application/vnd.vorwerk.organize.cooking-history.mobile+json,
+#       application/json
+#     ]
+#   `application/json` returns the same entries with extra legacy image
+#   fields (asciiTitle, squareImage, responsiveImageSrcset, ...).
+# - OPTIONS reports `Allow: POST,GET,HEAD,OPTIONS` here, and
+#   `Allow: POST,OPTIONS` on .../cooking-history/multiple. Only the GET is
+#   implemented by this library; the POSTs (recording a cook) are untested.
+
+
+HTTP/2.0 200
+content-type: application/vnd.vorwerk.organize.cooking-history.mobile+json
+x-content-type-options: nosniff
+vary: Accept-Encoding
+
+{"userId":"00000000-0000-0000-0000-000000000000","entries":[{"details":{"timestamp":"2026-09-05T05:31:47.529Z"},"recipe":{"assets":{"images":{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/27C5A685-9083-4864-A0BE-F751B99CA7D3/Derivates/2AEAE2E5-BB52-4A3A-A6C1-33D08A874419","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/27C5A685-9083-4864-A0BE-F751B99CA7D3/Derivates/2AEAE2E5-BB52-4A3A-A6C1-33D08A874419","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/27C5A685-9083-4864-A0BE-F751B99CA7D3/Derivates/2AEAE2E5-BB52-4A3A-A6C1-33D08A874419"}},"id":"r59322","locale":"","title":"Vollkorn-Toastbrötchen","totalTime":"5100.0","type":"VORWERK"}},{"details":{"timestamp":"2026-08-28T13:56:30.168Z"},"recipe":{"assets":{"images":{"square":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/A1B2C3D4-0000-0000-0000-000000000000/Derivates/B2C3D4E5-0000-0000-0000-000000000000","portrait":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/A1B2C3D4-0000-0000-0000-000000000000/Derivates/B2C3D4E5-0000-0000-0000-000000000000","landscape":"https://assets.tmecosys.com/image/upload/{transformation}/img/recipe/ras/Assets/A1B2C3D4-0000-0000-0000-000000000000/Derivates/B2C3D4E5-0000-0000-0000-000000000000"}},"id":"r54743","locale":"","title":"Pizzateig","totalTime":"900.0","type":"VORWERK"}}]}
