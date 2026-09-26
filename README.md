@@ -30,7 +30,7 @@ See below for usage examples.
 
 ## Usage Example
 
-The API is based on the `aiohttp` library. Authentication uses the OAuth2 authorization-code flow (with PKCE) and authenticates requests with a bearer token; tokens can be persisted with `save_token`/`load_token`. A `CookieJar(unsafe=True)` is still required for the session, as the login redirect chain relies on cookies.
+The API is based on the `aiohttp` library. Authentication uses the OAuth2 authorization-code flow (with PKCE) and authenticates requests with a bearer token; tokens can be persisted with `save_token`/`load_token`, or kept in sync with a storage of your own through the `on_auth_data_update` callback, which is called whenever the tokens change -- including the refresh a request performs on its own once the access token has expired. A `CookieJar(unsafe=True)` is still required for the session, as the login redirect chain relies on cookies.
 
 Make sure to have stored your credentials in the top-level file `.env` as such, to loaded by `dotenv`. Alternatively, provide the environment variables by any other `dotenv` compatible means.
 
@@ -42,6 +42,29 @@ PASSWORD=password
 Your account credentials are all that is needed. The library logs in as a *public* OAuth2 client — authorization code with PKCE and no client secret — so there is nothing else to obtain or configure. See [OAuth2 client](https://miaucl.github.io/cookidoo-api/oauth-client/) if you want to override the client identifiers anyway.
 
 Run the [example script](https://github.com/miaucl/cookidoo-api/blob/master/example.py) and have a look at the inline comments for more explanation.
+
+## Remote Monitoring
+
+Appliance cook state is not something you can fetch: the appliance pushes it to
+the Cookidoo mobile app as a Firebase Cloud Messaging data message, and there is
+no endpoint that returns it. `CookidooRemoteMonitoring` registers a push token of
+its own with the remote-monitoring backend and decodes the messages that follow.
+
+```python
+monitoring = CookidooRemoteMonitoring(
+    cookidoo,
+    lambda activity: print(activity.state, activity.recipe_name),
+    mobile_app_id="a-stable-per-installation-uuid",
+    credentials=stored_credentials,  # optional, keeps the same push token
+    on_credentials=save_credentials,  # optional, called when they rotate
+)
+await monitoring.start()
+...
+await monitoring.stop()
+```
+
+Persisting the FCM credentials is worthwhile: reusing them keeps the same push
+token across restarts instead of leaving a new one registered every time.
 
 ## Exceptions
 

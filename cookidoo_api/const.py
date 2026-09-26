@@ -56,17 +56,12 @@ RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
 CUSTOM_RECIPES_PATH: Final = "created-recipes/{language}"
 CUSTOM_RECIPES_PATH_ACCEPT: Final = "application/vnd.vorwerk.customer-recipe.full+json"
 CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
-ADD_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}"
-UPDATE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
-REMOVE_CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
-INGREDIENT_ITEMS_PATH: Final = "shopping/{language}"
 EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH: Final = (
     "shopping/{language}/owned-ingredients/ownership/edit"
 )
 ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/add"
 REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH: Final = "shopping/{language}/recipes/remove"
-ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}"
 ADD_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/add"
 EDIT_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/edit"
 EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH: Final = (
@@ -74,22 +69,59 @@ EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH: Final = (
 )
 REMOVE_ADDITIONAL_ITEMS_PATH: Final = "shopping/{language}/additional-items/remove"
 
-COMMUNITY_PROFILE_PATH: Final = "community/profile"
+COMMUNITY_PROFILE_PATH: Final = "community/profile/{language}"
 SUBSCRIPTIONS_PATH: Final = "ownership/subscriptions"
 
 # Paired Thermomix appliances on the account. Returns the machine types, e.g.
 # ``["TM7"]``. Language-independent path (customer-devices service).
 DEVICES_PATH: Final = "customer-devices/api/my-devices/versions"
 
+SEARCH_PATH: Final = "search/{locale}"
+
+# --- Remote monitoring (device management) --------------------------------
+# The remote-monitoring (RMI) endpoints live on a dedicated IoT backend that is
+# discovered from the mobile home document -> rmi-config sub-document. Reaching
+# them requires the OAuth2 bearer token (the previous cookie session was refused).
+MOBILE_HOME_PATH: Final = ".well-known/mobile-home"
+HAL_ACCEPT: Final = (
+    "application/vnd.vorwerk.tmde2.rhd.mobile.hal+json, application/hal+json"
+)
+# The RMI write endpoints require this API-version header.
+RMI_API_VERSION: Final = "2026-06-01"
+
+REL_RMI_CONFIG: Final = "tmde2:rmi-config"
+RMI_REGISTER_TOKEN: Final = "rmi:register-token"
+RMI_UNREGISTER: Final = "rmi:unregister"
+RMI_DEVICES: Final = "rmi:devices"
+
+# Fields for the push-token registration payload.
+PUSH_BUNDLE_ID: Final = "com.vorwerk.cookidoo"
+PUSH_PLATFORM: Final = "AN"  # Android; the value the app sends
+
+# Firebase project of the Cookidoo Android app. Appliance state is delivered as
+# an FCM data message, so a client that wants to observe it has to register with
+# this project. These are the app's public client identifiers, not credentials.
+FCM_PROJECT_ID: Final = "cookidoo-app"
+FCM_APP_ID: Final = "1:447648593759:android:ebfbf2b01378844b"
+FCM_API_KEY: Final = "AIzaSyCPyZm8EAdpVhWhNLFv3cOw_Kx4iNxR_E4"
+FCM_SENDER_ID: Final = "447648593759"
+
+# Google rejects a freshly checked-in device with PHONE_REGISTRATION_ERROR more
+# often than not, and firebase-messaging gives up after two attempts a second
+# apart, so a check-in fails outright about four times in ten. Retrying past
+# that is the difference between a working registration and a coin flip.
+FCM_CHECKIN_ATTEMPTS: Final = 4
+FCM_CHECKIN_RETRY_DELAY_S: Final = 2
+
+# The appliance flattens the cook state into the data message, but the app's push
+# service also reads it from one of these keys.
+PUSH_NESTED_PAYLOAD_KEYS: Final = ("cookingActivity", "remoteMonitoringInfo")
+
 CUSTOM_COLLECTIONS_PATH: Final = "organize/{language}/api/custom-list"
 CUSTOM_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.custom-list.mobile+json"
 )
-ADD_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list"
 REMOVE_CUSTOM_COLLECTION_PATH: Final = "organize/{language}/api/custom-list/{id}"
-ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH: Final = (
-    "organize/{language}/api/custom-list/{id}"
-)
 REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH: Final = (
     "organize/{language}/api/custom-list/{id}/recipes/{recipe}"
 )
@@ -97,7 +129,6 @@ MANAGED_COLLECTIONS_PATH: Final = "organize/{language}/api/managed-list"
 MANAGED_COLLECTIONS_PATH_ACCEPT: Final = (
     "application/vnd.vorwerk.organize.managed-list.mobile+json"
 )
-ADD_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list"
 REMOVE_MANAGED_COLLECTION_PATH: Final = "organize/{language}/api/managed-list/{id}"
 RECIPES_IN_CALENDAR_WEEK_PATH: Final = "planning/{language}/api/my-week/{day}"
 ADD_RECIPES_TO_CALENDER_PATH: Final = "planning/{language}/api/my-day"

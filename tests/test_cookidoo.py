@@ -1,5 +1,6 @@
 """Unit tests for cookidoo-api."""
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime
 from http import HTTPStatus
@@ -13,6 +14,7 @@ from dotenv import load_dotenv
 import pytest
 from yarl import URL
 
+from cookidoo_api import cooking_activity_from_push
 from cookidoo_api.const import (
     CIAM_LOGIN_SRV_URL,
     OAUTH_CLIENT_ID,
@@ -33,6 +35,7 @@ from cookidoo_api.types import (
     CookidooAdditionalItem,
     CookidooAuthData,
     CookidooConfig,
+    CookidooCookState,
     CookidooCreateCustomRecipe,
     CookidooCustomAnnotation,
     CookidooIngredientAnnotation,
@@ -56,6 +59,7 @@ from tests.conftest import TEST_CLIENT_ID, TEST_REDIRECT_URI
 from tests.responses import (
     COOKIDOO_TEST_LOGIN_PAGE_HTML,
     COOKIDOO_TEST_OIDC_DISCOVERY,
+    COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
     COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE,
     COOKIDOO_TEST_RESPONSE_ACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_ADD_ADDITIONAL_ITEMS,
@@ -85,9 +89,12 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_GET_SHOPPING_LIST_RECIPES,
     COOKIDOO_TEST_RESPONSE_INACTIVE_SUBSCRIPTION,
     COOKIDOO_TEST_RESPONSE_LIST_CUSTOM_RECIPES,
+    COOKIDOO_TEST_RESPONSE_MOBILE_HOME,
+    COOKIDOO_TEST_RESPONSE_MONITORED_DEVICES,
     COOKIDOO_TEST_RESPONSE_REMOVE_CUSTOM_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CALENDAR,
     COOKIDOO_TEST_RESPONSE_REMOVE_RECIPE_FROM_CUSTOM_COLLECTION,
+    COOKIDOO_TEST_RESPONSE_RMI_CONFIG,
     COOKIDOO_TEST_RESPONSE_SEARCH_RECIPES,
     COOKIDOO_TEST_RESPONSE_UPDATE_CUSTOM_RECIPE,
     COOKIDOO_TEST_RESPONSE_USER_INFO,
@@ -547,13 +554,58 @@ class TestTokenPersistenceAndRefresh:
         with pytest.raises(CookidooRequestException, match="Token refresh failed"):
             await cookidoo.refresh()
 
+    async def test_refresh_timeout(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A timeout during refresh surfaces as a request exception."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.refresh()
+
+    async def test_refresh_discovery_request_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A transport error while discovering the token endpoint is normalized."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=ClientError())
+
+        with pytest.raises(CookidooRequestException, match="Token refresh failed"):
+            await cookidoo.refresh()
+
+    async def test_refresh_discovery_timeout(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A timeout while discovering the token endpoint is normalized."""
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.refresh()
+
+    async def test_auto_refresh_failure_is_normalized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A failed implicit refresh raises a Cookidoo exception, not a raw one.
+
+        ``_ensure_token()`` runs before the request helper's own try block, so
+        anything it raises reaches the caller unchanged.
+        """
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, exception=TimeoutError())
+
+        with pytest.raises(CookidooRequestException, match="connection timeout"):
+            await cookidoo.get_user_info()
+
     async def test_no_refresh_on_valid_token(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
         """A still valid access token is used as is, without a refresh."""
         cookidoo.apply_auth_data(CookidooAuthData("valid", "ref", 9999999999.0))
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -572,7 +624,7 @@ class TestTokenPersistenceAndRefresh:
         mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
         mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -581,6 +633,169 @@ class TestTokenPersistenceAndRefresh:
 
         assert cookidoo.auth_data is not None
         assert cookidoo.auth_data.access_token == "refreshed-access-token"
+
+    async def test_concurrent_requests_refresh_once(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Concurrent requests across an expiry share a single refresh.
+
+        The server may rotate the refresh token, retiring the one a second
+        concurrent refresh would spend, so only one may be in flight.
+        """
+        refreshes = 0
+
+        async def _token_callback(url: Any, **kwargs: Any) -> CallbackResult:
+            nonlocal refreshes
+            refreshes += 1
+            # Suspend so the other callers reach _ensure_token meanwhile
+            await asyncio.sleep(0)
+            return CallbackResult(payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(
+            OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY, repeat=True
+        )
+        mocked.post(TOKEN_ENDPOINT, callback=_token_callback, repeat=True)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await asyncio.gather(*(cookidoo.get_user_info() for _ in range(3)))
+
+        assert refreshes == 1
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
+        assert cookidoo.auth_data.refresh_token == "refreshed-refresh-token"
+
+
+class TestAuthDataUpdateCallback:
+    """Tests for the callback notified whenever the tokens change."""
+
+    async def test_called_after_login(
+        self, mocked: aioresponses, session: ClientSession
+    ) -> None:
+        """A login hands the fresh tokens to the callback."""
+        updates: list[CookidooAuthData] = []
+        cookidoo = Cookidoo(
+            session,
+            cfg=CookidooConfig(
+                client_id=TEST_CLIENT_ID, redirect_uri=TEST_REDIRECT_URI
+            ),
+            on_auth_data_update=updates.append,
+        )
+        TestLogin._mock_login_flow(mocked)
+
+        await cookidoo.login()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("test-access-token", "test-refresh-token")]
+
+    async def test_called_after_refresh(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An explicit refresh hands the rotated tokens to the callback."""
+        updates: list[CookidooAuthData] = []
+
+        def _record(auth_data: CookidooAuthData) -> None:
+            updates.append(auth_data)
+
+        cookidoo.on_auth_data_update = _record
+        assert cookidoo.on_auth_data_update is _record
+        cookidoo.apply_auth_data(CookidooAuthData("old", "ref", 9999999999.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+
+        await cookidoo.refresh()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("refreshed-access-token", "refreshed-refresh-token")]
+
+    async def test_called_on_transparent_refresh(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The refresh a request performs on its own notifies as well.
+
+        This is the case a consumer cannot see: the server rotates the refresh
+        token mid-request, so persisting only what ``login()`` returned would
+        keep a token the server has already retired.
+        """
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert [
+            (auth_data.access_token, auth_data.refresh_token) for auth_data in updates
+        ] == [("refreshed-access-token", "refreshed-refresh-token")]
+
+    async def test_not_called_when_restoring_tokens(
+        self, cookidoo: Cookidoo, tmp_path: pathlib.Path
+    ) -> None:
+        """Restoring tokens the consumer already holds notifies nothing."""
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+
+        cookidoo.apply_auth_data(CookidooAuthData("acc", "ref", 9999999999.0))
+        token_file = tmp_path / "token.json"
+        cookidoo.save_token(token_file)
+        cookidoo.load_token(token_file)
+
+        assert updates == []
+
+    async def test_not_called_on_a_valid_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A request on a still valid token changes nothing to notify about."""
+        updates: list[CookidooAuthData] = []
+        cookidoo.on_auth_data_update = updates.append
+        cookidoo.apply_auth_data(CookidooAuthData("valid", "ref", 9999999999.0))
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert updates == []
+
+    async def test_failure_does_not_break_the_request(
+        self, mocked: aioresponses, cookidoo: Cookidoo, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A consumer failing to store the tokens does not fail the request."""
+
+        def _raise(auth_data: CookidooAuthData) -> None:
+            raise RuntimeError("cannot store the tokens")
+
+        cookidoo.on_auth_data_update = _raise
+        cookidoo.apply_auth_data(CookidooAuthData("expired", "ref", 0.0))
+        mocked.get(OIDC_DISCOVERY_URL, payload=COOKIDOO_TEST_OIDC_DISCOVERY)
+        mocked.post(TOKEN_ENDPOINT, payload=COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE)
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert cookidoo.auth_data is not None
+        assert cookidoo.auth_data.access_token == "refreshed-access-token"
+        assert "Cannot store the updated tokens" in caplog.text
 
 
 class TestGetUserInfo:
@@ -592,7 +807,7 @@ class TestGetUserInfo:
         """Test for get_user_info."""
 
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
             status=HTTPStatus.OK,
         )
@@ -623,17 +838,144 @@ class TestGetUserInfo:
         """Test request exceptions."""
 
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             exception=exception,
         )
 
         with pytest.raises(CookidooRequestException):
             await cookidoo.get_user_info()
 
+    async def test_endpoint_discovery_retries_once_and_succeeds(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A transient discovery failure is retried once and can still succeed."""
+        calls = 0
+
+        async def _flaky(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                raise CookidooRequestException("boom")
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}"
+            }
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _flaky,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+        )
+
+        await cookidoo.get_user_info()
+
+        assert calls == 2
+        assert cookidoo._endpoints_resolved
+        assert (
+            cookidoo._endpoint_overrides["community-profile:user-private-profile"]
+            == "community/profile/{language}"
+        )
+
+    async def test_endpoint_discovery_failure_raises_after_retry(
+        self,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A discovery failure that persists through the retry propagates."""
+
+        async def _raise(*_args: object, **_kwargs: object) -> dict[str, str]:
+            raise CookidooParseException("boom")
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _raise,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.get_user_info()
+
+        assert not cookidoo._endpoints_resolved
+
+    async def test_endpoint_discovery_runs_only_once_per_instance(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Once resolved, discovery is not repeated on subsequent calls."""
+        calls = 0
+
+        async def _resolve(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}",
+                "ownership:subscriptions": "ownership/subscriptions",
+            }
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _resolve,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await cookidoo.get_user_info()
+        await cookidoo.get_user_info()
+
+        assert calls == 1
+
+    async def test_endpoint_discovery_is_concurrency_safe(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Concurrent callers on a fresh instance share a single discovery run."""
+        calls = 0
+
+        async def _resolve(*_args: object, **_kwargs: object) -> dict[str, str]:
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0)  # yield, so concurrent callers can interleave
+            return {
+                "community-profile:user-private-profile": "community/profile/{language}",
+                "ownership:subscriptions": "ownership/subscriptions",
+            }
+
+        monkeypatch.setattr(
+            "cookidoo_api.cookidoo.resolve_endpoint_paths",
+            _resolve,
+        )
+        mocked.get(
+            "https://cookidoo.ch/community/profile/de-CH",
+            payload=COOKIDOO_TEST_RESPONSE_USER_INFO,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+
+        await asyncio.gather(
+            cookidoo.get_user_info(),
+            cookidoo.get_user_info(),
+            cookidoo.get_user_info(),
+        )
+
+        assert calls == 1
+
     async def test_unauthorized(self, mocked: aioresponses, cookidoo: Cookidoo) -> None:
         """Test unauthorized exception."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.UNAUTHORIZED,
             payload={"error_description": ""},
         )
@@ -645,7 +987,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test response shape validation."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.OK,
             payload=[],
         )
@@ -658,7 +1000,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test converter parse exception for missing keys."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=HTTPStatus.OK,
             payload={},
         )
@@ -682,7 +1024,7 @@ class TestGetUserInfo:
     ) -> None:
         """Test parse exceptions."""
         mocked.get(
-            "https://cookidoo.ch/community/profile",
+            "https://cookidoo.ch/community/profile/de-CH",
             status=status,
             body="not json",
             content_type="application/json",
@@ -893,11 +1235,23 @@ class TestGetRecipeDetails:
         assert isinstance(data.categories, list)
         assert isinstance(data.collections, list)
         assert isinstance(data.ingredients, list)
+        assert data.ingredients[2].name == "Butter"
+        assert data.ingredients[2].preparation == ", in Stücken"
+        assert data.ingredients[0].preparation is None
         assert isinstance(data.notes, list)
         assert isinstance(data.utensils, list)
         assert isinstance(data.active_time, int)
         assert isinstance(data.total_time, int)
         assert isinstance(data.serving_size, int)
+        assert len(data.step_groups) == 1
+        assert data.step_groups[0].title == ""
+        assert len(data.step_groups[0].recipe_steps) == 4
+        assert data.step_groups[0].recipe_steps[0].title == "1"
+        assert (
+            data.step_groups[0]
+            .recipe_steps[0]
+            .formatted_text.startswith("<NOBR>200 g Kokosraspeln</NOBR>")
+        )
 
     @pytest.mark.parametrize(
         "exception",
@@ -952,6 +1306,26 @@ class TestGetRecipeDetails:
         )
 
         with pytest.raises(exception):
+            await cookidoo.get_recipe_details("r907015")
+
+    async def test_missing_times_raises_parse_exception(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A recipe missing a non-null activeTime/totalTime raises CookidooParseException.
+
+        Previously this raised a bare StopIteration, which is not a documented
+        exception of this method and is not even guaranteed to propagate as
+        StopIteration out of an async function (PEP 479).
+        """
+        payload = COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy()
+        payload["times"] = []
+        mocked.get(
+            "https://cookidoo.ch/recipes/recipe/de-CH/r907015",
+            payload=payload,
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
             await cookidoo.get_recipe_details("r907015")
 
 
@@ -1660,6 +2034,8 @@ class TestGetIngredients:
         assert data
         assert isinstance(data, list)
         assert len(data) == 14
+        assert data[1].preparation == ", kalt"
+        assert data[0].preparation is None
 
     async def test_get_ingredient_items_for_custom_recipes(
         self, mocked: aioresponses, cookidoo: Cookidoo
@@ -5127,3 +5503,240 @@ class TestThermomixEnums:
             == "VaromaAndSimmeringBasket"
         )
         assert len(ThermomixSteamingAccessory) == 3
+
+
+class TestRemoteMonitoring:
+    """Tests for remote-monitoring (device management) methods."""
+
+    MOBILE_HOME_URL = "https://cookidoo.ch/.well-known/mobile-home"
+    RMI_CONFIG_URL = (
+        "https://it.tmmobile.vorwerk-digital.com/rmi-config/.well-known/home"
+    )
+    DEVICES_URL = "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/devices"
+    REGISTER_URL = (
+        "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/device-token"
+    )
+    UNREGISTER_URL = "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/token"
+
+    def _mock_rmi_resolution(self, mocked: aioresponses) -> None:
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload=COOKIDOO_TEST_RESPONSE_RMI_CONFIG)
+
+    async def test_get_monitored_device_ids(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test listing monitorable device ids."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=COOKIDOO_TEST_RESPONSE_MONITORED_DEVICES)
+
+        ids = await cookidoo.get_monitored_device_ids()
+        assert ids == [
+            "22e920b2d6184cec6c854cd005d6aa8fb851d7e783478b50f361ac8d1ab97bfe"
+        ]
+
+    async def test_get_monitored_device_ids_empty(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test listing when no device is currently monitorable."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        assert await cookidoo.get_monitored_device_ids() == []
+
+    async def test_register_push_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test registering a push token."""
+        self._mock_rmi_resolution(mocked)
+        mocked.post(self.REGISTER_URL, payload={"message": "OK"})
+
+        await cookidoo.register_push_token("fcm-token", "app-install-id")
+
+    async def test_unregister_push_token(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Test unregistering a push token."""
+        self._mock_rmi_resolution(mocked)
+        mocked.delete(self.UNREGISTER_URL, payload={"message": "OK"})
+
+        await cookidoo.unregister_push_token("fcm-token")
+
+    async def test_rmi_config_link_missing(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A home doc without the rmi-config link raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload={"_links": {}})
+
+        with pytest.raises(CookidooParseException, match="rmi-config link missing"):
+            await cookidoo.get_monitored_device_ids()
+
+    async def test_rmi_links_are_cached(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """The resolution walk runs once and is reused afterwards."""
+        self._mock_rmi_resolution(mocked)
+        mocked.get(self.DEVICES_URL, payload=[])
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        await cookidoo.get_monitored_device_ids()
+        await cookidoo.get_monitored_device_ids()
+
+        # Only the first call walked mobile-home -> rmi-config.
+        assert len(mocked.requests[("get", URL(self.MOBILE_HOME_URL))]) == 1
+        assert len(mocked.requests[("get", URL(self.RMI_CONFIG_URL))]) == 1
+
+    async def test_mobile_home_without_links(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A home doc whose ``_links`` is not an object raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload={"_links": "not-an-object"})
+
+        with pytest.raises(CookidooParseException, match="rmi-config link missing"):
+            await cookidoo.get_monitored_device_ids()
+
+    async def test_rmi_config_without_links(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """An rmi-config document without a ``_links`` object raises."""
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload={"_links": "not-an-object"})
+
+        with pytest.raises(CookidooParseException, match="during parsing"):
+            await cookidoo.get_monitored_device_ids()
+
+    async def test_rmi_links_accept_both_hal_shapes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """A rel maps either to a bare href string or to a ``{"href": ...}``."""
+        mocked.get(
+            self.MOBILE_HOME_URL,
+            payload={"_links": {"tmde2:rmi-config": self.RMI_CONFIG_URL}},
+        )
+        mocked.get(
+            self.RMI_CONFIG_URL,
+            payload={
+                "_links": {
+                    "rmi:devices": self.DEVICES_URL,
+                    "rmi:unregister": {"href": self.UNREGISTER_URL},
+                    "rmi:ignored": {"no-href": True},
+                }
+            },
+        )
+        mocked.get(self.DEVICES_URL, payload=[])
+
+        assert await cookidoo.get_monitored_device_ids() == []
+
+    @pytest.mark.parametrize(
+        ("rel", "call", "args"),
+        [
+            ("rmi:devices", "get_monitored_device_ids", ()),
+            ("rmi:register-token", "register_push_token", ("fcm-token", "install-id")),
+            ("rmi:unregister", "unregister_push_token", ("fcm-token",)),
+        ],
+    )
+    async def test_rmi_endpoint_link_missing(
+        self,
+        mocked: aioresponses,
+        cookidoo: Cookidoo,
+        rel: str,
+        call: str,
+        args: tuple[str, ...],
+    ) -> None:
+        """Each endpoint reports its own missing link rather than failing late."""
+        links = {
+            k: v
+            for k, v in COOKIDOO_TEST_RESPONSE_RMI_CONFIG["_links"].items()
+            if k != rel
+        }
+        mocked.get(self.MOBILE_HOME_URL, payload=COOKIDOO_TEST_RESPONSE_MOBILE_HOME)
+        mocked.get(self.RMI_CONFIG_URL, payload={"_links": links})
+
+        with pytest.raises(CookidooParseException, match=f"{rel} link missing"):
+            await getattr(cookidoo, call)(*args)
+
+    @pytest.mark.parametrize(
+        ("field", "value", "attr", "expected"),
+        [
+            # _push_timestamp: unparseable and empty strings degrade to None
+            ("completedDate", "not-a-date", "completed_at", None),
+            ("completedDate", "", "completed_at", None),
+            ("completedDate", None, "completed_at", None),
+            ("completedDate", ["unexpected", "shape"], "completed_at", None),
+            # _push_number: sentinels, comma decimals and native numbers
+            ("secondaryInfo", "---", "target_temperature", None),
+            ("secondaryInfo", "", "target_temperature", None),
+            ("secondaryInfo", "not-a-number", "target_temperature", None),
+            ("secondaryInfo", "37,5", "target_temperature", 37.5),
+            ("secondaryInfo", 95, "target_temperature", 95.0),
+            ("secondaryInfo", None, "target_temperature", None),
+            # _push_bool: real bools pass through, strings are coerced
+            ("isTimeEstimated", True, "is_time_estimated", True),
+            ("isTimeEstimated", "yes", "is_time_estimated", True),
+            ("isTimeEstimated", "FALSE", "is_time_estimated", False),
+            ("isTimeEstimated", 1, "is_time_estimated", True),
+        ],
+    )
+    def test_cooking_activity_from_push_field_parsing(
+        self, field: str, value: object, attr: str, expected: object
+    ) -> None:
+        """Malformed or alternately-typed push fields degrade instead of raising."""
+        payload = {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, field: value}
+
+        assert getattr(cooking_activity_from_push(payload), attr) == expected
+
+    @pytest.mark.parametrize("remaining", ["600", 600])
+    def test_cooking_activity_from_push_remaining_duration(
+        self, remaining: object
+    ) -> None:
+        """``remainingDuration`` arrives as a string or an int; both are used."""
+        payload = {
+            **COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
+            "remainingDuration": remaining,
+        }
+
+        assert cooking_activity_from_push(payload).remaining_seconds == 600
+
+    def test_cooking_activity_from_push_remaining_duration_unparseable(self) -> None:
+        """An unparseable duration falls back to deriving it from the finish time."""
+        payload = {
+            **COOKIDOO_TEST_PUSH_COOKING_ACTIVITY,
+            "remainingDuration": "not-a-number",
+        }
+
+        remaining = cooking_activity_from_push(payload).remaining_seconds
+        assert remaining is None or isinstance(remaining, int)
+
+    def test_cooking_activity_from_push_epoch_seconds(self) -> None:
+        """Epoch timestamps arrive in millis or seconds; both decode."""
+        millis = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "completedDate": "1787924895000"}
+        )
+        seconds = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "completedDate": 1787924895}
+        )
+
+        assert millis.completed_at is not None
+        assert seconds.completed_at is not None
+        assert millis.completed_at == seconds.completed_at
+
+    def test_cooking_activity_from_push(self) -> None:
+        """Test decoding a remote-monitoring push payload."""
+        activity = cooking_activity_from_push(COOKIDOO_TEST_PUSH_COOKING_ACTIVITY)
+        assert activity.state == CookidooCookState.RUNNING
+        assert activity.is_active
+        assert activity.recipe_name == "Purè di patate"
+        assert activity.step == "5/9"
+        assert activity.target_temperature == 95.0
+        assert activity.current_temperature is None  # "---" -> None
+        assert activity.is_time_estimated is False  # "false" -> False
+        assert activity.recipe_type == "VORWERK"
+        assert activity.completed_at is not None
+        assert activity.stale_at is not None and activity.stale_at.year == 2026
+
+    def test_cooking_activity_from_push_done_is_inactive(self) -> None:
+        """A done cook is not active."""
+        activity = cooking_activity_from_push(
+            {**COOKIDOO_TEST_PUSH_COOKING_ACTIVITY, "state": "done"}
+        )
+        assert activity.state == CookidooCookState.DONE
+        assert not activity.is_active

@@ -1,6 +1,6 @@
 """Cookidoo API package."""
 
-__version__ = "0.17.2"
+__version__ = "0.18.4"
 
 from .cookidoo import Cookidoo
 from .exceptions import (
@@ -12,7 +12,13 @@ from .exceptions import (
     CookidooResponseException,
     CookidooUnavailableException,
 )
-from .helpers import get_country_options, get_language_options, get_localization_options
+from .helpers import (
+    cooking_activity_from_push,
+    get_country_options,
+    get_language_options,
+    get_localization_options,
+)
+from .remote_monitoring import CookidooRemoteMonitoring
 from .types import (
     CookidooAdditionalItem,
     CookidooAnnotation,
@@ -22,6 +28,8 @@ from .types import (
     CookidooChapterRecipe,
     CookidooCollection,
     CookidooConfig,
+    CookidooCookingActivity,
+    CookidooCookState,
     CookidooCreateCustomRecipe,
     CookidooCustomAnnotation,
     CookidooCustomRecipe,
@@ -56,6 +64,7 @@ from .types import (
 __all__ = [
     "Cookidoo",
     "CookidooAnnotation",
+    "CookidooRemoteMonitoring",
     "get_country_options",
     "get_language_options",
     "get_localization_options",
@@ -76,6 +85,9 @@ __all__ = [
     "CookidooItem",
     "CookidooDevice",
     "CookidooAuthData",
+    "CookidooCookingActivity",
+    "CookidooCookState",
+    "cooking_activity_from_push",
     "CookidooAdditionalItem",
     "CookidooIngredientItem",
     "CookidooShoppingRecipe",

@@ -1,5 +1,6 @@
 """Cookidoo api implementation."""
 
+import asyncio
 import base64
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date
@@ -22,46 +23,25 @@ from aiohttp import ClientError, ClientSession
 from yarl import URL
 
 from cookidoo_api.const import (
-    ADD_ADDITIONAL_ITEMS_PATH,
-    ADD_CUSTOM_COLLECTION_PATH,
-    ADD_CUSTOM_RECIPE_PATH,
-    ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
-    ADD_MANAGED_COLLECTION_PATH,
-    ADD_RECIPES_TO_CALENDER_PATH,
-    ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH,
-    ADDITIONAL_ITEMS_PATH,
     CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
-    COMMUNITY_PROFILE_PATH,
-    CUSTOM_COLLECTIONS_PATH,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
-    CUSTOM_RECIPE_PATH,
-    CUSTOM_RECIPES_PATH,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
-    DEVICES_PATH,
-    EDIT_ADDITIONAL_ITEMS_PATH,
-    EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH,
-    EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH,
-    INGREDIENT_ITEMS_PATH,
+    HAL_ACCEPT,
     LOGIN_HEADERS,
-    MANAGED_COLLECTIONS_PATH,
     MANAGED_COLLECTIONS_PATH_ACCEPT,
+    MOBILE_HOME_PATH,
     OAUTH_SCOPE,
     OIDC_DISCOVERY_URL,
-    RECIPE_PATH,
-    RECIPES_IN_CALENDAR_WEEK_PATH,
-    REMOVE_ADDITIONAL_ITEMS_PATH,
-    REMOVE_CUSTOM_COLLECTION_PATH,
-    REMOVE_CUSTOM_RECIPE_PATH,
-    REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH,
-    REMOVE_MANAGED_COLLECTION_PATH,
-    REMOVE_RECIPE_FROM_CALENDER_PATH,
-    REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH,
-    SHOPPING_LIST_RECIPES_PATH,
-    SUBSCRIPTIONS_PATH,
+    PUSH_BUNDLE_ID,
+    PUSH_PLATFORM,
+    REL_RMI_CONFIG,
+    RMI_API_VERSION,
+    RMI_DEVICES,
+    RMI_REGISTER_TOKEN,
+    RMI_UNREGISTER,
     TOKEN_EXPIRY_MARGIN_S,
-    UPDATE_CUSTOM_RECIPE_PATH,
 )
 from cookidoo_api.exceptions import (
     CookidooAuthException,
@@ -130,6 +110,7 @@ from cookidoo_api.types import (
     CookidooUserInfo,
     ThermomixMachineType,
 )
+from cookidoo_api.well_known import resolve_endpoint_paths
 
 _LOGGER = logging.getLogger(__name__)
 _T = TypeVar("_T")
@@ -146,14 +127,21 @@ class Cookidoo:
     _cfg: CookidooConfig
     _api_headers: dict[str, str]
     _logged_in: bool
+    _endpoint_overrides: dict[str, str]
+    _endpoints_resolved: bool
+    _endpoints_lock: asyncio.Lock
+    _token_lock: asyncio.Lock
     _refresh_token: str | None
     _expires_at: float
     _oidc: dict[str, str] | None
+    _rmi_links: dict[str, str] | None
+    _on_auth_data_update: Callable[[CookidooAuthData], None] | None
 
     def __init__(
         self,
         session: ClientSession,
         cfg: CookidooConfig = CookidooConfig(),
+        on_auth_data_update: Callable[[CookidooAuthData], None] | None = None,
     ) -> None:
         """Init function for Cookidoo API.
 
@@ -165,15 +153,27 @@ class Cookidoo:
             cookies during the OAuth2 login flow.
         cfg
             Cookidoo config
+        on_auth_data_update
+            Optional callback invoked with the new :class:`CookidooAuthData`
+            whenever the tokens change, i.e. after a login and after every
+            (transparent) refresh. Use it to keep a persisted copy in sync
+            without having to poll :attr:`auth_data` around every call. See
+            :attr:`on_auth_data_update`.
 
         """
         self._session = session
         self._cfg = cfg
+        self._on_auth_data_update = on_auth_data_update
         self._api_headers = DEFAULT_API_HEADERS.copy()
         self._logged_in = False
+        self._endpoint_overrides = {}
+        self._endpoints_resolved = False
+        self._endpoints_lock = asyncio.Lock()
+        self._token_lock = asyncio.Lock()
         self._refresh_token = None
         self._expires_at = 0.0
         self._oidc = None
+        self._rmi_links = None
 
     @property
     def localization(self) -> CookidooLocalizationConfig:
@@ -347,6 +347,66 @@ class Cookidoo:
                 f"{operation.capitalize()} failed during parsing of request response."
             ) from e
 
+    def _is_endpoints_resolved(self) -> bool:
+        """Return whether endpoint discovery has already completed.
+
+        Kept as a method (rather than a direct attribute read) so mypy
+        doesn't narrow ``_endpoints_resolved`` to a stale literal across the
+        ``await`` on ``_endpoints_lock`` in ``_ensure_endpoints``.
+        """
+        return self._endpoints_resolved
+
+    async def _ensure_endpoints(self) -> None:
+        """Resolve live endpoint paths via ``.well-known/home`` discovery.
+
+        Runs once per instance. There is no hardcoded fallback: a stale
+        path is worse than a clear failure, since it can look successful
+        right up until Cookidoo actually removes the old one. Discovery is
+        retried once (a transient network hiccup shouldn't need a whole new
+        request cycle to recover from); if the retry also fails, the
+        exception propagates to the caller and the next call starts over
+        from scratch.
+
+        Guarded by a lock (checked both before and inside it) so concurrent
+        callers -- e.g. an ``asyncio.gather`` of several API methods on a
+        fresh instance -- await a single in-flight resolution instead of
+        each kicking off their own full discovery round.
+
+        Raises
+        ------
+        CookidooRequestException
+            If a service's discovery document could not be reached.
+        CookidooParseException
+            If a discovered endpoint's shape can't be reconciled with ours.
+
+        """
+        if self._endpoints_resolved:
+            return
+        async with self._endpoints_lock:
+            # Re-check via a helper: a direct attribute re-check here is
+            # (correctly) flagged as unreachable by mypy, since it can't
+            # know the `await` above (waiting on the lock) may let another
+            # coroutine change `_endpoints_resolved` in the meantime.
+            if self._is_endpoints_resolved():
+                return
+            try:
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            except (CookidooRequestException, CookidooParseException):
+                _LOGGER.debug(
+                    "Well-known endpoint discovery failed, retrying once:\n%s",
+                    traceback.format_exc(),
+                )
+                self._endpoint_overrides = await resolve_endpoint_paths(
+                    self._session, self.api_endpoint
+                )
+            self._endpoints_resolved = True
+
+    def _path(self, name: str) -> str:
+        """Return the live path template resolved via well-known discovery."""
+        return self._endpoint_overrides[name]
+
     @staticmethod
     def _empty_calendar_day(day: date) -> CookidooCalendarDay:
         """Build an empty calendar day for a day with no recipes left.
@@ -371,6 +431,33 @@ class Cookidoo:
             refresh_token=self._refresh_token,
             expires_at=self._expires_at,
         )
+
+    @property
+    def on_auth_data_update(self) -> Callable[[CookidooAuthData], None] | None:
+        """The callback notified whenever the tokens change.
+
+        Called with the new :class:`CookidooAuthData` after a login and after
+        every refresh, including the transparent one a request performs when
+        the access token has expired. The server rotates the refresh token
+        along with the access token, so a consumer that persists the tokens
+        should store what the callback hands it, rather than only the result of
+        an explicit :meth:`login`.
+
+        Not called by :meth:`apply_auth_data` or :meth:`load_token`, which
+        restore tokens the consumer already holds.
+
+        Exceptions raised by the callback are caught and logged: a consumer
+        failing to store the tokens must not break the request that triggered
+        the refresh.
+        """
+        return self._on_auth_data_update
+
+    @on_auth_data_update.setter
+    def on_auth_data_update(
+        self, callback: Callable[[CookidooAuthData], None] | None
+    ) -> None:
+        """Set the callback notified whenever the tokens change."""
+        self._on_auth_data_update = callback
 
     def apply_auth_data(self, auth_data: CookidooAuthData) -> None:
         """Restore a previous login from persisted tokens (no network call).
@@ -446,9 +533,8 @@ class Cookidoo:
             request_id = self._extract_request_id(login_html)
             code = await self._submit_credentials(request_id, state)
 
-            # Step 5: exchange the code for tokens
+            # Step 5: exchange the code for tokens, which marks us logged in
             await self._exchange_code(oidc["token_endpoint"], code, verifier)
-            self._logged_in = True
 
         except (CookidooAuthException, CookidooParseException):
             raise
@@ -474,14 +560,16 @@ class Cookidoo:
             If the OAuth2 client id or redirect uri was overridden with an
             empty value.
         CookidooRequestException
-            If the request fails.
+            If the discovery or token request fails or times out.
 
         """
         if self._refresh_token is None:
             raise CookidooAuthException("Cannot refresh: no refresh token available.")
         self._assert_oauth_client()
-        oidc = await self._discovery()
         try:
+            # Inside the try: the discovery request can fail the same way the
+            # token request can, and callers only expect CookidooException.
+            oidc = await self._discovery()
             async with self._session.post(
                 URL(oidc["token_endpoint"]),
                 data={
@@ -496,7 +584,17 @@ class Cookidoo:
                         f"Token refresh failed (status {resp.status})."
                     )
                 payload = cast(dict[str, object], await resp.json())
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Token refresh failed:\n %s", traceback.format_exc()
+            )
+            raise CookidooRequestException(
+                "Token refresh failed due to connection timeout."
+            ) from e
         except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Token refresh failed:\n %s", traceback.format_exc()
+            )
             raise CookidooRequestException(
                 "Token refresh failed due to request exception."
             ) from e
@@ -648,13 +746,42 @@ class Cookidoo:
             raise CookidooAuthException(f"Unexpected token response: {payload}") from e
         self._api_headers["Authorization"] = f"Bearer {access_token}"
         self._expires_at = time.time() + expires_in
+        # Holding tokens is what being logged in means, and `auth_data` has to
+        # be readable by the time the callback below runs.
+        self._logged_in = True
+        self._notify_auth_data_update()
+
+    def _notify_auth_data_update(self) -> None:
+        """Hand the new tokens to the consumer, if one asked to be notified."""
+        if self._on_auth_data_update is None or (auth_data := self.auth_data) is None:
+            return
+        try:
+            # Broad on purpose: this is consumer code, it can raise anything.
+            self._on_auth_data_update(auth_data)
+        except Exception:
+            _LOGGER.warning(
+                "Exception: Cannot store the updated tokens:\n%s",
+                traceback.format_exc(),
+            )
+
+    def _is_token_expiring(self) -> bool:
+        """Whether the access token is missing or within the expiry margin."""
+        return time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S
 
     async def _ensure_token(self) -> None:
-        """Refresh the access token if it is missing or about to expire."""
-        if not self._logged_in:
+        """Refresh the access token if it is missing or about to expire.
+
+        Guarded by a lock (checked both before and inside it) so concurrent
+        callers -- e.g. an ``asyncio.gather`` of several API methods across an
+        expiry -- await a single refresh instead of each spending the same
+        refresh token. The server may rotate that token and retire the old one,
+        so a second concurrent refresh can be rejected outright.
+        """
+        if not self._logged_in or not self._is_token_expiring():
             return
-        if time.time() >= self._expires_at - TOKEN_EXPIRY_MARGIN_S:
-            await self.refresh()
+        async with self._token_lock:
+            if self._is_token_expiring():
+                await self.refresh()
 
     @staticmethod
     def _pkce_pair() -> tuple[str, str]:
@@ -727,9 +854,10 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / COMMUNITY_PROFILE_PATH.format(
-            **self._cfg.localization.__dict__
-        )
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "community-profile:user-private-profile"
+        ).format(**self._cfg.localization.__dict__)
         result = self._ensure_mapping(
             await self._request_json("get", url, "loading user info"),
             "loading user info",
@@ -760,7 +888,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / SUBSCRIPTIONS_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("ownership:subscriptions").format(
             **self._cfg.localization.__dict__
         )
         subscriptions = self._ensure_sequence(
@@ -807,7 +936,10 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / DEVICES_PATH
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "customer-devices:thermomix-versions"
+        ).format(**self._cfg.localization.__dict__)
         result = await self._request_json("get", url, "loading devices")
         if result is None:
             # An account without a paired appliance gets a 204 No Content.
@@ -816,6 +948,181 @@ class Cookidoo:
         return self._parse_result(
             "loading devices",
             lambda: [cookidoo_device_from_json(cast(str, model)) for model in models],
+        )
+
+    async def _resolve_rmi_links(self) -> dict[str, str]:
+        """Resolve and cache the remote-monitoring endpoint links.
+
+        Walks the mobile home document to the ``rmi-config`` sub-document and
+        returns its ``{rel: href}`` map (``rmi:register-token``, ``rmi:devices``,
+        ``rmi:unregister``, ...).
+        """
+        if self._rmi_links is not None:
+            return self._rmi_links
+
+        hal_headers = {"ACCEPT": HAL_ACCEPT}
+        home = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                self.api_endpoint / MOBILE_HOME_PATH,
+                "resolving remote monitoring",
+                headers=hal_headers,
+            ),
+            "resolving remote monitoring",
+        )
+        rmi_config_url = self._hal_link(home, REL_RMI_CONFIG)
+        if rmi_config_url is None:
+            raise CookidooParseException(
+                "Resolving remote monitoring failed: rmi-config link missing."
+            )
+        rmi_home = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                URL(rmi_config_url),
+                "resolving remote monitoring",
+                headers=hal_headers,
+            ),
+            "resolving remote monitoring",
+        )
+        links_obj = rmi_home.get("_links")
+        if not isinstance(links_obj, Mapping):
+            raise CookidooParseException(
+                "Resolving remote monitoring failed during parsing of request response."
+            )
+        links: dict[str, str] = {}
+        for rel, value in links_obj.items():
+            if isinstance(value, str):
+                links[rel] = value
+            elif isinstance(value, Mapping) and isinstance(value.get("href"), str):
+                links[rel] = cast(str, value["href"])
+        self._rmi_links = links
+        return links
+
+    @staticmethod
+    def _hal_link(doc: Mapping[str, object], rel: str) -> str | None:
+        """Extract a HAL link href for ``rel`` from a document's ``_links``."""
+        links = doc.get("_links")
+        if not isinstance(links, Mapping):
+            return None
+        value = links.get(rel)
+        if isinstance(value, str):
+            return value
+        if isinstance(value, Mapping) and isinstance(value.get("href"), str):
+            return cast(str, value["href"])
+        return None
+
+    async def get_monitored_device_ids(self) -> list[str]:
+        """Get the appliance IDs currently available for remote monitoring.
+
+        Note this is distinct from :meth:`get_devices` (all paired appliances):
+        an appliance only appears here while it is online/reachable for
+        monitoring, and the identifier is the opaque remote-monitoring device id.
+
+        Returns
+        -------
+        list[str]
+            The remote-monitoring device ids (empty when none are available).
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_DEVICES)
+        if url is None:
+            raise CookidooParseException("rmi:devices link missing.")
+        devices = self._ensure_sequence(
+            await self._request_json(
+                "get", URL(url.split("{")[0]), "loading monitored devices"
+            ),
+            "loading monitored devices",
+        )
+        return self._parse_result(
+            "loading monitored devices",
+            lambda: [
+                cast(str, cast(Mapping[str, object], device)["deviceId"])
+                for device in devices
+            ],
+        )
+
+    async def register_push_token(self, push_token: str, mobile_app_id: str) -> None:
+        """Register a push token to receive remote-monitoring cook-state updates.
+
+        Appliance state is delivered as a Firebase Cloud Messaging data message
+        to the registered token; obtaining the token and receiving the messages
+        is the caller's responsibility. Decode received payloads with
+        :func:`cookidoo_api.cooking_activity_from_push`.
+
+        Parameters
+        ----------
+        push_token
+            The FCM registration token to deliver updates to.
+        mobile_app_id
+            A stable per-installation identifier for this client.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_REGISTER_TOKEN)
+        if url is None:
+            raise CookidooParseException("rmi:register-token link missing.")
+        await self._request_json(
+            "post",
+            URL(url),
+            "registering push token",
+            json={
+                "token": push_token,
+                "bundleId": PUSH_BUNDLE_ID,
+                "platform": PUSH_PLATFORM,
+                "mobileAppId": mobile_app_id,
+            },
+            headers={"rmi-api-version": RMI_API_VERSION},
+            parse_response=False,
+        )
+
+    async def unregister_push_token(self, push_token: str) -> None:
+        """Unregister a previously registered push token.
+
+        Parameters
+        ----------
+        push_token
+            The FCM registration token to stop delivering updates to.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        links = await self._resolve_rmi_links()
+        url = links.get(RMI_UNREGISTER)
+        if url is None:
+            raise CookidooParseException("rmi:unregister link missing.")
+        await self._request_json(
+            "delete",
+            URL(url),
+            "unregistering push token",
+            json={"tokens": [push_token]},
+            headers={"rmi-api-version": RMI_API_VERSION},
+            parse_response=False,
         )
 
     async def get_recipe_details(self, id: str) -> CookidooShoppingRecipeDetails:
@@ -842,7 +1149,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("recipe:details").format(
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
@@ -943,7 +1251,8 @@ class Cookidoo:
         """
         if locale is None:
             locale = self._cfg.localization.language.split("-")[0]
-        url = self.api_endpoint / "search" / locale
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("search:home").format(locale=locale)
         params: dict[str, str] = {}
         if query is not None:
             params["query"] = query
@@ -997,11 +1306,6 @@ class Cookidoo:
     async def get_custom_recipe(self, id: str) -> CookidooCustomRecipe:
         """Get custom recipe.
 
-        Requests the full customer-recipe representation
-        (``CUSTOM_RECIPES_PATH_ACCEPT``) so Cookidoo returns structured
-        instructions and annotations that the parser can map into
-        ``CookidooInstruction`` models.
-
         Parameters
         ----------
         id
@@ -1023,7 +1327,8 @@ class Cookidoo:
 
         """
 
-        url = self.api_endpoint / CUSTOM_RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-details").format(
             **self._cfg.localization.__dict__, id=id
         )
         result = self._ensure_mapping(
@@ -1045,7 +1350,8 @@ class Cookidoo:
 
     async def list_custom_recipes(self) -> list[CookidooCustomRecipe]:
         """List custom recipes."""
-        url = self.api_endpoint / CUSTOM_RECIPES_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-create").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1098,14 +1404,17 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
+        await self._ensure_endpoints()
         json_data = {
             "recipeUrl": str(
                 self.api_endpoint
-                / RECIPE_PATH.format(**self._cfg.localization.__dict__, id=recipeId)
+                / self._path("recipe:details").format(
+                    **self._cfg.localization.__dict__, id=recipeId
+                )
             ),
             "servingSize": servingSize,
         }
-        url = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
+        url = self.api_endpoint / self._path("customer-recipes:recipe-create").format(
             **self._cfg.localization.__dict__
         )
         result = self._ensure_mapping(
@@ -1141,1232 +1450,15 @@ class Cookidoo:
             If the parsing of the request response fails.
 
         """
-        url = self.api_endpoint / REMOVE_CUSTOM_RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-details").format(
             **self._cfg.localization.__dict__, id=custom_recipe_id
         )
         await self._request_json(
             "delete", url, "remove custom recipe", parse_response=False
         )
 
-    async def get_shopping_list_recipes(
-        self,
-    ) -> list[CookidooShoppingRecipe]:
-        """Get recipes.
-
-        Returns
-        -------
-        list[CookidooShoppingRecipe]
-            The list of the recipes
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / SHOPPING_LIST_RECIPES_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json("get", url, "loading recipes"),
-            "loading recipes",
-        )
-        return self._parse_result(
-            "loading recipes",
-            lambda: [
-                cookidoo_recipe_from_json(
-                    cast(RecipeJSON, recipe), self._cfg.localization
-                )
-                for recipe in [
-                    *cast(Sequence[object], result["recipes"]),
-                    *cast(Sequence[object], result["customerRecipes"]),
-                ]
-            ],
-        )
-
-    async def get_ingredient_items(
-        self,
-    ) -> list[CookidooIngredientItem]:
-        """Get ingredient items.
-
-        Returns
-        -------
-        list[CookidooIngredientItem]
-            The list of the ingredient items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json("get", url, "loading ingredient items"),
-            "loading ingredient items",
-        )
-        return self._parse_result(
-            "loading ingredient items",
-            lambda: [
-                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                for recipe in [
-                    *cast(Sequence[Mapping[str, object]], result["recipes"]),
-                    *cast(Sequence[Mapping[str, object]], result["customerRecipes"]),
-                ]
-                for ingredient in cast(
-                    Sequence[object], recipe["recipeIngredientGroups"]
-                )
-            ],
-        )
-
-    async def add_ingredient_items_for_recipes(
-        self,
-        recipe_ids: list[str],
-    ) -> list[CookidooIngredientItem]:
-        """Add ingredient items for recipes.
-
-        Parameters
-        ----------
-        recipe_ids
-            The recipe ids for the ingredient items to add to the shopping list
-
-        Returns
-        -------
-        list[CookidooIngredientItem]
-            The list of the added ingredient items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "add ingredient items for recipes", json=json_data
-            ),
-            "add ingredient items for recipes",
-        )
-        return self._parse_result(
-            "loading added ingredient items",
-            lambda: [
-                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
-                for ingredient in cast(
-                    Sequence[object], recipe["recipeIngredientGroups"]
-                )
-            ],
-        )
-
-    async def remove_ingredient_items_for_recipes(
-        self,
-        recipe_ids: list[str],
-    ) -> None:
-        """Remove ingredient items for recipes.
-
-        Parameters
-        ----------
-        recipe_ids
-            The recipe ids for the ingredient items to remove to the shopping list
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        await self._request_json(
-            "post",
-            url,
-            "remove ingredient items for recipes",
-            json=json_data,
-            parse_response=False,
-        )
-
-    async def edit_ingredient_items_ownership(
-        self,
-        ingredient_items: list[CookidooIngredientItem],
-    ) -> list[CookidooIngredientItem]:
-        """Edit ownership ingredient items.
-
-        Parameters
-        ----------
-        ingredient_items
-            The ingredient items to change the the `is_owned` value for
-
-        Returns
-        -------
-        list[CookidooIngredientItem]
-            The list of the edited ingredient items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {
-            "ingredients": [
-                {
-                    "id": ingredient_item.id,
-                    "isOwned": ingredient_item.is_owned,
-                    "ownedTimestamp": int(time.time()),
-                }
-                for ingredient_item in ingredient_items
-            ]
-        }
-        url = self.api_endpoint / EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "edit ingredient items ownership", json=json_data
-            ),
-            "edit ingredient items ownership",
-        )
-        return self._parse_result(
-            "loading edited ingredient items",
-            lambda: [
-                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                for ingredient in cast(Sequence[object], result["data"])
-            ],
-        )
-
-    async def add_ingredient_items_for_custom_recipes(
-        self,
-        recipe_ids: list[str],
-    ) -> list[CookidooIngredientItem]:
-        """Add ingredient items for custom recipes.
-
-        Parameters
-        ----------
-        recipe_ids
-            The recipe ids for the ingredient items to add to the shopping list
-
-        Returns
-        -------
-        list[CookidooIngredientItem]
-            The list of the added ingredient items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {
-            "recipeIDs": [
-                {"id": recipe_id, "source": "CUSTOMER"} for recipe_id in recipe_ids
-            ]
-        }
-        url = self.api_endpoint / ADD_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "add ingredient items for custom recipes", json=json_data
-            ),
-            "add ingredient items for custom recipes",
-        )
-        return self._parse_result(
-            "loading added ingredient items",
-            lambda: [
-                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
-                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
-                for ingredient in cast(
-                    Sequence[object], recipe["recipeIngredientGroups"]
-                )
-            ],
-        )
-
-    async def remove_ingredient_items_for_custom_recipes(
-        self,
-        recipe_ids: list[str],
-    ) -> None:
-        """Remove ingredient items for custom recipes.
-
-        Parameters
-        ----------
-        recipe_ids
-            The custom recipe ids for the ingredient items to remove to the shopping list
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"recipeIDs": recipe_ids}
-        url = self.api_endpoint / REMOVE_INGREDIENT_ITEMS_FOR_RECIPES_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        await self._request_json(
-            "post",
-            url,
-            "remove ingredient items for custom recipes",
-            json=json_data,
-            parse_response=False,
-        )
-
-    async def get_additional_items(
-        self,
-    ) -> list[CookidooAdditionalItem]:
-        """Get additional items.
-
-        Returns
-        -------
-        list[CookidooAdditionalItem]
-            The list of the additional items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json("get", url, "loading additional items"),
-            "loading additional items",
-        )
-        return self._parse_result(
-            "loading additional items",
-            lambda: [
-                cookidoo_additional_item_from_json(
-                    cast(AdditionalItemJSON, additional_item)
-                )
-                for additional_item in cast(Sequence[object], result["additionalItems"])
-            ],
-        )
-
-    async def add_additional_items(
-        self,
-        additional_item_names: list[str],
-    ) -> list[CookidooAdditionalItem]:
-        """Create additional items.
-
-        Parameters
-        ----------
-        additional_item_names
-            The additional item names to create, only the label can be set, as the default state `is_owned=false` is forced (chain with immediate update call for work-around)
-
-        Returns
-        -------
-        list[CookidooAdditionalItem]
-            The list of the added additional items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"itemsValue": additional_item_names}
-        url = self.api_endpoint / ADD_ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "add additional items", json=json_data
-            ),
-            "add additional items",
-        )
-        return self._parse_result(
-            "loading added additional items",
-            lambda: [
-                cookidoo_additional_item_from_json(
-                    cast(AdditionalItemJSON, additional_item)
-                )
-                for additional_item in cast(Sequence[object], result["data"])
-            ],
-        )
-
-    async def edit_additional_items(
-        self,
-        additional_items: list[CookidooAdditionalItem],
-    ) -> list[CookidooAdditionalItem]:
-        """Edit additional items.
-
-        Parameters
-        ----------
-        additional_items
-            The additional items to change the the `name` value for
-
-        Returns
-        -------
-        list[CookidooAdditionalItem]
-            The list of the edited additional items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {
-            "additionalItems": [
-                {
-                    "id": additional_item.id,
-                    "name": additional_item.name,
-                }
-                for additional_item in additional_items
-            ]
-        }
-        url = self.api_endpoint / EDIT_ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "edit additional items", json=json_data
-            ),
-            "edit additional items",
-        )
-        return self._parse_result(
-            "loading edited additional items",
-            lambda: [
-                cookidoo_additional_item_from_json(
-                    cast(AdditionalItemJSON, additional_item)
-                )
-                for additional_item in cast(Sequence[object], result["data"])
-            ],
-        )
-
-    async def edit_additional_items_ownership(
-        self,
-        additional_items: list[CookidooAdditionalItem],
-    ) -> list[CookidooAdditionalItem]:
-        """Edit ownership additional items.
-
-        Parameters
-        ----------
-        additional_items
-            The additional items to change the the `is_owned` value for
-
-        Returns
-        -------
-        list[CookidooAdditionalItem]
-            The list of the edited additional items
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {
-            "additionalItems": [
-                {
-                    "id": additional_item.id,
-                    "isOwned": additional_item.is_owned,
-                    "ownedTimestamp": int(time.time()),
-                }
-                for additional_item in additional_items
-            ]
-        }
-        url = self.api_endpoint / EDIT_OWNERSHIP_ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post", url, "edit additional items ownership", json=json_data
-            ),
-            "edit additional items ownership",
-        )
-        return self._parse_result(
-            "loading edited additional items",
-            lambda: [
-                cookidoo_additional_item_from_json(
-                    cast(AdditionalItemJSON, additional_item)
-                )
-                for additional_item in cast(Sequence[object], result["data"])
-            ],
-        )
-
-    async def remove_additional_items(
-        self,
-        additional_item_ids: list[str],
-    ) -> None:
-        """Remove additional items.
-
-        Parameters
-        ----------
-        additional_item_ids
-            The additional item ids to remove
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"additionalItemIDs": additional_item_ids}
-        url = self.api_endpoint / REMOVE_ADDITIONAL_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        await self._request_json(
-            "post",
-            url,
-            "remove additional items",
-            json=json_data,
-            parse_response=False,
-        )
-
-    async def clear_shopping_list(
-        self,
-    ) -> None:
-        """Remove all additional items, ingredients and recipes.
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / INGREDIENT_ITEMS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        await self._request_json(
-            "delete", url, "clear shopping list", parse_response=False
-        )
-
-    async def count_managed_collections(self) -> tuple[int, int]:
-        """Get managed collections.
-
-        Returns
-        -------
-        tuple[int, int]
-            The number of managed collections and the number of pages
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "get",
-                url,
-                "loading managed collections",
-                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "loading managed collections",
-        )
-        return self._parse_result(
-            "loading managed collections",
-            lambda: (
-                cast(PaginationJSON, result["page"])["totalElements"],
-                cast(PaginationJSON, result["page"])["totalPages"],
-            ),
-        )
-
-    async def get_managed_collections(self, page: int = 0) -> list[CookidooCollection]:
-        """Get managed collections.
-
-        Parameters
-        ----------
-        page
-            The page of the managed collections
-
-        Returns
-        -------
-        list[CookidooCollection]
-            The list of the managed collections
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / MANAGED_COLLECTIONS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "get",
-                url,
-                "loading managed collections",
-                params={"page": str(page)},
-                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "loading managed collections",
-        )
-        return self._parse_result(
-            "loading managed collections",
-            lambda: [
-                cookidoo_collection_from_json(cast(ManagedCollectionJSON, item))
-                for item in cast(Sequence[object], result["managedlists"])
-            ],
-        )
-
-    async def add_managed_collection(
-        self,
-        managed_collection_id: str,
-    ) -> CookidooCollection:
-        """Add managed collections.
-
-        Parameters
-        ----------
-        managed_collection_id
-            The managed collection id to add
-
-        Returns
-        -------
-        CookidooCollection
-            The added managed collection
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"collectionId": managed_collection_id}
-        url = self.api_endpoint / ADD_MANAGED_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post",
-                url,
-                "add managed collection",
-                json=json_data,
-                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "add managed collection",
-        )
-        return self._parse_result(
-            "loading added managed collection",
-            lambda: cookidoo_collection_from_json(
-                cast(ManagedCollectionJSON, result["content"])
-            ),
-        )
-
-    async def remove_managed_collection(
-        self,
-        managed_collection_id: str,
-    ) -> None:
-        """Remove managed collection.
-
-        Parameters
-        ----------
-        managed_collection_id
-            The managed collection id to remove
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / REMOVE_MANAGED_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__, id=managed_collection_id
-        )
-        await self._request_json(
-            "delete",
-            url,
-            "remove managed collection",
-            headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
-            parse_response=False,
-        )
-
-    async def count_custom_collections(self) -> tuple[int, int]:
-        """Get custom collections.
-
-        Returns
-        -------
-        tuple[int, int]
-            The number of custom collections and the number of pages
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "get",
-                url,
-                "loading custom collections",
-                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "loading custom collections",
-        )
-        return self._parse_result(
-            "loading custom collections",
-            lambda: (
-                cast(PaginationJSON, result["page"])["totalElements"],
-                cast(PaginationJSON, result["page"])["totalPages"],
-            ),
-        )
-
-    async def get_custom_collections(self, page: int = 0) -> list[CookidooCollection]:
-        """Get custom collections.
-
-        Parameters
-        ----------
-        page
-            The page of the custom collections
-
-        Returns
-        -------
-        list[CookidooCollection]
-            The list of the custom collections
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / CUSTOM_COLLECTIONS_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "get",
-                url,
-                "loading custom collections",
-                params={"page": str(page)},
-                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "loading custom collections",
-        )
-        return self._parse_result(
-            "loading custom collections",
-            lambda: [
-                cookidoo_collection_from_json(cast(CustomCollectionJSON, item))
-                for item in cast(Sequence[object], result["customlists"])
-            ],
-        )
-
-    async def add_custom_collection(
-        self,
-        custom_collection_name: str,
-    ) -> CookidooCollection:
-        """Add custom collections.
-
-        Parameters
-        ----------
-        custom_collection_name
-            The custom collection name to add
-
-        Returns
-        -------
-        CookidooCollection
-            The added custom collection
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"title": custom_collection_name}
-        url = self.api_endpoint / ADD_CUSTOM_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "post",
-                url,
-                "add custom collection",
-                json=json_data,
-                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
-            ),
-            "add custom collection",
-        )
-        return self._parse_result(
-            "loading added custom collection",
-            lambda: cookidoo_collection_from_json(
-                cast(CustomCollectionJSON, result["content"])
-            ),
-        )
-
-    async def remove_custom_collection(
-        self,
-        custom_collection_id: str,
-    ) -> None:
-        """Remove custom collection.
-
-        Parameters
-        ----------
-        custom_collection_id
-            The custom collection id to remove
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / REMOVE_CUSTOM_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__, id=custom_collection_id
-        )
-        await self._request_json(
-            "delete",
-            url,
-            "remove custom collection",
-            headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
-            parse_response=False,
-        )
-
-    async def add_recipes_to_custom_collection(
-        self,
-        custom_collection_id: str,
-        recipe_ids: list[str],
-    ) -> CookidooCollection:
-        """Add recipes to a custom collections.
-
-        Parameters
-        ----------
-        custom_collection_id
-            The custom collection to add the recipes to
-        recipe_ids
-            The recipe ids to add to a custom collection
-
-        Returns
-        -------
-        CookidooCollection
-            The changed custom collection
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"recipeIds": recipe_ids}
-        url = self.api_endpoint / ADD_RECIPES_TO_CUSTOM_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__, id=custom_collection_id
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "put", url, "add recipes to custom collection", json=json_data
-            ),
-            "add recipes to custom collection",
-        )
-        return self._parse_result(
-            "loading added recipes",
-            lambda: cookidoo_collection_from_json(
-                cast(CustomCollectionJSON, result["content"])
-            ),
-        )
-
-    async def remove_recipe_from_custom_collection(
-        self,
-        custom_collection_id: str,
-        recipe_id: str,
-    ) -> CookidooCollection:
-        """Remove recipe from a custom collections.
-
-        Parameters
-        ----------
-        custom_collection_id
-            The custom collection to remove the recipe from
-        recipe_id
-            The recipe id to remove from a custom collection
-
-        Returns
-        -------
-        CookidooCollection
-            The changed custom collection
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CUSTOM_COLLECTION_PATH.format(
-            **self._cfg.localization.__dict__,
-            id=custom_collection_id,
-            recipe=recipe_id,
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "delete", url, "remove recipe from custom collection"
-            ),
-            "remove recipe from custom collection",
-        )
-        return self._parse_result(
-            "loading removed recipe",
-            lambda: cookidoo_collection_from_json(
-                cast(CustomCollectionJSON, result["content"])
-            ),
-        )
-
-    async def get_recipes_in_calendar_week(
-        self, day: date
-    ) -> list[CookidooCalendarDay]:
-        """Get recipes in a calendar week.
-
-        Parameters
-        ----------
-        day
-            The date specifying the calendar week
-
-        Returns
-        -------
-        list[CookidooCalendarDay]
-            The list of the calendar days with recipes
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-
-        url = self.api_endpoint / RECIPES_IN_CALENDAR_WEEK_PATH.format(
-            **self._cfg.localization.__dict__, day=day.isoformat()
-        )
-        result = self._ensure_mapping(
-            await self._request_json("get", url, "loading recipes in calendar week"),
-            "loading recipes in calendar week",
-        )
-        return self._parse_result(
-            "loading recipes in calendar week",
-            lambda: [
-                cookidoo_calendar_day_from_json(
-                    cast(CalendarDayJSON, calendar_day), self._cfg.localization
-                )
-                for calendar_day in cast(Sequence[object], result["myDays"])
-            ],
-        )
-
-    async def add_recipes_to_calendar(
-        self,
-        day: date,
-        recipe_ids: list[str],
-    ) -> CookidooCalendarDay:
-        """Add recipes to a calendar.
-
-        Parameters
-        ----------
-        day
-            The date to add the recipes to in the calendar
-        recipe_ids
-            The recipe ids to add to the calendar
-
-        Returns
-        -------
-        CookidooCalendarDay
-            The changed calendar day
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {"recipeIds": recipe_ids, "dayKey": day.isoformat()}
-        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "put", url, "add recipes to calendar", json=json_data
-            ),
-            "add recipes to calendar",
-        )
-        return self._parse_result(
-            "loading added recipes",
-            lambda: cookidoo_calendar_day_from_json(
-                cast(CalendarDayJSON, result["content"]),
-                self._cfg.localization,
-            ),
-        )
-
-    async def remove_recipe_from_calendar(
-        self,
-        day: date,
-        recipe_id: str,
-    ) -> CookidooCalendarDay:
-        """Remove recipe from calendar.
-
-        Parameters
-        ----------
-        day
-            The date to remove the recipe from in the calendar
-        recipe_id
-            The recipe id to remove from the calendar
-
-        Returns
-        -------
-        CookidooCalendarDay
-            The changed calendar day
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
-            **self._cfg.localization.__dict__,
-            day=day.isoformat(),
-            recipe=recipe_id,
-        )
-        result = self._ensure_mapping(
-            await self._request_json("delete", url, "remove recipe from calendar"),
-            "remove recipe from calendar",
-        )
-        if result.get("content") is None:
-            # The API returns a null content when the removed recipe was the
-            # last one for the day, since the (now empty) day no longer
-            # exists as an entity.
-            return self._empty_calendar_day(day)
-        return self._parse_result(
-            "loading removed recipe",
-            lambda: cookidoo_calendar_day_from_json(
-                cast(CalendarDayJSON, result["content"]),
-                self._cfg.localization,
-            ),
-        )
-
-    async def add_custom_recipes_to_calendar(
-        self,
-        day: date,
-        recipe_ids: list[str],
-    ) -> CookidooCalendarDay:
-        """Add custom recipes to a calendar.
-
-        Parameters
-        ----------
-        day
-            The date to add the custom recipes to in the calendar
-        recipe_ids
-            The recipe ids to add to the calendar
-
-        Returns
-        -------
-        CookidooCalendarDay
-            The changed calendar day
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        json_data = {
-            "recipeIds": recipe_ids,
-            "dayKey": day.isoformat(),
-            "recipeSource": "CUSTOMER",
-        }
-        url = self.api_endpoint / ADD_RECIPES_TO_CALENDER_PATH.format(
-            **self._cfg.localization.__dict__
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "put", url, "add custom recipes to calendar", json=json_data
-            ),
-            "add custom recipes to calendar",
-        )
-        return self._parse_result(
-            "loading added custom recipes",
-            lambda: cookidoo_calendar_day_from_json(
-                cast(CalendarDayJSON, result["content"]),
-                self._cfg.localization,
-            ),
-        )
-
-    async def remove_custom_recipe_from_calendar(
-        self,
-        day: date,
-        recipe_id: str,
-    ) -> CookidooCalendarDay:
-        """Remove custom recipe from calendar.
-
-        Parameters
-        ----------
-        day
-            The date to remove the custom recipe from in the calendar
-        recipe_id
-            The custom recipe id to remove from the calendar
-
-        Returns
-        -------
-        CookidooCalendarDay
-            The changed calendar day
-
-        Raises
-        ------
-        CookidooAuthException
-            When the access token is not valid anymore
-        CookidooRequestException
-            If the request fails.
-        CookidooParseException
-            If the parsing of the request response fails.
-
-        """
-        url = self.api_endpoint / REMOVE_RECIPE_FROM_CALENDER_PATH.format(
-            **self._cfg.localization.__dict__,
-            day=day.isoformat(),
-            recipe=recipe_id,
-        )
-        result = self._ensure_mapping(
-            await self._request_json(
-                "delete",
-                url,
-                "remove custom recipe from calendar",
-                params={"recipeSource": "CUSTOMER"},
-            ),
-            "remove custom recipe from calendar",
-        )
-        if result.get("content") is None:
-            # The API returns a null content when the removed recipe was the
-            # last one for the day, since the (now empty) day no longer
-            # exists as an entity.
-            return self._empty_calendar_day(day)
-        return self._parse_result(
-            "loading custom removed recipe",
-            lambda: cookidoo_calendar_day_from_json(
-                cast(CalendarDayJSON, result["content"]),
-                self._cfg.localization,
-            ),
-        )
-
-    # ------------------------------------------------------------------
     # Recipe-step processing helper
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _enum_value[T](value: T | StrEnum) -> T | str:
         """Unwrap StrEnum members to their plain value."""
@@ -2595,7 +1687,8 @@ class Cookidoo:
         self, recipe_id: str, payload: UpdateCustomRecipeJSON, operation: str
     ) -> None:
         """Patch a custom recipe using the shared request implementation."""
-        url = self.api_endpoint / UPDATE_CUSTOM_RECIPE_PATH.format(
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("customer-recipes:recipe-details").format(
             **self._cfg.localization.__dict__, id=recipe_id
         )
         await self._request_json(
@@ -2650,9 +1743,10 @@ class Cookidoo:
             requires_annotations_check=recipe.requires_annotations_check,
         )
 
-        url_create = self.api_endpoint / ADD_CUSTOM_RECIPE_PATH.format(
-            **self._cfg.localization.__dict__
-        )
+        await self._ensure_endpoints()
+        url_create = self.api_endpoint / self._path(
+            "customer-recipes:recipe-create"
+        ).format(**self._cfg.localization.__dict__)
         create_json: CreateCustomRecipeJSON = {"recipeName": recipe.name}
         created_recipe = self._ensure_mapping(
             await self._request_json(
@@ -2738,3 +1832,1246 @@ class Cookidoo:
         )
         await self._patch_custom_recipe(recipe_id, payload, "update custom recipe")
         return await self.get_custom_recipe(recipe_id)
+
+    async def get_shopping_list_recipes(
+        self,
+    ) -> list[CookidooShoppingRecipe]:
+        """Get recipes.
+
+        Returns
+        -------
+        list[CookidooShoppingRecipe]
+            The list of the recipes
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading recipes"),
+            "loading recipes",
+        )
+        return self._parse_result(
+            "loading recipes",
+            lambda: [
+                cookidoo_recipe_from_json(
+                    cast(RecipeJSON, recipe), self._cfg.localization
+                )
+                for recipe in [
+                    *cast(Sequence[object], result["recipes"]),
+                    *cast(Sequence[object], result["customerRecipes"]),
+                ]
+            ],
+        )
+
+    async def get_ingredient_items(
+        self,
+    ) -> list[CookidooIngredientItem]:
+        """Get ingredient items.
+
+        Returns
+        -------
+        list[CookidooIngredientItem]
+            The list of the ingredient items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading ingredient items"),
+            "loading ingredient items",
+        )
+        return self._parse_result(
+            "loading ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in [
+                    *cast(Sequence[Mapping[str, object]], result["recipes"]),
+                    *cast(Sequence[Mapping[str, object]], result["customerRecipes"]),
+                ]
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
+                )
+            ],
+        )
+
+    async def add_ingredient_items_for_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> list[CookidooIngredientItem]:
+        """Add ingredient items for recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The recipe ids for the ingredient items to add to the shopping list
+
+        Returns
+        -------
+        list[CookidooIngredientItem]
+            The list of the added ingredient items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIDs": recipe_ids}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:recipe-ingredients").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add ingredient items for recipes", json=json_data
+            ),
+            "add ingredient items for recipes",
+        )
+        return self._parse_result(
+            "loading added ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
+                )
+            ],
+        )
+
+    async def remove_ingredient_items_for_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> None:
+        """Remove ingredient items for recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The recipe ids for the ingredient items to remove to the shopping list
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIDs": recipe_ids}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-recipe").format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove ingredient items for recipes",
+            json=json_data,
+            parse_response=False,
+        )
+
+    async def edit_ingredient_items_ownership(
+        self,
+        ingredient_items: list[CookidooIngredientItem],
+    ) -> list[CookidooIngredientItem]:
+        """Edit ownership ingredient items.
+
+        Parameters
+        ----------
+        ingredient_items
+            The ingredient items to change the the `is_owned` value for
+
+        Returns
+        -------
+        list[CookidooIngredientItem]
+            The list of the edited ingredient items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "ingredients": [
+                {
+                    "id": ingredient_item.id,
+                    "isOwned": ingredient_item.is_owned,
+                    "ownedTimestamp": int(time.time()),
+                }
+                for ingredient_item in ingredient_items
+            ]
+        }
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "pantry:edit-ingredients-ownership"
+        ).format(**self._cfg.localization.__dict__)
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit ingredient items ownership", json=json_data
+            ),
+            "edit ingredient items ownership",
+        )
+        return self._parse_result(
+            "loading edited ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for ingredient in cast(Sequence[object], result["data"])
+            ],
+        )
+
+    async def add_ingredient_items_for_custom_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> list[CookidooIngredientItem]:
+        """Add ingredient items for custom recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The recipe ids for the ingredient items to add to the shopping list
+
+        Returns
+        -------
+        list[CookidooIngredientItem]
+            The list of the added ingredient items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "recipeIDs": [
+                {"id": recipe_id, "source": "CUSTOMER"} for recipe_id in recipe_ids
+            ]
+        }
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:recipe-ingredients").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add ingredient items for custom recipes", json=json_data
+            ),
+            "add ingredient items for custom recipes",
+        )
+        return self._parse_result(
+            "loading added ingredient items",
+            lambda: [
+                cookidoo_ingredient_item_from_json(cast(ItemJSON, ingredient))
+                for recipe in cast(Sequence[Mapping[str, object]], result["data"])
+                for ingredient in cast(
+                    Sequence[object], recipe["recipeIngredientGroups"]
+                )
+            ],
+        )
+
+    async def remove_ingredient_items_for_custom_recipes(
+        self,
+        recipe_ids: list[str],
+    ) -> None:
+        """Remove ingredient items for custom recipes.
+
+        Parameters
+        ----------
+        recipe_ids
+            The custom recipe ids for the ingredient items to remove to the shopping list
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIDs": recipe_ids}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-recipe").format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove ingredient items for custom recipes",
+            json=json_data,
+            parse_response=False,
+        )
+
+    async def get_additional_items(
+        self,
+    ) -> list[CookidooAdditionalItem]:
+        """Get additional items.
+
+        Returns
+        -------
+        list[CookidooAdditionalItem]
+            The list of the additional items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading additional items"),
+            "loading additional items",
+        )
+        return self._parse_result(
+            "loading additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
+                )
+                for additional_item in cast(Sequence[object], result["additionalItems"])
+            ],
+        )
+
+    async def add_additional_items(
+        self,
+        additional_item_names: list[str],
+    ) -> list[CookidooAdditionalItem]:
+        """Create additional items.
+
+        Parameters
+        ----------
+        additional_item_names
+            The additional item names to create, only the label can be set, as the default state `is_owned=false` is forced (chain with immediate update call for work-around)
+
+        Returns
+        -------
+        list[CookidooAdditionalItem]
+            The list of the added additional items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"itemsValue": additional_item_names}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:add-additional-items-v2").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "add additional items", json=json_data
+            ),
+            "add additional items",
+        )
+        return self._parse_result(
+            "loading added additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
+                )
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
+
+    async def edit_additional_items(
+        self,
+        additional_items: list[CookidooAdditionalItem],
+    ) -> list[CookidooAdditionalItem]:
+        """Edit additional items.
+
+        Parameters
+        ----------
+        additional_items
+            The additional items to change the the `name` value for
+
+        Returns
+        -------
+        list[CookidooAdditionalItem]
+            The list of the edited additional items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "additionalItems": [
+                {
+                    "id": additional_item.id,
+                    "name": additional_item.name,
+                }
+                for additional_item in additional_items
+            ]
+        }
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:edit-additional-items").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit additional items", json=json_data
+            ),
+            "edit additional items",
+        )
+        return self._parse_result(
+            "loading edited additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
+                )
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
+
+    async def edit_additional_items_ownership(
+        self,
+        additional_items: list[CookidooAdditionalItem],
+    ) -> list[CookidooAdditionalItem]:
+        """Edit ownership additional items.
+
+        Parameters
+        ----------
+        additional_items
+            The additional items to change the the `is_owned` value for
+
+        Returns
+        -------
+        list[CookidooAdditionalItem]
+            The list of the edited additional items
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "additionalItems": [
+                {
+                    "id": additional_item.id,
+                    "isOwned": additional_item.is_owned,
+                    "ownedTimestamp": int(time.time()),
+                }
+                for additional_item in additional_items
+            ]
+        }
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path(
+            "pantry:edit-additional-items-ownership"
+        ).format(**self._cfg.localization.__dict__)
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post", url, "edit additional items ownership", json=json_data
+            ),
+            "edit additional items ownership",
+        )
+        return self._parse_result(
+            "loading edited additional items",
+            lambda: [
+                cookidoo_additional_item_from_json(
+                    cast(AdditionalItemJSON, additional_item)
+                )
+                for additional_item in cast(Sequence[object], result["data"])
+            ],
+        )
+
+    async def remove_additional_items(
+        self,
+        additional_item_ids: list[str],
+    ) -> None:
+        """Remove additional items.
+
+        Parameters
+        ----------
+        additional_item_ids
+            The additional item ids to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"additionalItemIDs": additional_item_ids}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:remove-additional-items").format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "post",
+            url,
+            "remove additional items",
+            json=json_data,
+            parse_response=False,
+        )
+
+    async def clear_shopping_list(
+        self,
+    ) -> None:
+        """Remove all additional items, ingredients and recipes.
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("pantry:home").format(
+            **self._cfg.localization.__dict__
+        )
+        await self._request_json(
+            "delete", url, "clear shopping list", parse_response=False
+        )
+
+    async def count_managed_collections(self) -> tuple[int, int]:
+        """Get managed collections.
+
+        Returns
+        -------
+        tuple[int, int]
+            The number of managed collections and the number of pages
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "loading managed collections",
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading managed collections",
+        )
+        return self._parse_result(
+            "loading managed collections",
+            lambda: (
+                cast(PaginationJSON, result["page"])["totalElements"],
+                cast(PaginationJSON, result["page"])["totalPages"],
+            ),
+        )
+
+    async def get_managed_collections(self, page: int = 0) -> list[CookidooCollection]:
+        """Get managed collections.
+
+        Parameters
+        ----------
+        page
+            The page of the managed collections
+
+        Returns
+        -------
+        list[CookidooCollection]
+            The list of the managed collections
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "loading managed collections",
+                params={"page": str(page)},
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading managed collections",
+        )
+        return self._parse_result(
+            "loading managed collections",
+            lambda: [
+                cookidoo_collection_from_json(cast(ManagedCollectionJSON, item))
+                for item in cast(Sequence[object], result["managedlists"])
+            ],
+        )
+
+    async def add_managed_collection(
+        self,
+        managed_collection_id: str,
+    ) -> CookidooCollection:
+        """Add managed collections.
+
+        Parameters
+        ----------
+        managed_collection_id
+            The managed collection id to add
+
+        Returns
+        -------
+        CookidooCollection
+            The added managed collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"collectionId": managed_collection_id}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post",
+                url,
+                "add managed collection",
+                json=json_data,
+                headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "add managed collection",
+        )
+        return self._parse_result(
+            "loading added managed collection",
+            lambda: cookidoo_collection_from_json(
+                cast(ManagedCollectionJSON, result["content"])
+            ),
+        )
+
+    async def remove_managed_collection(
+        self,
+        managed_collection_id: str,
+    ) -> None:
+        """Remove managed collection.
+
+        Parameters
+        ----------
+        managed_collection_id
+            The managed collection id to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-managed-list-single").format(
+            **self._cfg.localization.__dict__, id=managed_collection_id
+        )
+        await self._request_json(
+            "delete",
+            url,
+            "remove managed collection",
+            headers={"ACCEPT": MANAGED_COLLECTIONS_PATH_ACCEPT},
+            parse_response=False,
+        )
+
+    async def count_custom_collections(self) -> tuple[int, int]:
+        """Get custom collections.
+
+        Returns
+        -------
+        tuple[int, int]
+            The number of custom collections and the number of pages
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "loading custom collections",
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading custom collections",
+        )
+        return self._parse_result(
+            "loading custom collections",
+            lambda: (
+                cast(PaginationJSON, result["page"])["totalElements"],
+                cast(PaginationJSON, result["page"])["totalPages"],
+            ),
+        )
+
+    async def get_custom_collections(self, page: int = 0) -> list[CookidooCollection]:
+        """Get custom collections.
+
+        Parameters
+        ----------
+        page
+            The page of the custom collections
+
+        Returns
+        -------
+        list[CookidooCollection]
+            The list of the custom collections
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "get",
+                url,
+                "loading custom collections",
+                params={"page": str(page)},
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "loading custom collections",
+        )
+        return self._parse_result(
+            "loading custom collections",
+            lambda: [
+                cookidoo_collection_from_json(cast(CustomCollectionJSON, item))
+                for item in cast(Sequence[object], result["customlists"])
+            ],
+        )
+
+    async def add_custom_collection(
+        self,
+        custom_collection_name: str,
+    ) -> CookidooCollection:
+        """Add custom collections.
+
+        Parameters
+        ----------
+        custom_collection_name
+            The custom collection name to add
+
+        Returns
+        -------
+        CookidooCollection
+            The added custom collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"title": custom_collection_name}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "post",
+                url,
+                "add custom collection",
+                json=json_data,
+                headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            ),
+            "add custom collection",
+        )
+        return self._parse_result(
+            "loading added custom collection",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
+
+    async def remove_custom_collection(
+        self,
+        custom_collection_id: str,
+    ) -> None:
+        """Remove custom collection.
+
+        Parameters
+        ----------
+        custom_collection_id
+            The custom collection id to remove
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-modify").format(
+            **self._cfg.localization.__dict__, id=custom_collection_id
+        )
+        await self._request_json(
+            "delete",
+            url,
+            "remove custom collection",
+            headers={"ACCEPT": CUSTOM_COLLECTIONS_PATH_ACCEPT},
+            parse_response=False,
+        )
+
+    async def add_recipes_to_custom_collection(
+        self,
+        custom_collection_id: str,
+        recipe_ids: list[str],
+    ) -> CookidooCollection:
+        """Add recipes to a custom collections.
+
+        Parameters
+        ----------
+        custom_collection_id
+            The custom collection to add the recipes to
+        recipe_ids
+            The recipe ids to add to a custom collection
+
+        Returns
+        -------
+        CookidooCollection
+            The changed custom collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIds": recipe_ids}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-modify").format(
+            **self._cfg.localization.__dict__, id=custom_collection_id
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add recipes to custom collection", json=json_data
+            ),
+            "add recipes to custom collection",
+        )
+        return self._parse_result(
+            "loading added recipes",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
+
+    async def remove_recipe_from_custom_collection(
+        self,
+        custom_collection_id: str,
+        recipe_id: str,
+    ) -> CookidooCollection:
+        """Remove recipe from a custom collections.
+
+        Parameters
+        ----------
+        custom_collection_id
+            The custom collection to remove the recipe from
+        recipe_id
+            The recipe id to remove from a custom collection
+
+        Returns
+        -------
+        CookidooCollection
+            The changed custom collection
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("organize:api-custom-list-recipe").format(
+            **self._cfg.localization.__dict__,
+            id=custom_collection_id,
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "delete", url, "remove recipe from custom collection"
+            ),
+            "remove recipe from custom collection",
+        )
+        return self._parse_result(
+            "loading removed recipe",
+            lambda: cookidoo_collection_from_json(
+                cast(CustomCollectionJSON, result["content"])
+            ),
+        )
+
+    async def get_recipes_in_calendar_week(
+        self, day: date
+    ) -> list[CookidooCalendarDay]:
+        """Get recipes in a calendar week.
+
+        Parameters
+        ----------
+        day
+            The date specifying the calendar week
+
+        Returns
+        -------
+        list[CookidooCalendarDay]
+            The list of the calendar days with recipes
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-week-from-date").format(
+            **self._cfg.localization.__dict__, day=day.isoformat()
+        )
+        result = self._ensure_mapping(
+            await self._request_json("get", url, "loading recipes in calendar week"),
+            "loading recipes in calendar week",
+        )
+        return self._parse_result(
+            "loading recipes in calendar week",
+            lambda: [
+                cookidoo_calendar_day_from_json(
+                    cast(CalendarDayJSON, calendar_day), self._cfg.localization
+                )
+                for calendar_day in cast(Sequence[object], result["myDays"])
+            ],
+        )
+
+    async def add_recipes_to_calendar(
+        self,
+        day: date,
+        recipe_ids: list[str],
+    ) -> CookidooCalendarDay:
+        """Add recipes to a calendar.
+
+        Parameters
+        ----------
+        day
+            The date to add the recipes to in the calendar
+        recipe_ids
+            The recipe ids to add to the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {"recipeIds": recipe_ids, "dayKey": day.isoformat()}
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add recipes to calendar", json=json_data
+            ),
+            "add recipes to calendar",
+        )
+        return self._parse_result(
+            "loading added recipes",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
+
+    async def remove_recipe_from_calendar(
+        self,
+        day: date,
+        recipe_id: str,
+    ) -> CookidooCalendarDay:
+        """Remove recipe from calendar.
+
+        Parameters
+        ----------
+        day
+            The date to remove the recipe from in the calendar
+        recipe_id
+            The recipe id to remove from the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day-recipes").format(
+            **self._cfg.localization.__dict__,
+            day=day.isoformat(),
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json("delete", url, "remove recipe from calendar"),
+            "remove recipe from calendar",
+        )
+        if result.get("content") is None:
+            # The API returns a null content when the removed recipe was the
+            # last one for the day, since the (now empty) day no longer
+            # exists as an entity.
+            return self._empty_calendar_day(day)
+        return self._parse_result(
+            "loading removed recipe",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
+
+    async def add_custom_recipes_to_calendar(
+        self,
+        day: date,
+        recipe_ids: list[str],
+    ) -> CookidooCalendarDay:
+        """Add custom recipes to a calendar.
+
+        Parameters
+        ----------
+        day
+            The date to add the custom recipes to in the calendar
+        recipe_ids
+            The recipe ids to add to the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        json_data = {
+            "recipeIds": recipe_ids,
+            "dayKey": day.isoformat(),
+            "recipeSource": "CUSTOMER",
+        }
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day").format(
+            **self._cfg.localization.__dict__
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "put", url, "add custom recipes to calendar", json=json_data
+            ),
+            "add custom recipes to calendar",
+        )
+        return self._parse_result(
+            "loading added custom recipes",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )
+
+    async def remove_custom_recipe_from_calendar(
+        self,
+        day: date,
+        recipe_id: str,
+    ) -> CookidooCalendarDay:
+        """Remove custom recipe from calendar.
+
+        Parameters
+        ----------
+        day
+            The date to remove the custom recipe from in the calendar
+        recipe_id
+            The custom recipe id to remove from the calendar
+
+        Returns
+        -------
+        CookidooCalendarDay
+            The changed calendar day
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If the request fails.
+        CookidooParseException
+            If the parsing of the request response fails.
+
+        """
+        await self._ensure_endpoints()
+        url = self.api_endpoint / self._path("planning:api-my-day-recipes").format(
+            **self._cfg.localization.__dict__,
+            day=day.isoformat(),
+            recipe=recipe_id,
+        )
+        result = self._ensure_mapping(
+            await self._request_json(
+                "delete",
+                url,
+                "remove custom recipe from calendar",
+                params={"recipeSource": "CUSTOMER"},
+            ),
+            "remove custom recipe from calendar",
+        )
+        if result.get("content") is None:
+            # The API returns a null content when the removed recipe was the
+            # last one for the day, since the (now empty) day no longer
+            # exists as an entity.
+            return self._empty_calendar_day(day)
+        return self._parse_result(
+            "loading custom removed recipe",
+            lambda: cookidoo_calendar_day_from_json(
+                cast(CalendarDayJSON, result["content"]),
+                self._cfg.localization,
+            ),
+        )

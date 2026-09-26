@@ -85,7 +85,7 @@ jobs:
       - name: Restore token
         run: cp /tmp/.token .token
       - name: Test with pytest
-        run: pytest smoke_test/test_2_methods.py -v -x
+        run: pytest smoke_test/test_2_methods.py -v -x -m "not firebase"
         env:
           COUNTRY: ${{ matrix.country }}
           EMAIL_CH: ${{ vars.EMAIL_CH }}
@@ -94,4 +94,62 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: <redacted>
-          
+
+  # Registering with Google's push service is the one part of the suite that
+  # talks to a third party, so it runs once instead of once per country, and
+  # only after the rest of the suite has had its turn on the account.
+  firebase_smoke_test_pr:
+    runs-on: ubuntu-latest
+    needs: smoke_test_pr
+    if: ${{ github.event.label.name == 'run smoke test' }}
+    env:
+      COUNTRY: ch
+    steps:
+      - name: Get User Permission
+        id: checkAccess
+        uses: actions-cool/check-user-permission@v2
+        with:
+          require: read
+          username: ${{ github.triggering_actor }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check User Permission
+        if: steps.checkAccess.outputs.require-result == 'false'
+        run: |
+          echo "${{ github.triggering_actor }} does not have permissions on this repo."
+          echo "Current permission level is ${{ steps.checkAccess.outputs.user-permission }}"
+          echo "Job originally triggered by ${{ github.actor }}"
+          exit 1
+      - name: Checkout current code
+        uses: actions/checkout@v7
+      - name: Set up Python ${{ env.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.python-version }}
+      - name: Install dependencies
+        run: |
+            python -m pip install --upgrade pip
+            pip install -r requirements.txt
+            pip install -r requirements_test.txt
+      - name: Prepare token with pytest
+        run: pytest smoke_test/test_1_setup_token.py -v -x
+        env:
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          PASSWORD: ${{ secrets.PASSWORD }}
+      # !!!!!!!!!!!!!!!!!!!!
+      # From here on, we run new code which does not have access to the password, only the token
+      # !!!!!!!!!!!!!!!!!!!!
+      - name: Preserve token
+        run: cp .token /tmp/.token
+      - name: Checkout new code
+        uses: actions/checkout@v7
+        with:
+          ref: "${{ github.event.pull_request.merge_commit_sha }}"
+          clean: false
+      - name: Restore token
+        run: cp /tmp/.token .token
+      - name: Test with pytest
+        run: pytest smoke_test/test_2_methods.py -v -x -m firebase
+        env:
+          EMAIL_CH: ${{ vars.EMAIL_CH }}
+          PASSWORD: <redacted>

@@ -60,6 +60,7 @@ class ItemJSON(TypedDict):
     isOwned: bool
     quantity: QuantityJSON | None
     unitNotation: str | None
+    preparation: NotRequired[str]
 
 
 class IngredientJSON(TypedDict):
@@ -69,6 +70,7 @@ class IngredientJSON(TypedDict):
     ingredientNotation: str
     quantity: QuantityJSON | None
     unitNotation: str | None
+    preparation: NotRequired[str]
 
 
 class DescriptiveAssetJSON(TypedDict):

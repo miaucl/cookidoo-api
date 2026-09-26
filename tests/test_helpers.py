@@ -74,7 +74,21 @@ class TestLocalization:
         JSON = cast(RecipeDetailsJSON, COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy())
         JSON["times"] = []
 
-        with pytest.raises(StopIteration):
+        with pytest.raises(ValueError, match="activeTime"):
+            cookidoo_recipe_details_from_json(JSON)
+
+    async def test_cookidoo_recipe_details_from_json_missing_total_time(self) -> None:
+        """Test get recipe details from json with only activeTime present."""
+        JSON = cast(RecipeDetailsJSON, COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy())
+        JSON["times"] = [
+            {
+                "type": "activeTime",
+                "comment": "",
+                "quantity": {"value": 2700, "from": None, "to": None},
+            }
+        ]
+
+        with pytest.raises(ValueError, match="totalTime"):
             cookidoo_recipe_details_from_json(JSON)
 
 
@@ -233,6 +247,33 @@ class TestRecipeImagesAndUrls:
         assert result.thumbnail is None
         assert result.image is None
         assert result.url == "https://cookidoo.ch/recipes/recipe/de-CH/r907015"
+
+    def test_cookidoo_recipe_details_from_json_step_groups(self) -> None:
+        """Test cookidoo_recipe_details_from_json converts step groups."""
+        recipe_json = cast(
+            RecipeDetailsJSON,
+            COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS.copy(),
+        )
+
+        result = cookidoo_recipe_details_from_json(recipe_json)
+
+        assert len(result.step_groups) == 1
+        group = result.step_groups[0]
+        assert group.title == ""
+        assert len(group.recipe_steps) == 4
+        assert group.recipe_steps[0].title == "1"
+        assert group.recipe_steps[0].formatted_text.startswith(
+            "<NOBR>200 g Kokosraspeln</NOBR>"
+        )
+
+    def test_cookidoo_recipe_details_from_json_without_step_groups(self) -> None:
+        """Test cookidoo_recipe_details_from_json handles a missing recipeStepGroups key."""
+        recipe_json = dict(COOKIDOO_TEST_RESPONSE_GET_RECIPE_DETAILS)
+        del recipe_json["recipeStepGroups"]
+
+        result = cookidoo_recipe_details_from_json(cast(RecipeDetailsJSON, recipe_json))
+
+        assert result.step_groups == []
 
     def test_cookidoo_custom_recipe_from_json_with_image(self) -> None:
         """Test cookidoo_custom_recipe_from_json extracts image correctly."""

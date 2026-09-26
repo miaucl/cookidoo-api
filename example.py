@@ -59,13 +59,18 @@ async def main():
             ),
         )
 
-        # Try to reuse a saved token, otherwise login fresh
+        # Try to reuse a saved token, otherwise login fresh. The callback keeps
+        # the file in sync afterwards: the tokens change on every login and on
+        # every refresh, including the one a request performs on its own once
+        # the access token has expired, which also rotates the refresh token.
         token_file = ".token"
+        cookidoo.on_auth_data_update = lambda _auth_data: cookidoo.save_token(
+            token_file
+        )
         try:
             cookidoo.load_token(token_file)
         except Exception:
             await cookidoo.login()
-            cookidoo.save_token(token_file)
 
         # Info
         await cookidoo.get_user_info()
@@ -73,6 +78,14 @@ async def main():
 
         # Paired Thermomix appliances on the account
         _devices = await cookidoo.get_devices()
+
+        # Appliances currently available for remote monitoring
+        _monitored = await cookidoo.get_monitored_device_ids()
+        # To receive live cook state, register a push token obtained from your own
+        # FCM client, then decode incoming data messages with
+        # cooking_activity_from_push(...):
+        #   await cookidoo.register_push_token(fcm_token, mobile_app_id)
+        #   activity = cooking_activity_from_push(message_data)
 
         # Some features are only available for premium accounts. To get a premium account, you need to subscribe to the Cookidoo service. When creating a new account, you get 1 month of premium for free which is enough to test the premium features :)
         ENABLE_PREMIUM = subscription and subscription.active

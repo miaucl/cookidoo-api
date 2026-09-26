@@ -110,6 +110,52 @@ COOKIDOO_TEST_REFRESHED_TOKEN_RESPONSE: Final = {
     "expires_in": 43200,
 }
 
+COOKIDOO_TEST_RESPONSE_MOBILE_HOME: Final = {
+    "_links": {
+        "tmde2:rmi-config": {
+            "href": "https://it.tmmobile.vorwerk-digital.com/rmi-config/.well-known/home"
+        }
+    }
+}
+
+COOKIDOO_TEST_RESPONSE_RMI_CONFIG: Final = {
+    "_links": {
+        "rmi:register-token": {
+            "href": "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/device-token"
+        },
+        "rmi:unregister": {
+            "href": "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/token"
+        },
+        "rmi:devices": {
+            "href": "https://iot-api.production-eu.cookidoo.vorwerk-digital.com/devices{?nonce}"
+        },
+    }
+}
+
+COOKIDOO_TEST_RESPONSE_MONITORED_DEVICES: Final = [
+    {"deviceId": "22e920b2d6184cec6c854cd005d6aa8fb851d7e783478b50f361ac8d1ab97bfe"}
+]
+
+# A real remote-monitoring push payload (Firebase data message; values are strings).
+COOKIDOO_TEST_PUSH_COOKING_ACTIVITY: Final = {
+    "deviceId": "22e920b2d6184cec6c854cd005d6aa8fb851d7e783478b50f361ac8d1ab97bfe",
+    "id": "986954277",
+    "cookingActivityId": "210c27aa-de31-4565-aad1-4f10e2c79deb",
+    "state": "running",
+    "recipeId": "r54743",
+    "recipeType": "vorwerk",
+    "leadingText": "Purè di patate",
+    "trailingText": "5/9",
+    "primaryInfo": "---",
+    "secondaryInfo": "95",
+    "separator": "/",
+    "isTimeEstimated": "false",
+    "iconId": "manual-values",
+    "completedDate": "2026-08-28T13:37:48Z",
+    "staleDate": "1787924895000",
+    "dismissalDate": "1787924388000",
+}
+
 COOKIDOO_TEST_RESPONSE_DEVICES: Final = ["TM7"]
 
 COOKIDOO_TEST_RESPONSE_DEVICES_MULTIPLE: Final = ["TM7", "TM6"]

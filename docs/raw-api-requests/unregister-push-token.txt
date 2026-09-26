@@ -1,0 +1,13 @@
+DELETE https://iot-api.production-eu.cookidoo.vorwerk-digital.com/token HTTP/2.0
+authorization: Bearer eyJhbGciOiJS<redacted>
+rmi-api-version: 2026-06-01
+content-type: application/json
+accept: application/json
+
+{"tokens":["<fcm registration token>"]}
+
+
+HTTP/2.0 200
+content-type: application/json
+
+{"message":"OK"}

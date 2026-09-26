@@ -2,6 +2,7 @@
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import StrEnum
 
 from cookidoo_api.const import OAUTH_CLIENT_ID, OAUTH_REDIRECT_URI
@@ -174,6 +175,47 @@ class CookidooDevice:
     type: ThermomixMachineType
 
 
+class CookidooCookState(StrEnum):
+    """State of an ongoing remote-monitored cook."""
+
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    DONE = "DONE"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    STALE = "STALE"
+
+
+@dataclass
+class CookidooCookingActivity:
+    """Live cook state pushed by an appliance's remote monitoring.
+
+    Values the recipe does not provide are ``None`` (the app renders ``"---"``
+    for an unset current temperature, which is normalised to ``None`` here).
+    """
+
+    device_id: str
+    cooking_activity_id: str | None = None
+    state: CookidooCookState | None = None
+    recipe_id: str | None = None
+    recipe_type: str | None = None
+    recipe_name: str | None = None
+    step: str | None = None
+    remaining_seconds: int | None = None
+    is_time_estimated: bool = False
+    current_temperature: float | None = None
+    target_temperature: float | None = None
+    message_title: str | None = None
+    message_body: str | None = None
+    message_criticality: str | None = None
+    completed_at: datetime | None = None
+    stale_at: datetime | None = None
+
+    @property
+    def is_active(self) -> bool:
+        """Whether a cook is currently running or paused."""
+        return self.state in (CookidooCookState.RUNNING, CookidooCookState.PAUSED)
+
+
 @dataclass
 class CookidooAuthData:
     """OAuth2 tokens obtained from a login, for persistence and restore.
@@ -198,12 +240,16 @@ class CookidooIngredient:
         The label of the ingredient
     description
         The description of the item, including the quantity or other helpful information
+    preparation
+        How the ingredient is to be prepared ("peeled", ", in pieces"), as sent
+        by the API. `None` when there is none — the API sends an empty string.
 
     """
 
     id: str
     name: str
     description: str
+    preparation: str | None = None
 
 
 @dataclass
@@ -232,10 +278,14 @@ class CookidooIngredientItem(CookidooItem):
     ----------
     description
         The description of the item, including the quantity or other helpful information
+    preparation
+        How the ingredient is to be prepared (", in pieces"), as sent by the API.
+        `None` when there is none — the API sends an empty string.
 
     """
 
     description: str
+    preparation: str | None = None
 
 
 @dataclass
@@ -415,6 +465,40 @@ class CookidooNutritionGroup:
 
 
 @dataclass
+class CookidooRecipeStep:
+    """Recipe step type.
+
+    Attributes
+    ----------
+    title
+        The title of the step (may be empty)
+    formatted_text
+        The instruction text for the step, as HTML markup
+
+    """
+
+    title: str
+    formatted_text: str
+
+
+@dataclass
+class CookidooRecipeStepGroup:
+    """Recipe step group type.
+
+    Attributes
+    ----------
+    title
+        The title of the step group (may be empty)
+    recipe_steps
+        List of recipe steps in this group
+
+    """
+
+    title: str
+    recipe_steps: list[CookidooRecipeStep]
+
+
+@dataclass
 class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     """Cookidoo recipe details type.
 
@@ -438,6 +522,10 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
         The time needed until the recipe is ready [in seconds]
     nutrition_groups
         The nutrition groups of the recipe (from API, may be empty)
+    step_groups
+        The grouped cooking instructions for the recipe (from API, may be
+        empty). Instruction text is returned as HTML markup, as sent by the
+        API.
 
     """
 
@@ -450,6 +538,7 @@ class CookidooShoppingRecipeDetails(CookidooShoppingRecipe):
     active_time: int
     total_time: int
     nutrition_groups: list[CookidooNutritionGroup]
+    step_groups: list[CookidooRecipeStepGroup]
 
 
 @dataclass

@@ -10,8 +10,9 @@ authors = [
   { name = "Cyrill Raccaud", email = "cyrill.raccaud+pypi@gmail.com" },
 ]
 dependencies = [
-  "aiohttp~=3.13.0",
-  "aiofiles~=25.1.0",
+  "aiohttp~=3.13",
+  "firebase-messaging~=0.4",
+  "aiofiles~=25.1",
   "isodate~=0.7.2",
 ]
 requires-python = ">=3.12"
@@ -184,6 +185,9 @@ log_cli = true
 # log_cli_level = "DEBUG"
 log_cli_format = "%(asctime)s%(msecs)03d [%(levelname)8s] %(name)s:%(lineno)s %(message)s"
 log_cli_date_format = "%Y%m%dT%H%M%S."
+markers = [
+    "firebase: registers with Google's push service; run it for one country only",
+]
 
 [tool.coverage.run]
 branch = true
