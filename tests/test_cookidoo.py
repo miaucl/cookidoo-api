@@ -4751,10 +4751,10 @@ class TestUpdateCustomRecipe:
         assert payload["isImageOwnedByUser"] is False
         assert payload["recipeMetadata"] == {"requiresAnnotationsCheck": True}
 
-    async def test_update_drops_display_image_urls(
+    async def test_update_drops_non_customer_display_image_urls(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
-        """Do not echo CDN/display image URLs back to the update endpoint."""
+        """Do not echo a copied recipe's unrelated display URL."""
         url = "https://cookidoo.ch/created-recipes/de-CH/01K2CVHD1DXG1PVETNVV3JPKWW"
         mocked.get(
             url,
@@ -4778,6 +4778,70 @@ class TestUpdateCustomRecipe:
         assert payload["name"] == "Updated without image echo"
         assert payload["image"] is None
         assert payload["isImageOwnedByUser"] is False
+
+    async def test_update_preserves_customer_image_from_cdn_url(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Updating another field keeps the photo returned as a display URL."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/image-recipe"
+        image_path = "prod/img/customer-recipe/v8yvntkpc2zoanxrcl2o.jpg"
+        response: CustomRecipeJSON = {
+            "recipeId": "image-recipe",
+            "recipeContent": {
+                "name": "Original",
+                "prepTime": 60,
+                "totalTime": 180,
+                "tools": ["TM7"],
+                "yield": {"value": 2, "unitText": "portion"},
+                "ingredients": [],
+                "instructions": [],
+                "image": (
+                    "https://ugc.assets.tmecosys.com/image/upload/"
+                    "t_web_rdp_recipe_584x480_1_5x/" + image_path
+                ),
+                "isImageOwnedByUser": True,
+            },
+        }
+        mocked.get(url, payload=response, status=HTTPStatus.OK, repeat=True)
+        mocked.patch(url, status=HTTPStatus.NO_CONTENT)
+
+        await cookidoo.update_custom_recipe(
+            "image-recipe", CookidooUpdateCustomRecipe(unit_text="serving")
+        )
+
+        update_request = mocked.requests[("patch", URL(url))][0]
+        payload = update_request.kwargs["json"]
+        assert payload["yield"] == {"value": 2, "unitText": "serving"}
+        assert payload["image"] == image_path
+        assert payload["isImageOwnedByUser"] is True
+
+    async def test_update_rejects_unrecognized_owned_image(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Stop before PATCH if an existing user photo cannot be preserved."""
+        url = "https://cookidoo.ch/created-recipes/de-CH/image-recipe"
+        response: CustomRecipeJSON = {
+            "recipeId": "image-recipe",
+            "recipeContent": {
+                "name": "Original",
+                "prepTime": 60,
+                "totalTime": 180,
+                "tools": ["TM7"],
+                "yield": {"value": 2, "unitText": "portion"},
+                "ingredients": [],
+                "instructions": [],
+                "image": "https://ugc.assets.tmecosys.com/image/upload/unknown.jpg",
+                "isImageOwnedByUser": True,
+            },
+        }
+        mocked.get(url, payload=response, status=HTTPStatus.OK)
+
+        with pytest.raises(ValueError, match="Cannot preserve"):
+            await cookidoo.update_custom_recipe(
+                "image-recipe", CookidooUpdateCustomRecipe(unit_text="serving")
+            )
+
+        assert not any(method == "patch" for method, _ in mocked.requests)
 
     async def test_update_keeps_valid_customer_recipe_image(
         self, mocked: aioresponses, cookidoo: Cookidoo

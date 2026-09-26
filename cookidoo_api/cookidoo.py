@@ -118,6 +118,10 @@ _CUSTOM_RECIPE_IMAGE_RE = re.compile(
     r"((prod|nonprod)/img/customer-recipe/)?"
     r"[A-Za-z0-9_-]+\.(bmp|jpe|jpeg|jpg|png)"
 )
+_CUSTOM_RECIPE_IMAGE_PATH_RE = re.compile(
+    r"(?:^|/)(?P<path>(?:prod|nonprod)/img/customer-recipe/"
+    r"[A-Za-z0-9_-]+\.(?:bmp|jpe|jpeg|jpg|png))$"
+)
 
 
 class Cookidoo:
@@ -1619,18 +1623,18 @@ class Cookidoo:
 
     @staticmethod
     def _custom_recipe_image_for_payload(image: str | None) -> str | None:
-        """Keep only Cookidoo-accepted custom recipe image references.
+        """Recover a Cookidoo customer-recipe image path for the payload.
 
-        Used to normalize values inherited from the API (for example CDN
-        display URLs returned by ``get_custom_recipe``) before echoing them
-        back in an update payload. Caller-provided images must be validated
-        with ``_validate_custom_recipe_image`` first.
+        The read API may return a CDN display URL whose path contains the
+        original customer-recipe image reference. Caller-provided images must
+        still be validated with ``_validate_custom_recipe_image`` first.
         """
         if image is None:
             return None
         if _CUSTOM_RECIPE_IMAGE_RE.fullmatch(image):
             return image
-        return None
+        match = _CUSTOM_RECIPE_IMAGE_PATH_RE.search(urlparse(image).path)
+        return match.group("path") if match else None
 
     @staticmethod
     def _build_custom_recipe_payload(
@@ -1779,6 +1783,13 @@ class Cookidoo:
         """Update selected fields and return the refreshed custom recipe."""
         self._validate_custom_recipe_image(recipe.image)
         existing = await self.get_custom_recipe(recipe_id)
+        if (
+            recipe.image is None
+            and existing.image is not None
+            and existing.image_owned_by_user
+            and self._custom_recipe_image_for_payload(existing.image) is None
+        ):
+            raise ValueError("Cannot preserve the existing custom recipe image.")
         if recipe.image_owned_by_user is not None:
             image_owned_by_user = recipe.image_owned_by_user
         elif recipe.image is not None:

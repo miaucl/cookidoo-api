@@ -678,7 +678,12 @@ class CookidooCreateCustomRecipe:
 
 @dataclass(frozen=True, slots=True)
 class CookidooUpdateCustomRecipe:
-    """Partial update model for an existing custom recipe."""
+    """Partial update model for an existing custom recipe.
+
+    ``image=None`` reuses the existing customer-recipe photo when its path can
+    be recovered. A supplied image must be a customer-recipe path or filename;
+    Cookidoo may reject an image that belongs to a different recipe.
+    """
 
     name: str | None = None
     ingredients: list[str] | None = None
