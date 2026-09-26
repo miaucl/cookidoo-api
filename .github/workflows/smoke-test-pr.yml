@@ -94,7 +94,7 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: <redacted>
-          
+
   # Registering with Google's push service is the one part of the suite that
   # talks to a third party, so it runs once instead of once per country, and
   # only after the rest of the suite has had its turn on the account.
