@@ -85,7 +85,7 @@ jobs:
       - name: Restore token
         run: cp /tmp/.token .token
       - name: Test with pytest
-        run: pytest smoke_test/test_2_methods.py -v -x -m "not firebase"
+        run: pytest smoke_test/test_2_methods.py -v -x -m "not firebase and not premium"
         env:
           COUNTRY: ${{ matrix.country }}
           EMAIL_CH: ${{ vars.EMAIL_CH }}
@@ -94,7 +94,7 @@ jobs:
           EMAIL_MA: ${{ vars.EMAIL_MA }}
           EMAIL_IE: ${{ vars.EMAIL_IE }}
           PASSWORD: <redacted>
-          
+
   # Registering with Google's push service is the one part of the suite that
   # talks to a third party, so it runs once instead of once per country, and
   # only after the rest of the suite has had its turn on the account.

@@ -187,11 +187,12 @@ log_cli_format = "%(asctime)s%(msecs)03d [%(levelname)8s] %(name)s:%(lineno)s %(
 log_cli_date_format = "%Y%m%dT%H%M%S."
 markers = [
     "firebase: registers with Google's push service; run it for one country only",
+    "premium: requires a Cookidoo Premium subscription",
 ]
 
 [tool.coverage.run]
 branch = true
-source = ["tests"]
+source = ["cookidoo_api"]
 
 [tool.coverage.report]
 format="text"
