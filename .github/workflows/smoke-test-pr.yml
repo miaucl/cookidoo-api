@@ -85,7 +85,7 @@ jobs:
       - name: Restore token
         run: cp /tmp/.token .token
       - name: Test with pytest
-        run: pytest smoke_test/test_2_methods.py -v -x -m "not firebase"
+        run: pytest smoke_test/test_2_methods.py -v -x -m "not firebase and not premium"
         env:
           COUNTRY: ${{ matrix.country }}
           EMAIL_CH: ${{ vars.EMAIL_CH }}

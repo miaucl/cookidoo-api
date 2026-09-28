@@ -95,6 +95,7 @@ class TestMethods:
             assert recipe.id
             assert recipe.name
 
+    @pytest.mark.premium
     async def test_cookidoo_create_custom_recipe(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo create custom recipe from scratch, get and remove."""
         created = await cookidoo.create_custom_recipe(
@@ -126,6 +127,7 @@ class TestMethods:
         finally:
             await cookidoo.remove_custom_recipe(created.id)
 
+    @pytest.mark.premium
     async def test_cookidoo_create_custom_recipe_with_annotations(
         self, cookidoo: Cookidoo
     ) -> None:
@@ -208,6 +210,7 @@ class TestMethods:
         finally:
             await cookidoo.remove_custom_recipe(created.id)
 
+    @pytest.mark.premium
     async def test_cookidoo_add_custom_recipe_from(self, cookidoo: Cookidoo) -> None:
         """Test cookidoo create a custom recipe by copying an existing recipe."""
         search = await cookidoo.search_recipes("Brötchen", page_size=1)
