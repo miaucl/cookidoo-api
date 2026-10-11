@@ -3996,6 +3996,24 @@ class TestGetCalendarWeekCustomRecipes:
         assert self._custom_requests(mocked, self.DELETED_ID) == 1
         assert self._custom_requests(mocked, self.INLINE_ID) == 0
 
+    async def test_resolve_custom_recipes_nothing_to_resolve(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Resolving a week without custom recipe IDs makes no extra requests."""
+        mocked.get(
+            self.WEEK_URL,
+            payload=COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_recipes_in_calendar_week(
+            datetime.fromisoformat("2025-03-03").date(),
+            resolve_custom_recipes=True,
+        )
+
+        assert all(not recipe.is_custom for day in data for recipe in day.recipes)
+        assert not any("/created-recipes/" in str(url) for _, url in mocked.requests)
+
     async def test_resolve_custom_recipes_unauthorized(
         self, mocked: aioresponses, cookidoo: Cookidoo
     ) -> None:
