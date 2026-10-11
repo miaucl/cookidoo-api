@@ -1922,6 +1922,51 @@ COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK = {
 }
 
 
+COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK_WITH_CUSTOM_RECIPES = {
+    "myDays": [
+        {
+            "id": "2025-03-04",
+            "title": "2025-03-04",
+            "dayKey": "2025-03-04",
+            "recipes": [
+                {
+                    "id": "r214846",
+                    "title": "Waffles",
+                    "totalTime": "1500.0",
+                    "locale": "gb",
+                    "assets": None,
+                }
+            ],
+            "customerRecipeIds": ["01K2CVHD1DXG1PVETNVV3JPKWW"],
+        },
+        {
+            "id": "2025-03-05",
+            "title": "2025-03-05",
+            "dayKey": "2025-03-05",
+            "recipes": [],
+            "customerRecipeIds": [
+                "01K2CVHD1DXG1PVETNVV3JPKWW",
+                "01DELETEDRECIPE00000000000",
+            ],
+        },
+        {
+            "id": "2025-03-06",
+            "title": "2025-03-06",
+            "dayKey": "2025-03-06",
+            "recipes": [],
+            "customerRecipes": [
+                {
+                    "id": "01INLINECUSTOMRECIPE000000",
+                    "title": "Inline custom recipe",
+                    "totalTime": "600.0",
+                    "assets": None,
+                }
+            ],
+            "customerRecipeIds": ["01INLINECUSTOMRECIPE000000"],
+        },
+    ]
+}
+
 COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR = {
     "message": "Recipe Waffles planned for 4 Mar 2025!",
     "content": {

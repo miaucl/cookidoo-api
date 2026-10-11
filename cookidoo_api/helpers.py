@@ -823,7 +823,9 @@ def cookidoo_calendar_day_from_json(
 ) -> CookidooCalendarDay:
     """Convert a calendar day received from the API to a cookidoo item."""
 
-    def _to_day_recipe(recipe: CalenderDayRecipeJSON) -> CookidooCalendarDayRecipe:
+    def _to_day_recipe(
+        recipe: CalenderDayRecipeJSON, *, is_custom: bool = False
+    ) -> CookidooCalendarDayRecipe:
         assets = recipe["assets"]
         thumbnail, image = None, None
         descriptive_assets = [assets["images"]] if assets and assets["images"] else None
@@ -832,7 +834,11 @@ def cookidoo_calendar_day_from_json(
                 descriptive_assets
             )
 
-        url = _construct_recipe_url(localization, recipe["id"])
+        url = _construct_recipe_url(
+            localization,
+            recipe["id"],
+            "created-recipes" if is_custom else "recipes/recipe",
+        )
 
         return CookidooCalendarDayRecipe(
             id=recipe["id"],
@@ -841,11 +847,13 @@ def cookidoo_calendar_day_from_json(
             thumbnail=thumbnail,
             image=image,
             url=url,
+            is_custom=is_custom,
         )
 
     regular_recipes = [_to_day_recipe(recipe) for recipe in calendar_day["recipes"]]
     custom_recipes = [
-        _to_day_recipe(recipe) for recipe in calendar_day.get("customerRecipes", [])
+        _to_day_recipe(recipe, is_custom=True)
+        for recipe in calendar_day.get("customerRecipes", [])
     ]
 
     return CookidooCalendarDay(
@@ -889,3 +897,23 @@ async def get_country_options() -> list[str]:
 async def get_language_options() -> list[str]:
     """Get a list of possible language options."""
     return list({option.language for option in await get_localization_options()})
+
+
+def cookidoo_calendar_day_recipe_from_custom_recipe(
+    recipe: CookidooCustomRecipe,
+) -> CookidooCalendarDayRecipe:
+    """Convert a resolved custom recipe into a calendar day recipe entry.
+
+    The ``my-week`` planning endpoint only returns ``customerRecipeIds`` for
+    custom recipes, so they have to be loaded separately and folded into the
+    day's recipe list using this helper.
+    """
+    return CookidooCalendarDayRecipe(
+        id=recipe.id,
+        name=recipe.name,
+        total_time=recipe.total_time,
+        thumbnail=recipe.thumbnail,
+        image=recipe.image,
+        url=recipe.url,
+        is_custom=True,
+    )
