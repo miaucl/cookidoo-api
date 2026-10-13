@@ -578,6 +578,23 @@ def _parse_annotation_temperature(
     )
 
 
+def _annotation_slot(text: str, position: object) -> str:
+    """Read a complete UTF-16 span without splitting surrogate pairs."""
+    if not isinstance(position, Mapping):
+        return ""
+    offset, length = position.get("offset"), position.get("length")
+    if type(offset) is not int or type(length) is not int or offset < 0 or length < 0:
+        return ""
+    encoded = text.encode("utf-16-le")
+    start, end = offset * 2, (offset + length) * 2
+    if end > len(encoded):
+        return ""
+    try:
+        return encoded[start:end].decode("utf-16-le")
+    except UnicodeDecodeError:
+        return ""
+
+
 def _parse_custom_recipe_annotation(
     value: object, instruction_text: str
 ) -> (
@@ -596,12 +613,7 @@ def _parse_custom_recipe_annotation(
     if not isinstance(annotation_type, str) or not isinstance(data, Mapping):
         return None
 
-    slot = ""
-    if isinstance(position, Mapping):
-        offset = position.get("offset")
-        length = position.get("length")
-        if isinstance(offset, int) and isinstance(length, int):
-            slot = instruction_text[offset : offset + length]
+    slot = _annotation_slot(instruction_text, position)
     name_value = value.get("name")
     name = name_value if isinstance(name_value, str) else None
     annotation_data = dict(data)

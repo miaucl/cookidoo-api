@@ -1568,7 +1568,10 @@ class Cookidoo:
         result: RecipeAnnotationJSON = {
             "type": annotation_type,
             "data": data,
-            "position": {"offset": offset, "length": len(slot)},
+            "position": {
+                "offset": len(instruction_text[:offset].encode("utf-16-le")) // 2,
+                "length": len(slot.encode("utf-16-le")) // 2,
+            },
         }
         if name:
             result["name"] = name
