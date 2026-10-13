@@ -16,6 +16,32 @@ cookidoo = Cookidoo(
 )
 ```
 
+## Browser or external-agent login
+
+Applications can handle the provider's login page without collecting a password:
+
+```python
+cookidoo = Cookidoo(session, cfg=CookidooConfig(email="", password=""))
+authorization_url = await cookidoo.begin_login()
+# Your application opens authorization_url and captures the registered redirect.
+await cookidoo.complete_login(authorization_response)
+```
+
+`authorization_response` is the full callback URL, including `code` and `state`.
+The library retains the PKCE verifier and state in memory for five minutes and
+validates the exact redirect target and one state/code pair before exchanging
+the code. Each completion attempt consumes the pending login, even on failure;
+start again rather than retrying an uncertain exchange. Starting a new attempt
+invalidates the previous one. `cancel_login()` abandons the pending attempt
+without changing an existing token session; a late discovery or exchange
+response from a cancelled/superseded attempt is not adopted.
+
+The application owns browser launch and callback capture. The default redirect
+is the registered mobile scheme described below; this API does not register a
+localhost callback or make an arbitrary redirect acceptable to the provider.
+Keep callbacks and authorization codes out of logs. Token persistence,
+`on_auth_data_update`, and automatic refresh work as after `login()`.
+
 ## Why there is no secret
 
 An OAuth2 client is identified by a **client id** and a **redirect uri**, and
