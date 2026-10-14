@@ -72,6 +72,7 @@ from tests.responses import (
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CALENDAR,
     COOKIDOO_TEST_RESPONSE_ADD_RECIPES_TO_CUSTOM_COLLECTION,
     COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
+    COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK_WITH_CUSTOM_RECIPES,
     COOKIDOO_TEST_RESPONSE_CREATE_CUSTOM_RECIPE_STUB,
     COOKIDOO_TEST_RESPONSE_DEVICES,
     COOKIDOO_TEST_RESPONSE_DEVICES_EMPTY,
@@ -3890,6 +3891,145 @@ class TestGetCalendarWeek:
         with pytest.raises(exception):
             await cookidoo.get_recipes_in_calendar_week(
                 datetime.fromisoformat("2025-03-03").date()
+            )
+
+
+class TestGetCalendarWeekCustomRecipes:
+    """Tests for custom recipes returned by get_recipes_in_calendar_week."""
+
+    WEEK_URL = "https://cookidoo.ch/planning/de-CH/api/my-week/2025-03-03"
+    CUSTOM_URL = "https://cookidoo.ch/created-recipes/de-CH/{id}"
+    CUSTOM_ID = "01K2CVHD1DXG1PVETNVV3JPKWW"
+    DELETED_ID = "01DELETEDRECIPE00000000000"
+    INLINE_ID = "01INLINECUSTOMRECIPE000000"
+
+    def _mock_week(self, mocked: aioresponses) -> None:
+        mocked.get(
+            self.WEEK_URL,
+            payload=COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK_WITH_CUSTOM_RECIPES,
+            status=HTTPStatus.OK,
+        )
+
+    def _custom_requests(self, mocked: aioresponses, recipe_id: str) -> int:
+        target = URL(self.CUSTOM_URL.format(id=recipe_id))
+        return sum(
+            len(calls)
+            for (method, url), calls in mocked.requests.items()
+            if str(method).upper() == "GET" and url.with_query(None) == target
+        )
+
+    async def test_ids_only_by_default(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Without resolving, custom recipes are exposed as IDs only."""
+        self._mock_week(mocked)
+
+        data = await cookidoo.get_recipes_in_calendar_week(
+            datetime.fromisoformat("2025-03-03").date()
+        )
+
+        assert [r.id for r in data[0].recipes] == ["r214846"]
+        assert data[0].recipes[0].is_custom is False
+        assert data[0].customer_recipe_ids == [self.CUSTOM_ID]
+        assert data[1].recipes == []
+        assert self._custom_requests(mocked, self.CUSTOM_ID) == 0
+
+    async def test_inline_customer_recipes_are_flagged(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Inline custom recipes are flagged and get a created-recipes URL."""
+        self._mock_week(mocked)
+
+        data = await cookidoo.get_recipes_in_calendar_week(
+            datetime.fromisoformat("2025-03-03").date()
+        )
+
+        inline = data[2].recipes[0]
+        assert inline.id == self.INLINE_ID
+        assert inline.is_custom is True
+        assert inline.url == (
+            f"https://cookidoo.ch/created-recipes/de-CH/{self.INLINE_ID}"
+        )
+
+    async def test_resolve_custom_recipes(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Planned custom recipes are loaded once and appended to their days."""
+        self._mock_week(mocked)
+        mocked.get(
+            self.CUSTOM_URL.format(id=self.CUSTOM_ID),
+            payload=COOKIDOO_TEST_RESPONSE_GET_CUSTOM_RECIPE,
+            status=HTTPStatus.OK,
+            repeat=True,
+        )
+        mocked.get(
+            self.CUSTOM_URL.format(id=self.DELETED_ID),
+            status=HTTPStatus.NOT_FOUND,
+            repeat=True,
+        )
+
+        data = await cookidoo.get_recipes_in_calendar_week(
+            datetime.fromisoformat("2025-03-03").date(),
+            resolve_custom_recipes=True,
+        )
+
+        # Day 1: catalogue recipe plus the resolved custom recipe.
+        assert [r.id for r in data[0].recipes] == ["r214846", self.CUSTOM_ID]
+        custom = data[0].recipes[1]
+        assert custom.is_custom is True
+        assert custom.name == "Vongole alla marinara"
+        assert custom.total_time == 1800
+        assert custom.url == (
+            f"https://cookidoo.ch/created-recipes/de-CH/{self.CUSTOM_ID}"
+        )
+
+        # Day 2: same custom recipe again; the deleted one is skipped but
+        # stays visible as an ID.
+        assert [r.id for r in data[1].recipes] == [self.CUSTOM_ID]
+        assert data[1].customer_recipe_ids == [self.CUSTOM_ID, self.DELETED_ID]
+
+        # Day 3: already returned inline, so it is not loaded again.
+        assert [r.id for r in data[2].recipes] == [self.INLINE_ID]
+
+        # Each unique ID is requested exactly once.
+        assert self._custom_requests(mocked, self.CUSTOM_ID) == 1
+        assert self._custom_requests(mocked, self.DELETED_ID) == 1
+        assert self._custom_requests(mocked, self.INLINE_ID) == 0
+
+    async def test_resolve_custom_recipes_nothing_to_resolve(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Resolving a week without custom recipe IDs makes no extra requests."""
+        mocked.get(
+            self.WEEK_URL,
+            payload=COOKIDOO_TEST_RESPONSE_CALENDAR_WEEK,
+            status=HTTPStatus.OK,
+        )
+
+        data = await cookidoo.get_recipes_in_calendar_week(
+            datetime.fromisoformat("2025-03-03").date(),
+            resolve_custom_recipes=True,
+        )
+
+        assert all(not recipe.is_custom for day in data for recipe in day.recipes)
+        assert not any("/created-recipes/" in str(url) for _, url in mocked.requests)
+
+    async def test_resolve_custom_recipes_unauthorized(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Auth failures while resolving are raised, not swallowed."""
+        self._mock_week(mocked)
+        for recipe_id in (self.CUSTOM_ID, self.DELETED_ID):
+            mocked.get(
+                self.CUSTOM_URL.format(id=recipe_id),
+                status=HTTPStatus.UNAUTHORIZED,
+                payload={"error_description": ""},
+            )
+
+        with pytest.raises(CookidooAuthException):
+            await cookidoo.get_recipes_in_calendar_week(
+                datetime.fromisoformat("2025-03-03").date(),
+                resolve_custom_recipes=True,
             )
 
 

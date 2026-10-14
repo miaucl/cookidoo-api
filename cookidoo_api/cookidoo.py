@@ -53,6 +53,7 @@ from cookidoo_api.exceptions import (
 from cookidoo_api.helpers import (
     cookidoo_additional_item_from_json,
     cookidoo_calendar_day_from_json,
+    cookidoo_calendar_day_recipe_from_custom_recipe,
     cookidoo_collection_from_json,
     cookidoo_custom_recipe_from_json,
     cookidoo_device_from_json,
@@ -2835,14 +2836,26 @@ class Cookidoo:
         )
 
     async def get_recipes_in_calendar_week(
-        self, day: date
+        self, day: date, *, resolve_custom_recipes: bool = False
     ) -> list[CookidooCalendarDay]:
         """Get recipes in a calendar week.
+
+        The planning endpoint returns catalogue recipes in full but custom
+        (user-created) recipes only as ``customerRecipeIds``. By default those
+        IDs are exposed as-is on :attr:`CookidooCalendarDay.customer_recipe_ids`
+        and are *not* part of :attr:`CookidooCalendarDay.recipes`.
 
         Parameters
         ----------
         day
             The date specifying the calendar week
+        resolve_custom_recipes
+            When ``True``, load every custom recipe referenced in the week
+            (one request per unique ID, issued concurrently) and append it to
+            the matching day's ``recipes`` with ``is_custom=True``, so the
+            list reflects everything that is planned. IDs that cannot be
+            loaded (e.g. a custom recipe deleted after it was planned) are
+            skipped and stay available in ``customer_recipe_ids`` only.
 
         Returns
         -------
@@ -2868,7 +2881,7 @@ class Cookidoo:
             await self._request_json("get", url, "loading recipes in calendar week"),
             "loading recipes in calendar week",
         )
-        return self._parse_result(
+        calendar_days = self._parse_result(
             "loading recipes in calendar week",
             lambda: [
                 cookidoo_calendar_day_from_json(
@@ -2877,6 +2890,66 @@ class Cookidoo:
                 for calendar_day in cast(Sequence[object], result["myDays"])
             ],
         )
+        if resolve_custom_recipes:
+            await self._resolve_calendar_custom_recipes(calendar_days)
+        return calendar_days
+
+    async def _resolve_calendar_custom_recipes(
+        self, calendar_days: list[CookidooCalendarDay]
+    ) -> None:
+        """Append resolved custom recipes to each calendar day in place.
+
+        IDs already present in a day's ``recipes`` (e.g. if the API returned
+        ``customerRecipes`` objects) are not loaded again. Each unique ID is
+        requested once, even if it is planned on several days.
+        """
+        missing_per_day = [
+            [
+                recipe_id
+                for recipe_id in calendar_day.customer_recipe_ids
+                if recipe_id not in {recipe.id for recipe in calendar_day.recipes}
+            ]
+            for calendar_day in calendar_days
+        ]
+        unique_ids = list(dict.fromkeys(i for ids in missing_per_day for i in ids))
+        if not unique_ids:
+            return
+
+        resolved = dict(
+            zip(
+                unique_ids,
+                await asyncio.gather(
+                    *(self._get_custom_recipe_or_none(i) for i in unique_ids)
+                ),
+                strict=True,
+            )
+        )
+        for calendar_day, missing_ids in zip(
+            calendar_days, missing_per_day, strict=True
+        ):
+            for recipe_id in missing_ids:
+                if (custom_recipe := resolved[recipe_id]) is not None:
+                    calendar_day.recipes.append(
+                        cookidoo_calendar_day_recipe_from_custom_recipe(custom_recipe)
+                    )
+
+    async def _get_custom_recipe_or_none(
+        self, recipe_id: str
+    ) -> CookidooCustomRecipe | None:
+        """Load a custom recipe, returning ``None`` if it cannot be loaded.
+
+        Authentication errors are not swallowed: they affect every request and
+        must reach the caller.
+        """
+        try:
+            return await self.get_custom_recipe(recipe_id)
+        except (CookidooRequestException, CookidooParseException):
+            _LOGGER.debug(
+                "Could not resolve custom recipe %s planned in calendar",
+                recipe_id,
+                exc_info=True,
+            )
+            return None
 
     async def add_recipes_to_calendar(
         self,
