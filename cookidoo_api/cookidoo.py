@@ -747,8 +747,8 @@ class Cookidoo:
                 str, payload.get("refresh_token", self._refresh_token)
             )
             expires_in = int(cast(int, payload.get("expires_in", 43200)))
-        except (KeyError, TypeError, ValueError) as e:
-            raise CookidooAuthException(f"Unexpected token response: {payload}") from e
+        except (KeyError, TypeError, ValueError):
+            raise CookidooAuthException("Unexpected token response.") from None
         self._api_headers["Authorization"] = f"Bearer {access_token}"
         self._expires_at = time.time() + expires_in
         # Holding tokens is what being logged in means, and `auth_data` has to
