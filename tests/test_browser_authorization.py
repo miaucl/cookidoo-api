@@ -119,6 +119,7 @@ async def test_browser_handoff_pkce_and_token_callback(
 @pytest.mark.parametrize(
     "bad_callback",
     [
+        "https://[invalid/callback?code=synthetic-code&state={state}",
         "https://example.invalid/callback?code=synthetic-code&state={state}",
         REDIRECT_URI + "/other?code=synthetic-code&state={state}",
         REDIRECT_URI + "?code=synthetic-code",
