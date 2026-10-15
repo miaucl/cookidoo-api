@@ -2,10 +2,10 @@ aiohttp~=3.13
 firebase-messaging~=0.4
 aiofiles~=25.1
 mypy>=2.4.0
-pydantic>=2.13.5
+pydantic>=2.14.0
 pre-commit>=4.6.2
 python-dotenv>=1.2.4
-ruff~=0.16
+ruff~=0.17
 mkdocs-material==9.7.7
 mkdocstrings[python]==1.0.7
 pytest-asyncio>=1.4.0

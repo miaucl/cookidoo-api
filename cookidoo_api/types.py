@@ -790,6 +790,9 @@ class CookidooCalendarDayRecipe:
         The full-size image URL
     url
         The URL of the recipe
+    is_custom
+        Whether this is a custom (user-created) recipe rather than one from
+        the Cookidoo catalogue
 
     """
 
@@ -799,6 +802,7 @@ class CookidooCalendarDayRecipe:
     thumbnail: str | None
     image: str | None
     url: str
+    is_custom: bool = False
 
 
 @dataclass
