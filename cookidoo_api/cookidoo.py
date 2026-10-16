@@ -3,6 +3,7 @@
 import asyncio
 import base64
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from datetime import date
 from enum import StrEnum
 import hashlib
@@ -125,6 +126,18 @@ _CUSTOM_RECIPE_IMAGE_PATH_RE = re.compile(
 )
 
 
+@dataclass(frozen=True)
+class _PendingLogin:
+    """Keep a single external authorization attempt in process memory."""
+
+    state: str = field(repr=False)
+    verifier: str = field(repr=False)
+    expires_at: float
+    token_endpoint: str
+    client_id: str
+    redirect_uri: str
+
+
 class Cookidoo:
     """Unofficial Cookidoo API interface."""
 
@@ -141,6 +154,8 @@ class Cookidoo:
     _oidc: dict[str, str] | None
     _rmi_links: dict[str, str] | None
     _on_auth_data_update: Callable[[CookidooAuthData], None] | None
+    _pending_login: _PendingLogin | None
+    _login_generation: int
 
     def __init__(
         self,
@@ -179,6 +194,8 @@ class Cookidoo:
         self._expires_at = 0.0
         self._oidc = None
         self._rmi_links = None
+        self._pending_login = None
+        self._login_generation = 0
 
     @property
     def localization(self) -> CookidooLocalizationConfig:
@@ -475,6 +492,127 @@ class Cookidoo:
         self._expires_at = auth_data.expires_at
         self._logged_in = True
 
+    async def begin_login(self) -> str:
+        """Return an authorization URL for a browser or another external agent.
+
+        No email/password is submitted. State and the PKCE verifier stay in
+        this instance for five minutes. Starting again invalidates the old
+        attempt. The caller opens the URL and passes the full registered
+        redirect URL to :meth:`complete_login`.
+
+        This method does not launch a browser or register a redirect handler.
+        It cannot make an unregistered redirect URI acceptable to Cookidoo.
+        """
+        self.cancel_login()
+        generation = self._login_generation
+        self._assert_oauth_client()
+        try:
+            oidc = await self._discovery()
+            authorization_endpoint = oidc["authorization_endpoint"]
+            token_endpoint = oidc["token_endpoint"]
+            self._assert_ciam_origin(authorization_endpoint)
+            self._assert_ciam_origin(token_endpoint)
+        except TimeoutError as e:
+            raise CookidooRequestException("Authorization discovery timed out.") from e
+        except ClientError as e:
+            raise CookidooRequestException("Authorization discovery failed.") from e
+
+        self._assert_login_generation(generation)
+
+        verifier, challenge = self._pkce_pair()
+        state = secrets.token_urlsafe(32)
+        self._pending_login = _PendingLogin(
+            state=state,
+            verifier=verifier,
+            expires_at=time.monotonic() + 300,
+            token_endpoint=token_endpoint,
+            client_id=self._cfg.client_id,
+            redirect_uri=self._cfg.redirect_uri,
+        )
+        return str(
+            URL(authorization_endpoint).with_query(
+                {
+                    "response_type": "code",
+                    "client_id": self._cfg.client_id,
+                    "redirect_uri": self._cfg.redirect_uri,
+                    "market": self._cfg.localization.country_code,
+                    "scope": OAUTH_SCOPE,
+                    "state": state,
+                    "code_challenge": challenge,
+                    "code_challenge_method": "S256",
+                    "ui_locales": self._cfg.localization.language,
+                }
+            )
+        )
+
+    def cancel_login(self) -> None:
+        """Discard a pending browser login without changing existing tokens."""
+        self._pending_login = None
+        self._login_generation += 1
+
+    def _assert_login_generation(self, generation: int) -> None:
+        """Reject late discovery or exchange responses from invalidated attempts."""
+        if generation != self._login_generation:
+            raise CookidooAuthException("Browser login was cancelled or superseded.")
+
+    async def complete_login(self, authorization_response: str) -> None:
+        """Validate and consume a browser callback, then exchange its code once.
+
+        Every completion attempt consumes the pending state, including an
+        invalid callback or a failed exchange. Start a new attempt after any
+        failure; an uncertain token request is never retried automatically.
+        The callback, authorization code and PKCE verifier are not logged.
+        Existing token callbacks and automatic refresh work as after login().
+        """
+        pending = self._pending_login
+        self.cancel_login()
+        generation = self._login_generation
+        if pending is None:
+            raise CookidooAuthException("No browser login is pending.")
+        if time.monotonic() >= pending.expires_at:
+            raise CookidooAuthException("The browser login has expired.")
+        if (pending.client_id, pending.redirect_uri) != (
+            self._cfg.client_id,
+            self._cfg.redirect_uri,
+        ):
+            raise CookidooAuthException("OAuth client configuration changed.")
+        try:
+            received = urlparse(authorization_response)
+            expected = urlparse(pending.redirect_uri)
+        except ValueError:
+            raise CookidooAuthException("Invalid authorization callback.") from None
+        if received.fragment or (
+            received.scheme,
+            received.netloc,
+            received.path,
+        ) != (expected.scheme, expected.netloc, expected.path):
+            raise CookidooAuthException("Unexpected authorization callback target.")
+        query = parse_qs(received.query, keep_blank_values=True)
+        states = query.get("state", [])
+        if len(states) != 1 or not secrets.compare_digest(
+            states[0].encode(), pending.state.encode()
+        ):
+            raise CookidooAuthException("OAuth state mismatch.")
+        if "error" in query:
+            raise CookidooAuthException("Browser authorization was declined.")
+        codes = query.get("code", [])
+        if len(codes) != 1 or not codes[0]:
+            raise CookidooAuthException("No unique authorization code returned.")
+        try:
+            payload = await self._authorization_code_tokens(
+                pending.token_endpoint, codes[0], pending.verifier
+            )
+            self._assert_login_generation(generation)
+            self._apply_tokens(payload)
+        except TimeoutError as e:
+            raise CookidooRequestException("Authorization exchange timed out.") from e
+        except ClientError as e:
+            raise CookidooRequestException("Authorization exchange failed.") from e
+        except CookidooAuthException:
+            raise CookidooAuthException(
+                "Authorization exchange was rejected."
+            ) from None
+
     async def login(self) -> None:
         """Perform an OAuth2 authorization-code + PKCE login.
 
@@ -507,6 +645,7 @@ class Cookidoo:
 
         """
         self._assert_oauth_client()
+        self.cancel_login()
         try:
             oidc = await self._discovery()
             verifier, challenge = self._pkce_pair()
@@ -720,6 +859,14 @@ class Cookidoo:
         self, token_endpoint: str, code: str, verifier: str
     ) -> None:
         """Exchange an authorization code for tokens."""
+        self._apply_tokens(
+            await self._authorization_code_tokens(token_endpoint, code, verifier)
+        )
+
+    async def _authorization_code_tokens(
+        self, token_endpoint: str, code: str, verifier: str
+    ) -> dict[str, object]:
+        """Fetch tokens without adopting them before caller cancellation checks."""
         async with self._session.post(
             URL(token_endpoint),
             data={
@@ -736,7 +883,7 @@ class Cookidoo:
                     f"Token exchange failed (status {resp.status})."
                 )
             payload = cast(dict[str, object], await resp.json())
-        self._apply_tokens(payload)
+        return payload
 
     def _apply_tokens(self, payload: dict[str, object]) -> None:
         """Store tokens from a token-endpoint response and set the auth header."""

@@ -13,4 +13,5 @@
 * dotlambda [dotlambda](https://github.com/dotlambda)
 * FezVrasta [FezVrasta](https://github.com/FezVrasta)
 * samjwestlake [samjwestlake](https://github.com/samjwestlake)
+* Daniel Reinón García [dreinon](https://github.com/dreinon)
 * Alexey Masolov [amasolov](https://github.com/amasolov)
