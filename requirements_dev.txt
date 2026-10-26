@@ -7,7 +7,7 @@ pre-commit>=4.7.0
 python-dotenv>=1.2.4
 ruff~=0.17
 mkdocs-material==9.7.7
-mkdocstrings[python]==1.0.7
+mkdocstrings[python]==1.0.8
 pytest-asyncio>=1.4.0
 pytest-cov>=7.1.0
 pytest>=9.1.1
