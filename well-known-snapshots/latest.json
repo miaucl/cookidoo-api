@@ -1,6 +1,7 @@
 {
   "community-profile:user-private-profile (community/profile)": "https://cookidoo.de/community/profile/{lang}",
   "customer-devices:thermomix-versions (customer-devices)": "https://cookidoo.de/customer-devices/api/my-devices/versions",
+  "customer-recipes:image-signature (created-recipes)": "https://cookidoo.de/created-recipes/{lang}/image/signature",
   "customer-recipes:recipe-create (created-recipes)": "https://cookidoo.de/created-recipes/{lang}",
   "customer-recipes:recipe-details (created-recipes)": "https://cookidoo.de/created-recipes/{lang}/{id}",
   "fint:login (profile)": "/profile/{lang}/login{?redirectAfterLogin}",
