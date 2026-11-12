@@ -30,6 +30,7 @@ from cookidoo_api.const import (
     ADD_RECIPES_TO_CALENDER_PATH,
     COMMUNITY_PROFILE_PATH,
     CUSTOM_COLLECTIONS_PATH,
+    CUSTOM_RECIPE_IMAGE_SIGNATURE_PATH,
     CUSTOM_RECIPE_PATH,
     CUSTOM_RECIPES_PATH,
     DEFAULT_API_HEADERS,
@@ -85,6 +86,10 @@ ENDPOINT_RELS: Final[dict[str, tuple[str, str]]] = {
     "recipe:details": ("recipes/recipe", RECIPE_PATH),
     "customer-recipes:recipe-create": ("created-recipes", CUSTOM_RECIPES_PATH),
     "customer-recipes:recipe-details": ("created-recipes", CUSTOM_RECIPE_PATH),
+    "customer-recipes:image-signature": (
+        "created-recipes",
+        CUSTOM_RECIPE_IMAGE_SIGNATURE_PATH,
+    ),
     "community-profile:user-private-profile": (
         "community/profile",
         COMMUNITY_PROFILE_PATH,
