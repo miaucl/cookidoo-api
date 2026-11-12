@@ -5121,6 +5121,132 @@ class TestUpdateCustomRecipe:
 # ======================================================================
 
 
+class TestUploadCustomRecipeImage:
+    """Tests for uploading a custom recipe photo."""
+
+    SIGNATURE_URL = "https://cookidoo.ch/created-recipes/de-CH/image/signature"
+    UPLOAD_URL = "https://api-eu.cloudinary.com/v1_1/vorwerk-users-gc/image/upload"
+
+    async def test_upload_custom_recipe_image(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Sign the upload with Cookidoo, send it to Cloudinary, return the path."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={
+                "public_id": "prod/img/customer-recipe/dlhoyhdszucxqamorneq",
+                "format": "jpg",
+            },
+            status=HTTPStatus.OK,
+        )
+
+        result = await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+        assert result == "prod/img/customer-recipe/dlhoyhdszucxqamorneq.jpg"
+        sign_request = next(
+            calls[0]
+            for (_method, url), calls in mocked.requests.items()
+            if str(url) == self.SIGNATURE_URL
+        )
+        timestamp = sign_request.kwargs["json"]["timestamp"]
+        assert sign_request.kwargs["json"] == {"timestamp": timestamp, "source": "uw"}
+        upload_request = next(
+            calls[0]
+            for (_method, url), calls in mocked.requests.items()
+            if str(url) == self.UPLOAD_URL
+        )
+        fields = {
+            options["name"]: value
+            for options, _headers, value in upload_request.kwargs["data"]._fields
+        }
+        assert fields == {
+            "api_key": "993585863591145",
+            "timestamp": str(timestamp),
+            "source": "uw",
+            "upload_preset": "prod-customer-recipe-signed",
+            "file": b"image-bytes",
+            "signature": "abc123",
+        }
+
+    async def test_upload_custom_recipe_image_unsupported_format(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Raise a parse exception for a format create/update would reject."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={"public_id": "prod/img/customer-recipe/abc", "format": "webp"},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    @pytest.mark.parametrize("payload", [{}, {"signature": None}])
+    async def test_upload_custom_recipe_image_invalid_signature(
+        self, mocked: aioresponses, cookidoo: Cookidoo, payload: dict[str, None]
+    ) -> None:
+        """Raise a parse exception when the signature is missing or no string."""
+        mocked.post(self.SIGNATURE_URL, payload=payload, status=HTTPStatus.OK)
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    async def test_upload_custom_recipe_image_non_json_response(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Raise a parse exception when Cloudinary answers with a non-JSON body."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            body="<html>ok</html>",
+            content_type="text/html",
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    async def test_upload_custom_recipe_image_rejected_reports_reason(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Surface Cloudinary's rejection reason in the request exception."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={"error": {"message": "File size too large."}},
+            status=HTTPStatus.BAD_REQUEST,
+        )
+
+        with pytest.raises(CookidooRequestException, match="File size too large"):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+    async def test_upload_custom_recipe_image_missing_public_id(
+        self, mocked: aioresponses, cookidoo: Cookidoo
+    ) -> None:
+        """Raise a parse exception instead of returning a bogus ``None.jpg``."""
+        mocked.post(
+            self.SIGNATURE_URL, payload={"signature": "abc123"}, status=HTTPStatus.OK
+        )
+        mocked.post(
+            self.UPLOAD_URL,
+            payload={"public_id": None, "format": "jpg"},
+            status=HTTPStatus.OK,
+        )
+
+        with pytest.raises(CookidooParseException):
+            await cookidoo.upload_custom_recipe_image(b"image-bytes")
+
+
 class TestProcessRecipeSteps:
     """Tests for _process_recipe_steps helper."""
 
