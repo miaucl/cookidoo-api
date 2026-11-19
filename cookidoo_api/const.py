@@ -56,6 +56,15 @@ RECIPE_PATH: Final = "recipes/recipe/{language}/{id}"
 CUSTOM_RECIPES_PATH: Final = "created-recipes/{language}"
 CUSTOM_RECIPES_PATH_ACCEPT: Final = "application/vnd.vorwerk.customer-recipe.full+json"
 CUSTOM_RECIPE_PATH: Final = "created-recipes/{language}/{id}"
+CUSTOM_RECIPE_IMAGE_SIGNATURE_PATH: Final = "created-recipes/{language}/image/signature"
+# Cookidoo hosts custom recipe photos on Cloudinary, as the web editor does:
+# the upload is signed by Cookidoo, then sent to Cloudinary directly. These
+# values are public, embedded in the created-recipes editor page.
+CUSTOM_RECIPE_IMAGE_UPLOAD_URL: Final = (
+    "https://api-eu.cloudinary.com/v1_1/vorwerk-users-gc/image/upload"
+)
+CUSTOM_RECIPE_IMAGE_UPLOAD_API_KEY: Final = "993585863591145"
+CUSTOM_RECIPE_IMAGE_UPLOAD_PRESET: Final = "prod-customer-recipe-signed"
 SHOPPING_LIST_RECIPES_PATH: Final = "shopping/{language}"
 EDIT_OWNERSHIP_INGREDIENT_ITEMS_PATH: Final = (
     "shopping/{language}/owned-ingredients/ownership/edit"
