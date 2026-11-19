@@ -119,6 +119,14 @@ pre-commit install
 pre-commit run --all-files
 ```
 
+### Before Opening a Pull Request
+
+A pull request needs a green CI to be merged. Check these locally first:
+
+- Run `pre-commit run --all-files` (ruff, ruff-format, mypy, markdownlint).
+- Run `pytest --cov=cookidoo_api --cov-report=term-missing tests/` and make sure the coverage stays at 100%. Codecov fails the pull request on any uncovered line, including error handling branches such as timeouts and connection errors.
+- Add yourself to the contributors in [docs/authors.md](docs/authors.md).
+
 ### Devcontainer & Docker Setup
 
 For developers using **VS Code**, the repository includes a fully configured `.devcontainer`. Simply open the project in VS Code and click **"Reopen in Container"**. All Python requirements, linters, and hooks will initialize automatically!
