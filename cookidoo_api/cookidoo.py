@@ -20,13 +20,16 @@ import traceback
 from typing import TypeVar, cast
 from urllib.parse import parse_qs, urljoin, urlparse
 
-from aiohttp import ClientError, ClientSession
+from aiohttp import ClientError, ClientSession, FormData
 from yarl import URL
 
 from cookidoo_api.const import (
     CIAM_BASE_URL,
     CIAM_LOGIN_SRV_URL,
     CUSTOM_COLLECTIONS_PATH_ACCEPT,
+    CUSTOM_RECIPE_IMAGE_UPLOAD_API_KEY,
+    CUSTOM_RECIPE_IMAGE_UPLOAD_PRESET,
+    CUSTOM_RECIPE_IMAGE_UPLOAD_URL,
     CUSTOM_RECIPES_PATH_ACCEPT,
     DEFAULT_API_HEADERS,
     HAL_ACCEPT,
@@ -1609,6 +1612,106 @@ class Cookidoo:
         await self._request_json(
             "delete", url, "remove custom recipe", parse_response=False
         )
+
+    async def upload_custom_recipe_image(self, image: bytes) -> str:
+        """Upload a photo for use as a custom recipe image.
+
+        Mirrors the Cookidoo web editor: Cookidoo signs the upload, which is
+        then sent to Cloudinary. The upload alone does not attach the photo
+        to a recipe; pass the returned path as ``image`` to
+        ``create_custom_recipe`` or ``update_custom_recipe``.
+
+        Parameters
+        ----------
+        image
+            The raw image file content (bmp, jpe, jpeg, jpg or png, max. 10 MB)
+
+        Returns
+        -------
+        str
+            The customer-recipe image path, e.g.
+            ``prod/img/customer-recipe/<id>.jpg``
+
+        Raises
+        ------
+        CookidooAuthException
+            When the access token is not valid anymore
+        CookidooRequestException
+            If a request fails or the image is rejected.
+        CookidooParseException
+            If the parsing of a response fails.
+
+        """
+        await self._ensure_endpoints()
+        timestamp = int(time.time())
+        signature_url = self.api_endpoint / self._path(
+            "customer-recipes:image-signature"
+        ).format(**self._cfg.localization.__dict__)
+        signature = self._ensure_mapping(
+            await self._request_json(
+                "post",
+                signature_url,
+                "sign custom recipe image upload",
+                json={"timestamp": timestamp, "source": "uw"},
+                headers={"CONTENT-TYPE": "application/json"},
+            ),
+            "sign custom recipe image upload",
+        )
+        if not isinstance(signature.get("signature"), str):
+            raise CookidooParseException(
+                "Sign custom recipe image upload failed during parsing of request response."
+            )
+
+        form = FormData()
+        form.add_field("api_key", CUSTOM_RECIPE_IMAGE_UPLOAD_API_KEY)
+        form.add_field("timestamp", str(timestamp))
+        form.add_field("source", "uw")
+        form.add_field("upload_preset", CUSTOM_RECIPE_IMAGE_UPLOAD_PRESET)
+        form.add_field("file", image, filename="image")
+        form.add_field("signature", signature["signature"])
+        try:
+            async with self._session.post(
+                CUSTOM_RECIPE_IMAGE_UPLOAD_URL, data=form
+            ) as r:
+                if not r.ok:
+                    raise CookidooRequestException(
+                        f"Upload custom recipe image was rejected "
+                        f"(status {r.status}): {await r.text()}"
+                    )
+                uploaded = self._ensure_mapping(
+                    await r.json(content_type=None), "upload custom recipe image"
+                )
+                path = f"{uploaded['public_id']}.{uploaded['format']}"
+        except TimeoutError as e:
+            _LOGGER.debug(
+                "Exception: Cannot upload custom recipe image:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Upload custom recipe image failed due to connection timeout."
+            ) from e
+        except ClientError as e:
+            _LOGGER.debug(
+                "Exception: Cannot upload custom recipe image:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooRequestException(
+                "Upload custom recipe image failed due to request exception."
+            ) from e
+        except (JSONDecodeError, KeyError) as e:
+            _LOGGER.debug(
+                "Exception: Cannot parse upload custom recipe image response:\n%s",
+                traceback.format_exc(),
+            )
+            raise CookidooParseException(
+                "Upload custom recipe image failed during parsing of request response."
+            ) from e
+
+        if not _CUSTOM_RECIPE_IMAGE_PATH_RE.fullmatch(path):
+            raise CookidooParseException(
+                f"Upload custom recipe image returned an unsupported image: {path}"
+            )
+        return path
 
     # Recipe-step processing helper
     @staticmethod
